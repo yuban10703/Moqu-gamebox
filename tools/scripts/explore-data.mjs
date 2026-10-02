@@ -94,6 +94,40 @@ if (downloaded?.path && existsSync(downloaded.path)) {
   check('备份文件可读', false, '拿不到下载文件')
 }
 
+/* ---------- 1b) 导出 → 再导入 的闭环 ---------- */
+console.log('\n[1b] 备份闭环：把刚导出的文件再导入回去')
+if (downloaded?.path && existsSync(downloaded.path)) {
+  // 只比 committed 键：导入会先留一份 save:1:backup:* 旧档，那是刻意的安全设计，不算变化
+  const keysOf = async (kind) =>
+    page.evaluate(async (k) => {
+      const all = await window.__einkPlatform.storage.saves.rawAll()
+      return all.map((r) => r.key).filter((key) => key.includes(k)).sort()
+    }, kind)
+  const beforeKeys = await keysOf('committed')
+  const input = page.locator('input[type=file]')
+  if ((await input.count()) > 0) {
+    await input.setInputFiles(downloaded.path)
+    await page.waitForTimeout(1500)
+    const text = await page.evaluate(() => document.body.innerText)
+    // 导入自己的备份不应该失败；允许出现冲突策略提示，但不允许"导入失败"
+    check('导入自己导出的备份不报错', !/导入失败/.test(text), text.replace(/\n+/g, ' ').slice(-60))
+    const afterKeys = await keysOf('committed')
+    check('闭环导入后 committed 存档集合不变', JSON.stringify(beforeKeys) === JSON.stringify(afterKeys),
+      `${beforeKeys.length} → ${afterKeys.length}`)
+    const backups = await keysOf('backup')
+    check('导入前保留了旧档备份（覆盖前的安全网）', backups.length >= 1, `${backups.length} 份`)
+    const ok = await page.evaluate(async () => {
+      const r = await window.__einkPlatform.storage.saves.loadResult('sokoban')
+      return r.status === 'ok' ? r.envelope.moves : r.status
+    })
+    check('闭环导入后存档内容仍可读', typeof ok === 'number', `sokoban moves=${ok}`)
+  } else {
+    check('页面提供导入入口（file input）', false, '未找到 input[type=file]')
+  }
+} else {
+  check('上一节拿到了导出文件（供闭环使用）', false, '没有下载文件')
+}
+
 /* ---------- 2) 导入非法备份 ---------- */
 console.log('\n[2] 导入非法备份')
 let sawError = false
