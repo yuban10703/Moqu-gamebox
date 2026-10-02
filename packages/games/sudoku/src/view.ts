@@ -5,7 +5,7 @@
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView } from '@eink/core'
 import { SUDOKU_CELLS, SUDOKU_SIZE } from './solver.js'
-import { clueCount, emptyCount, filledCount, isSolved, type SudokuState } from './rules.js'
+import { clueCount, filledCount, isSolved, type SudokuState } from './rules.js'
 
 /** 填错（合法但不符合唯一解）的标记：形状区分，不靠灰度 */
 export const WRONG_MARK = '×'
@@ -34,7 +34,8 @@ export function buildBoard(state: SudokuState): BoardView {
     if (state.selected === index) cell.selected = true
     cells.push(cell)
   }
-  return { kind: 'grid', cols: SUDOKU_SIZE, rows: SUDOKU_SIZE, cells }
+  // 3×3 宫：壳层据此画更粗的宫线（否则 9×9 里所有线一样细，结构不清）
+  return { kind: 'grid', cols: SUDOKU_SIZE, rows: SUDOKU_SIZE, cells, groups: { cols: 3, rows: 3 } }
 }
 
 /**
@@ -86,12 +87,11 @@ export function buildView(state: SudokuState, extras: SudokuViewExtras = {}): Ga
   }
   return {
     board: buildBoard(state),
-    // 统计文案不带插值参数：壳层对 labelKey 只做 t()
-    stats: [
-      { labelKey: 'sudoku.stat.filled', value: `${filled}/${SUDOKU_CELLS}` },
-      { labelKey: 'sudoku.stat.total', value: String(SUDOKU_CELLS) },
-      { labelKey: 'sudoku.stat.empty', value: String(emptyCount(state)) },
-    ],
+    // 统计文案不带插值参数：壳层对 labelKey 只做 t()。
+    // 只保留「已填 x/81」一项：总数已含在分母里（原「总格数 81」是常量），
+    // 而「空格数」= 81 − 已填，是同一信息的另一种说法 —— 冗余项会让统计栏多占一行、
+    // 在窄屏上直接压缩棋盘高度。
+    stats: [{ labelKey: 'sudoku.stat.filled', value: `${filled}/${SUDOKU_CELLS}` }],
     result: solved ? { titleKey: 'sudoku.result.title', details } : null,
     notice: extras.noticeKey ? { textKey: extras.noticeKey } : null,
   }

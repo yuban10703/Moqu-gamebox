@@ -17,8 +17,6 @@ export const sudokuZh: Dict = {
 
   // 统计栏文案不带插值：壳层对 stats.labelKey 只做 t(labelKey)
   'sudoku.stat.filled': '已填',
-  'sudoku.stat.total': '总格数',
-  'sudoku.stat.empty': '空格',
 
   // 数字键各自一个 key：壳层直接 t(labelKey)，不做插值
   'sudoku.digit.1': '1',
@@ -64,8 +62,6 @@ export const sudokuEn: Dict = {
 
   // Stats labels carry no interpolation: the shell only calls t(labelKey)
   'sudoku.stat.filled': 'Filled',
-  'sudoku.stat.total': 'Cells',
-  'sudoku.stat.empty': 'Empty',
 
   'sudoku.digit.1': '1',
   'sudoku.digit.2': '2',

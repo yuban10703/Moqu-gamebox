@@ -128,24 +128,20 @@ describe('view', () => {
     expect(cell.kind).toBe('tile')
   })
 
-  it('stats 至少包含「已填 x/81」与「空格数」', () => {
+  it('stats 只有「已填 x/81」一项（总数在分母里，空格是同一信息，都算冗余）', () => {
     const state = fresh()
     const view = sudokuGame.view(state)
-    const filledStat = view.stats.find((stat) => stat.labelKey === 'sudoku.stat.filled')!
-    const emptyStat = view.stats.find((stat) => stat.labelKey === 'sudoku.stat.empty')!
+    expect(view.stats).toHaveLength(1)
+    const filledStat = view.stats[0]!
+    expect(filledStat.labelKey).toBe('sudoku.stat.filled')
     let clues = 0
     for (let index = 0; index < SUDOKU_CELLS; index++) if (state.given[index] !== 0) clues++
     expect(filledStat.value).toBe(`${clues}/81`)
-    expect(emptyStat.value).toBe(String(SUDOKU_CELLS - clues))
 
     const filled = fillCorrect(state, [emptyCells(state)[0]!])
     const after = sudokuGame.view(filled)
-    expect(after.stats.find((stat) => stat.labelKey === 'sudoku.stat.filled')!.value).toBe(
-      `${clues + 1}/81`,
-    )
-    expect(after.stats.find((stat) => stat.labelKey === 'sudoku.stat.empty')!.value).toBe(
-      String(SUDOKU_CELLS - clues - 1),
-    )
+    expect(after.stats).toHaveLength(1)
+    expect(after.stats[0]!.value).toBe(`${clues + 1}/81`)
   })
 
   it('stats / result 的所有 labelKey 在中英字典里都能原样取到（无插值残留）', () => {

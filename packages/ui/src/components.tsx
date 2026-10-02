@@ -262,6 +262,19 @@ export function Board({
     // 供 CSS 计算格子内符号的字号
     ['--cell' as string]: `${cell}px`,
   } as CSSProperties
+  // 组边界（例如数独每 3 格）画更粗的分隔线，否则分组结构看不出来
+  const groups = board.groups
+  const isGroupRight = (index: number): boolean => {
+    if (!groups) return false
+    const col = index % board.cols
+    return (col + 1) % groups.cols === 0 && col + 1 < board.cols
+  }
+  const isGroupBottom = (index: number): boolean => {
+    if (!groups) return false
+    const row = Math.floor(index / board.cols)
+    return (row + 1) % groups.rows === 0 && row + 1 < board.rows
+  }
+
   return (
     <div
       className="eink-board"
@@ -276,6 +289,8 @@ export function Board({
           role="gridcell"
           className="eink-board__cell"
           data-kind={cellView.kind}
+          {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
+          {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
           {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
           aria-label={labelFor ? labelFor(cellView.kind, cellView.index, cellView.glyph) : cellView.glyph}
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}

@@ -55,6 +55,11 @@ export interface BoardView {
   cols: number
   rows: number
   cells: CellView[]
+  /**
+   * 格子分组（每 groupCols × groupRows 为一组），壳层会在组边界画**更粗的分隔线**。
+   * 数独的 3×3 宫就是典型用法：没有它，9×9 里所有线一样细，宫结构看不出来。
+   */
+  groups?: { cols: number; rows: number }
 }
 
 export interface StatView {
