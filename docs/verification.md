@@ -54,3 +54,49 @@ npm run check
   `idle` 状态谎称「已保存」、过关面板把按钮挤出首屏）。
 
 排障工具：`tools/scripts/devtools-eval.py`（通过 WebView DevTools 协议在页面里求值，用于真机定位）。
+
+
+## 网页版冒烟测试（真实浏览器）
+
+真机与浏览器是**两条不同的运行路径**，必须分别验证：
+
+| | 真机（BOOX WebView） | 网页版（浏览器） |
+|---|---|---|
+| 存储 | 原生 SQLite（`storage kind = android`） | **IndexedDB**（`storage kind = indexeddb`） |
+| 刷新能力 | Onyx SDK（全刷可用） | **无**（`onyxSdkFound = false`，如实上报） |
+| 语言 | 跟随系统 | **跟随浏览器语言** |
+| 屏幕 | 固定设备视口 | 任意视口 |
+
+这些差异在 jsdom 单测里覆盖不到（jsdom 没有真实 IndexedDB 与真实布局），
+因此用 Playwright + Chromium 做了真实浏览器冒烟测试。
+
+### 运行方式
+
+```bash
+npm run build:web                       # 构建产物
+npm run serve:web &                     # 静态服务 → http://127.0.0.1:8899/
+# 首次需要装浏览器（装到 gitignored 的 .toolchain/pw，不入项目依赖）
+mkdir -p .toolchain/pw && cd .toolchain/pw && npm i playwright \
+  && npx playwright install chromium && npx playwright install-deps chromium
+npm run smoke:web                       # 运行冒烟测试
+```
+
+### 覆盖与结果（19/19 通过）
+
+- 首页 / 详情页 / 游戏页渲染；`platform.kind = web`、`storage.kind = indexeddb`
+- **不谎报 BOOX 能力**：网页版 `onyxSdkFound = false`
+- 方向键可操作，步数递增（0 → 6）
+- 存档提交：界面显示「已保存」，且 **IndexedDB 中 `loadResult() = ok`、存档步数与界面一致**
+- **刷新后存档恢复**（6 → 6）
+- **语言跟随浏览器**：`locale=en-US` 时界面为英文
+- **两种视口逐页断言「主操作都在首屏内」**：1248×903 与 439×847，
+  首页/详情页/游戏页均 0 个屏外按钮；统计栏行数固定为 1
+
+截图：`docs/screens/web-01-landscape-game.png`、`web-02-portrait-game.png`
+
+### 过程中踩到的两个坑（脚本自身）
+
+1. **语言**：无头浏览器默认 `en-US`，界面走英文，最初按中文文案断言导致超时 ——
+   这反而验证了「语言跟随浏览器」这条行为。测试里显式指定 `locale` 才稳定。
+2. **API 名字**：`saves.load()` 返回存档或 null，`saves.loadResult()` 才返回 `{status, envelope}`；
+   用错方法会得到 null 而非报错，断言会假失败。
