@@ -290,6 +290,20 @@ for (const size of ['大', '特大']) {
 }
 await clickText('标准')
 await invariants(page, '设置·字号标准')
+
+// 字号档位会放大卡片高度：必须按**最大档位**验证首页，否则默认档看不出问题
+await clickText('特大')
+await clickText('返回')
+await page.waitForTimeout(800)
+const maxScale = await page.evaluate(() => ({
+  root: getComputedStyle(document.documentElement).fontSize,
+  游戏数: document.querySelectorAll('.eink-tile').length,
+  屏外: [...document.querySelectorAll('button')].filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1).length,
+  页脚在屏内: (() => { const f = document.querySelector('.eink-footer'); return f ? f.getBoundingClientRect().bottom <= innerHeight + 1 : true })(),
+}))
+check('最大字号档位下首页放得下（含继续卡片）', maxScale.屏外 === 0 && maxScale.页脚在屏内,
+  `根字号 ${maxScale.root}、${maxScale.游戏数} 款、屏外 ${maxScale.屏外}`)
+await invariants(page, '首页·最大字号')
 await clickText('返回'); await page.waitForTimeout(800)
 const backState = await page.evaluate(() => ({
   home: /全部游戏/.test(document.body.innerText),

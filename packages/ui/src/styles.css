@@ -348,6 +348,31 @@ body {
   line-height: 1.2;
 }
 
+/*
+ * 大字号档位下收起卡片上的「进度 x/y」一行。
+ *
+ * 原因：卡片高度随正文字号放大（1.5× 档每张 123px），7 款游戏排 4 行就超出可用高度 ——
+ * 多出来的正是「继续上一局」卡片占的那 ~200px。实测 439×847、1.5× 档：有 3 个按钮在屏外。
+ * 进度并非丢失：详情页、结果页与「继续上一局」卡片都有它，而字号档位本身就是
+ * 「优先可读性」的选择。只收这一行，卡片即回落到 ~85px，4 行重新放得下。
+ */
+html[data-font-scale='1.25'] .eink-tile__meta,
+html[data-font-scale='1.5'] .eink-tile__meta {
+  display: none;
+}
+
+/* 同一档位下再收紧网格间距与卡片最小高度，让 4 行 / 2 行都真正放得下 */
+html[data-font-scale='1.25'] .eink-grid,
+html[data-font-scale='1.5'] .eink-grid {
+  gap: 8px;
+}
+
+html[data-font-scale='1.25'] .eink-tile,
+html[data-font-scale='1.5'] .eink-tile {
+  min-height: 82px;
+  padding: 8px;
+}
+
 .eink-tile__done {
   grid-area: done;
   justify-self: end;
