@@ -3,7 +3,7 @@
  *
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
-import { useMemo, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeBoardLayout, computeRootLayout, type CellKind, type MoveDir, type SaveEnvelope } from '@eink/core'
 import {
   ActionButton,
@@ -28,10 +28,6 @@ export interface GameScreenProps {
   onCommitted: (envelope: SaveEnvelope) => void
 }
 
-/** 过关面板在底部预留的高度（CSS px）：标题 + 4 行统计 + 三个按钮 */
-const RESULT_PANEL_RESERVE = 240
-/** 「提示 + 保存状态」状态条的固定高度（CSS px），与 .eink-statusstrip 的 min-height 一致 */
-const STATUS_STRIP_RESERVE = 84
 
 export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig } = useUi()
@@ -42,6 +38,16 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     onCommitted,
   })
   const [confirmRestart, setConfirmRestart] = useState(false)
+  /**
+   * 棋盘区的**实测**尺寸。
+   *
+   * 为什么不直接用 computeRootLayout 的推算值：那个公式与真实 DOM 的结构并不一致 ——
+   * 它把统计栏高度算进了控制区，而 StatBar 实际是棋盘上方的一个独立兄弟节点，
+   * 同一块高度被算了两次（实测竖屏下累计超出视口 69px，把「撤销/重新开始/菜单」挤出屏幕）。
+   * 改为：控制区固定不缩、棋盘区按剩余空间收缩、格子尺寸由实测盒子反算 —— 结构怎么变都不会再顶出去。
+   */
+  const [boardBox, setBoardBox] = useState<{ width: number; height: number } | null>(null)
+  const boardAreaRef = useRef<HTMLDivElement | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -51,18 +57,36 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         // 过关后方向盘不显示（showDpad 必须跟着改，否则会白留一大块高度），
         // 同时给结果面板与状态条预留高度：否则按钮会被挤出首屏，
         // 玩家得滚动才能点到「下一关」（墨水屏上不该这样）。
+        // 这两个只作为**首帧兜底**（实测尺寸出来前用）；真实布局由 flex + 实测反算决定，
+        // 因此不再需要 extraBottom 预留结果面板高度 —— 棋盘区会自动收缩。
         showDpad: settings.dpad && !session.solved,
         showStats: true,
-        extraBottom:
-          STATUS_STRIP_RESERVE + (session.solved ? RESULT_PANEL_RESERVE : 0),
       }),
     [viewport, layoutConfig, settings.dpad, session.solved],
   )
+  useLayoutEffect(() => {
+    const element = boardAreaRef.current
+    if (!element) return
+    const measure = (): void => {
+      const rect = element.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        setBoardBox({ width: Math.round(rect.width), height: Math.round(rect.height) })
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
+  const boardArea = boardBox ?? root.boardArea
+
   const boardLayout = useMemo(() => {
     const board = session.view.board
     if (!board) return null
-    return computeBoardLayout(root.boardArea, board.cols, board.rows, layoutConfig)
-  }, [session.view.board, root.boardArea, layoutConfig])
+    return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig)
+  }, [session.view.board, boardArea, layoutConfig])
 
   /**
    * 走一步之后不再调用区域刷新。
@@ -140,10 +164,8 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         </section>
       ) : (
         <>
-          <div
-            className="eink-board-area"
-            style={{ width: root.boardArea.width, height: root.boardArea.height }}
-          >
+          {/* 尺寸由 CSS flex 决定（可收缩），格子大小按实测盒子算 —— 不写死像素 */}
+          <div className="eink-board-area" ref={boardAreaRef}>
             {session.view.board && boardLayout ? (
               <Board
                 board={session.view.board}

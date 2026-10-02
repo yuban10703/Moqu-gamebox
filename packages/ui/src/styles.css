@@ -322,6 +322,36 @@ body {
 }
 
 /* ---------- 棋盘 ---------- */
+/*
+ * 游戏页：整体固定为视口高、不滚动；只有棋盘区可收缩，控制区永远留在首屏内。
+ * 教训：竖屏（439×847）下「撤销/重新开始/菜单」原本位于 844~904，完全在屏幕外。
+ */
+.eink-screen--game {
+  /* 同样必须覆盖 .eink-screen 的 flex:1 —— 否则页面会跟着内容长高（实测 963 > 视口 903），
+     棋盘就"没有收缩的必要"，控制区照样被顶出屏幕。 */
+  flex: 0 0 auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.eink-screen--game > * {
+  flex: 0 0 auto;
+}
+
+.eink-screen--game .eink-board-area {
+  /* 唯一可收缩的一项：空间不够时先压棋盘，而不是把按钮顶出去 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 损坏存档的提示内容较长，允许它自己滚动 */
+.eink-screen--game .eink-section--warning {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .eink-board-area {
   display: flex;
   align-items: center;
