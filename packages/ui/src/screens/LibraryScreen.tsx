@@ -37,7 +37,7 @@ export function LibraryScreen({
   const continued = entries.find((entry) => saves[entry.game.id])
 
   return (
-    <div className="eink-screen">
+    <div className="eink-screen eink-screen--sticky-footer">
       <header className="eink-screen__header">
         <h1>{i18n.t('shell.app.title')}</h1>
         <p className="eink-badges">
@@ -56,6 +56,8 @@ export function LibraryScreen({
         </p>
       </header>
 
+      {/* 游戏列表可滚动，但页脚（设置/帮助/诊断）固定 —— 游戏变多时也不会把它顶出屏幕 */}
+      <div className="eink-screen__content">
       {corruptGameIds.length > 0 ? (
         <section className="eink-section eink-section--warning" role="alert">
           <h2>{i18n.t('shell.storage.reason.corrupt')}</h2>
@@ -149,6 +151,8 @@ export function LibraryScreen({
           </ul>
         )}
       </section>
+
+      </div>
 
       <footer className="eink-footer">
         <ActionButton labelKey="shell.nav.settings" onSelect={onSettings} />

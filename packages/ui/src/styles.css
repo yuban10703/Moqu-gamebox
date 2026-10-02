@@ -287,29 +287,62 @@ body {
   flex-wrap: wrap;
 }
 
+/*
+ * 游戏卡片网格。最小列宽取 180px：
+ * 原先 220px 在 439 宽竖屏（内容约 415px）下 auto-fill 只能算出**一列**，
+ * 4 款游戏就排成 4 行、把页脚顶出屏幕（用户实测反馈）。
+ * 180px 在同样宽度下能排两列。
+ * 用 auto-fit 而不是 auto-fill：auto-fill 会保留空轨道，宽屏上 4 款游戏会挤在最左（实测 6 列只占 4 列）；
+ * auto-fit 会把空轨道折叠掉，卡片按实际数量铺满一行。
+ */
 .eink-grid {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--gap);
   padding: 0;
   margin: 0;
 }
 
+/*
+ * 卡片：紧凑两行布局（图标+标题一行，进度与「已通关」一行）。
+ * 原先是竖排三行 + min-height:140px，一屏放不下 4 款游戏。
+ */
 .eink-tile {
   width: 100%;
-  min-height: 140px;
+  min-height: 92px;
   border: var(--line) solid var(--ink-black);
   background: var(--ink-white);
   color: var(--ink-black);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: var(--gap);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'host title'
+    'meta done';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 10px;
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.eink-tile__host {
+  grid-area: host;
+}
+
+.eink-tile__title {
+  grid-area: title;
+}
+
+.eink-tile__meta {
+  grid-area: meta;
+}
+
+.eink-tile__done {
+  grid-area: done;
+  justify-self: end;
 }
 
 .eink-tile__host {
