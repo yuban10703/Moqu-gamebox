@@ -21,7 +21,6 @@ import { sudokuGame } from '@eink/sudoku'
 import {
   BOARD_FRAME_PX,
   DEFAULT_LAYOUT,
-  computeBoardLayout,
   createRng,
   type GameDef,
   type LayoutConfig,
