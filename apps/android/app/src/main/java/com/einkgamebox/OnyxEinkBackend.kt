@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import java.lang.reflect.Method
@@ -409,52 +408,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
         }
     }
 
-    private val pumpHandler = Handler(Looper.getMainLooper())
     private val watchdogHandler = Handler(Looper.getMainLooper())
     private var watchdogRunnable: Runnable? = null
-    private var pumpRunnable: Runnable? = null
-    private var pumpStats: String = "idle"
-
-    override fun startRefreshPump(intervalMs: Int, maxDurationMs: Int): Boolean {
-        val view = currentView ?: return false
-        stopRefreshPump()
-        val requested = intervalMs.coerceIn(200, 5000)
-        val startedAt = System.currentTimeMillis()
-        var calls = 0
-        var averageCost = 0L
-
-        pumpRunnable = object : Runnable {
-            override fun run() {
-                if (System.currentTimeMillis() - startedAt > maxDurationMs) {
-                    Log.i(TAG, "refresh pump auto-stopped after ${maxDurationMs}ms ($pumpStats)")
-                    stopRefreshPump()
-                    return
-                }
-                val begin = SystemClock.elapsedRealtime()
-                fullRefresh(view)
-                val cost = SystemClock.elapsedRealtime() - begin
-                calls += 1
-                averageCost = if (averageCost == 0L) cost else (averageCost * 3 + cost) / 4
-                pumpStats = "calls=$calls avgCost=${averageCost}ms"
-                // 自适应：单次刷新越慢，间隔就拉得越大。
-                // 目标是**永远不把主线程占满** —— 主线程被占满时触摸事件就收不到，
-                // 用户会以为「按钮坏了」（这正是之前那次事故的真相）。
-                val next = maxOf(requested.toLong(), averageCost * 3)
-                pumpHandler.postDelayed(this, next)
-            }
-        }
-        pumpHandler.post(pumpRunnable!!)
-        Log.i(TAG, "refresh pump started: requested=${requested}ms maxDuration=${maxDurationMs}ms")
-        return true
-    }
-
-    override fun stopRefreshPump(): String {
-        pumpRunnable?.let { pumpHandler.removeCallbacks(it) }
-        pumpRunnable = null
-        val previous = pumpStats
-        pumpStats = "idle"
-        return previous
-    }
 
     override fun setFastMode(on: Boolean) {
         // 保留旧入口：映射到动画模式（不指定路径，走优先级链）
@@ -518,7 +473,6 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     override fun release() {
         fastModeOn = false
-        stopRefreshPump()
         cancelAnimationWatchdog()
     }
 

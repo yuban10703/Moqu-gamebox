@@ -10,9 +10,8 @@
  *   - 系统默认：不动用任何刷新接口，由系统决定怎么刷（基线）
  *   - 动画模式：EpdDeviceManager.enterAnimationUpdate（应用级快刷）
  *
- * 「高频全刷」已移到诊断页：它不是功能，只是对照工具。
- * 面板每秒只能完成约 2 次完整刷新，而内容每秒变 45 次，必然卡 ——
- * 留着放在这里容易被误当成一种「优化选项」。
+ * 「高频全刷」已彻底删除：面板每秒只能完成约 2 次完整刷新，而内容每秒变 45 次，
+ * 必然卡 —— 它既不是功能也不是必要的对照，留着只会被误当成一种「优化选项」。
  *
  * 已删除「系统快刷」（EpdController.applySystemFastMode）：它是**整机级**开关、会影响其它应用，
  * 本机还开不起来（回读始终 false），且属于擅自改动用户设备全局设置，产品里不应引入。
@@ -197,7 +196,6 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   useEffect(() => {
     const restore = (): void => {
       platform.refresh.setAnimationMode(false, 'auto')
-      platform.refresh.stopRefreshPump()
     }
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') restore()

@@ -104,7 +104,6 @@ class MainActivity : Activity() {
                 Log.w(TAG, "renderer process gone: didCrash=$didCrash - reloading UI")
                 // 先把设备状态收拾干净：退出动画模式、停掉刷新泵，别把面板留在快刷状态
                 backend.setAnimationMode(false, "auto")
-                backend.stopRefreshPump()
                 view.postDelayed({
                     if (::webView.isInitialized && !isFinishing) {
                         webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
@@ -155,8 +154,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
-        // 切走/熄屏时立即停掉刷新泵并退出动画模式：绝不把设备留在高频刷新状态
-        backend.stopRefreshPump()
+        // 切走/熄屏时立即退出动画模式：绝不把设备留在快刷状态
         backend.setAnimationMode(false, "auto")
         super.onPause()
     }
