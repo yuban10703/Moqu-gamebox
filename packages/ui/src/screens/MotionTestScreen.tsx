@@ -8,7 +8,9 @@
  *
  * 五种策略：
  *   - 系统默认：不动用任何刷新接口，由系统决定怎么刷（基线）
- *   - 动画模式：EpdDeviceManager.enterAnimationUpdate（应用级快刷）
+ *   - 动画模式：applyTransientUpdate(ANIMATION_QUALITY) —— 实测被设备拒绝（返回 false）
+ *   - 应用级快刷：applyAppScopeUpdate(...)，配套回读 getAppScopeRefreshMode()，可验证
+ *   - 视图级模式：setUpdateMode(view, mode)，靠回读 getViewDefaultUpdateMode 判断
  *
  * 「高频全刷」已彻底删除：面板每秒只能完成约 2 次完整刷新，而内容每秒变 45 次，
  * 必然卡 —— 它既不是功能也不是必要的对照，留着只会被误当成一种「优化选项」。
@@ -22,13 +24,15 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ActionButton, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
 
-type Strategy = 'dom' | 'animation'
+type Strategy = 'dom' | 'animation' | 'appScope' | 'viewMode'
 /** 运动物体的内容：纯黑白 vs 含灰阶（灰阶是快刷的软肋，用作加压） */
 type ObjectStyle = 'bw' | 'gray'
 
 const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
   { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
   { value: 'animation', labelKey: 'shell.motiontest.strategy.animation' },
+  { value: 'appScope', labelKey: 'shell.motiontest.strategy.appScope' },
+  { value: 'viewMode', labelKey: 'shell.motiontest.strategy.viewMode' },
 ]
 
 const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
@@ -151,8 +155,8 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   // 进入/退出对应策略的面板状态；任何路径退出都要恢复
   const applyStrategyState = useCallback(
     (next: Strategy, on: boolean): void => {
-      if (next === 'animation') {
-        // 必须指定路径：不指定会走优先级链，测的就不是动画模式本身
+      if (next === 'animation' || next === 'appScope' || next === 'viewMode') {
+        // 必须指定路径：不指定会走优先级链，测的就不是选中的那一条
         const result = platform.refresh.setAnimationMode(on, next)
         setStateText(result.state)
         if (on && !result.ok) {
@@ -343,6 +347,12 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
         {platform.refresh.capability().animationMode ? null : (
           <p className="eink-muted">{i18n.t('shell.motiontest.animationUnavailable')}</p>
         )}
+        {strategy === 'appScope' ? (
+          <p className="eink-notice">{i18n.t('shell.motiontest.appScopeWarning')}</p>
+        ) : null}
+        {strategy === 'viewMode' ? (
+          <p className="eink-muted">{i18n.t('shell.motiontest.viewModeKnownDead')}</p>
+        ) : null}
         {autoIndex >= 0 ? (
           <p className="eink-text">
             {i18n.t('shell.motiontest.autoRunning', { index: autoIndex + 1 })}

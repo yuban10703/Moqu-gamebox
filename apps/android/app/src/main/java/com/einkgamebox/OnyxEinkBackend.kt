@@ -69,6 +69,31 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     private val inSystemFastModeMethod: Method? = findStatic(epdController, "inSystemFastMode")
     private val isInFastModeMethod: Method? = findStatic(epdController, "isInFastMode")
 
+    /**
+     * 应用级快刷：applyAppScopeUpdate(application, enable, clear, repeatMode, repeatLimit)。
+     * 参数名来自字节码的 LocalVariableTable，不是猜的。
+     * 配套回读 getAppScopeRefreshMode()（UpdateOption：NORMAL/FAST_QUALITY/REGAL/FAST/FAST_X），
+     * 因此这条路**可以验证是否真的生效**。
+     */
+    private val applyAppScopeMethod: Method? = findStatic(
+        epdController, "applyAppScopeUpdate",
+        String::class.java, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType,
+        updateModeClass, Int::class.javaPrimitiveType,
+    )
+    private val getAppScopeModeMethod: Method? = findStatic(epdController, "getAppScopeRefreshMode")
+    private val clearAppScopeMethod: Method? = findStatic(epdController, "clearAppScopeUpdate")
+    private val setAppScopeModeMethod: Method? = findStatic(epdController, "setAppScopeRefreshMode")
+    private val updateOptionClass: Class<*>? =
+        tryLoad("com.onyx.android.sdk.api.device.epd.UpdateOption")
+    private val setDisplaySchemeMethod: Method? =
+        findStatic(epdController, "setDisplayScheme", Int::class.javaPrimitiveType)
+
+    /** 视图级更新模式：EpdDeviceManager.setUpdateMode(view, mode) / resetUpdateMode(view) */
+    private val setUpdateModeMethod: Method? =
+        findStatic(deviceManagerClass, "setUpdateMode", View::class.java, updateModeClass)
+    private val resetUpdateModeMethod: Method? =
+        findStatic(deviceManagerClass, "resetUpdateMode", View::class.java)
+
     /** 一次性模式切换：applyTransientUpdate / clearTransientUpdate */
     private val applyTransientMethod: Method? =
         findStatic(epdController, "applyTransientUpdate", updateModeClass)
@@ -107,6 +132,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
      * 直接调底层 API 才能拿到这个 true/false —— 这是判断「动画模式到底有没有生效」的唯一硬信号。
      */
     private var transientAccepted: Boolean? = null
+    /** 应用级快刷的回读结果（UpdateOption 名称）；NORMAL 表示没生效 */
+    private var appScopeReadback: String? = null
 
     /** 实际验证成功的全刷实现名；一旦全部失败就置为空并改口为「不支持」 */
     private var workingFullRefresh: String? = null
@@ -134,6 +161,14 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
                 Log.i(TAG, "startup cleanup: exitAnimationUpdate to clear any leftover animation state")
                 invokeOrNull(exitAnimationMethod, true)
             }
+            // 只**读取并记录**应用级刷新模式，不做任何"还原"。
+            //
+            // 教训（两台设备实测）：全新安装、从未调用过开启接口时，读回就是 FAST ——
+            // 这是系统对本应用的默认设置，不是我们留下的东西。
+            // 早先误判为「我们开了个关不掉的开关」，根因是**没有先读基线值**：
+            // 先读基线、再改、再复查，是判断"这次调用有没有造成变化"的唯一可靠顺序。
+            appScopeReadback = readAppScopeMode()
+            Log.i(TAG, "app-scope refresh mode (system default for this app) = ${appScopeReadback ?: "n/a"}")
             activeAnimationPath = null
             // 顺序很重要：先验证局部模式，再做全刷。
             // 因为刚做完全刷时 getViewDefaultUpdateMode 会短暂返回全刷用的模式（GC），
@@ -210,6 +245,9 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             lastRegionError?.let { add("regionRefreshError:$it") }
             if (enterAnimationMethod != null) add("animationCandidate:enterAnimationUpdate")
             if (applyTransientMethod != null) add("animationCandidate:applyTransientUpdate")
+            if (applyAppScopeMethod != null) add("animationCandidate:applyAppScopeUpdate")
+            if (getAppScopeModeMethod != null) add("animationReadback:getAppScopeRefreshMode")
+            if (setUpdateModeMethod != null) add("animationCandidate:setUpdateMode")
             if (inSystemFastModeMethod != null) add("animationReadback:inSystemFastMode")
             add("animationVerified:no-readback-api")
             activeAnimationPath?.let { add("animationActive:$it") }
@@ -227,7 +265,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             // 并把证据留在 features 里，避免后续再有人被这个 API 名骗一次。
             regionRefresh = false,
             animationMode = supported &&
-                (enterAnimationMethod != null || applyTransientMethod != null),
+                (enterAnimationMethod != null || applyTransientMethod != null ||
+                    applyAppScopeMethod != null || setUpdateModeMethod != null),
         )
     }
 
@@ -302,6 +341,10 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             // 特别注意：绝不能无条件调用 applySystemFastMode(false) ——
             // 那会把用户在系统设置里自己打开的快刷关掉，属于擅自改动整机设置。
             when {
+                path.startsWith("applyAppScopeUpdate") -> disableAppScope()
+                path.startsWith("setUpdateMode") -> {
+                    currentView?.let { invokeOrNull(resetUpdateModeMethod, it) }
+                }
                 path.startsWith("applyTransientUpdate") -> {
                     val cleared = invokeOrNull(clearTransientMethod, true) as? Boolean
                     Log.i(TAG, "animation mode OFF: clearTransientUpdate returned $cleared")
@@ -317,6 +360,40 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
 
         // preferred 指定了就走哪条路：不指定会走下面的优先级链，测出来的可能不是你想测的那个
+        if (preferred == "appScope") {
+            val method = applyAppScopeMethod ?: return null
+            val mode = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "ANIMATION_MONO", "DU")) ?: return null
+            val ok = invokeOrNull(method, context.packageName, true, true, mode, 0) as? Boolean
+            val readback = readAppScopeMode()
+            appScopeReadback = readback
+            Log.i(TAG, "applyAppScopeUpdate(${context.packageName}, enable=true, clear=true, " +
+                "repeatMode=${modeName(mode)}, repeatLimit=0) returned $ok, readback=$readback")
+            // 判据：既要调用被接受，也要回读确实不是 NORMAL
+            if (ok == true && readback != null && !readback.equals("NORMAL", ignoreCase = true)) {
+                activeAnimationPath = "applyAppScopeUpdate($readback)"
+                armAnimationWatchdog()
+                return activeAnimationPath
+            }
+            Log.w(TAG, "app-scope fast mode NOT effective (returned=$ok readback=$readback)")
+            return null
+        }
+        if (preferred == "viewMode") {
+            val view = currentView ?: return null
+            val method = setUpdateModeMethod ?: return null
+            val mode = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "DU")) ?: return null
+            val before = readViewDefaultMode(view)
+            invokeOrNull(method, view, mode)
+            val after = readViewDefaultMode(view)
+            Log.i(TAG, "setUpdateMode(view, ${modeName(mode)}): readback $before -> $after")
+            // 无返回值，只能靠回读判断；回读等于请求值才算生效
+            if (after != null && after.equals(modeName(mode), ignoreCase = true)) {
+                activeAnimationPath = "setUpdateMode($after)"
+                armAnimationWatchdog()
+                return activeAnimationPath
+            }
+            Log.w(TAG, "setUpdateMode NOT effective (readback $before -> $after, requested ${modeName(mode)})")
+            return null
+        }
         if (preferred == "animation") {
             // 直接调底层 API，拿到设备是否接受的布尔值（enterAnimationUpdate 会把这个值丢掉）
             val transient = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "ANIMATION_MONO", "DU"))
@@ -373,10 +450,11 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     override fun animationState(): String {
         val animationOn = activeAnimationPath != null
         val accepted = transientAccepted?.let { if (it) "accepted" else "REJECTED" } ?: "-"
+        val appScope = appScopeReadback ?: "-"
         val systemFast = readBool(inSystemFastModeMethod)
         val fastMode = readBool(isInFastModeMethod)
         return "animation=$animationOn(${activeAnimationPath ?: "-"}) accepted=$accepted" +
-            " systemFast=${systemFast ?: "n/a"} fastMode=${fastMode ?: "n/a"}"
+            " appScope=$appScope systemFast=${systemFast ?: "n/a"} fastMode=${fastMode ?: "n/a"}"
     }
 
     /**
@@ -402,6 +480,112 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     private fun cancelAnimationWatchdog() {
         watchdogRunnable?.let { watchdogHandler.removeCallbacks(it) }
         watchdogRunnable = null
+    }
+
+    /**
+     * 关闭应用级快刷。
+     *
+     * 实测教训：`clearAppScopeUpdate()` **清不掉**它 —— 调用后回读仍是 FAST
+     * （该方法的字节码把设备返回值 pop 掉、无条件返回 true，是个假信号）。
+     * 正确做法是 `applyAppScopeUpdate(..., enable=false, ...)`，
+     * 再不行用 `setAppScopeRefreshMode(NORMAL)`，并且**每一步都要回读确认**。
+     * 这条路径只有应用作用域，但仍必须还原：否则用户的应用会一直停在快刷模式。
+     */
+    private fun disableAppScope() {
+        val mode = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "DU"))
+        applyAppScopeMethod?.let { method ->
+            if (mode != null) {
+                val ok = invokeOrNull(method, context.packageName, false, true, mode, 0) as? Boolean
+                Log.i(TAG, "disable app-scope via applyAppScopeUpdate(enable=false) returned $ok")
+            }
+        }
+        if (readAppScopeMode()?.equals("NORMAL", ignoreCase = true) != true) {
+            val normal = updateOptionClass?.let { clazz ->
+                clazz.enumConstants?.firstOrNull { (it as Enum<*>).name.equals("NORMAL", true) }
+            }
+            if (normal != null) {
+                invokeOrNull(setAppScopeModeMethod, normal)
+                Log.i(TAG, "disable app-scope via setAppScopeRefreshMode(NORMAL)")
+            }
+        }
+        appScopeReadback = readAppScopeMode()
+        Log.i(TAG, "app-scope final readback=$appScopeReadback")
+    }
+
+    /**
+     * 尝试把应用级快刷还原成 NORMAL，逐个试并回读，返回每步结果。
+     *
+     * 背景：实测 `clearAppScopeUpdate()` 与 `applyAppScopeUpdate(enable=false)` 都返回 true
+     * 但回读仍是 FAST —— 也就是**关不掉**。这里把所有可能的途径都试一遍并记录，
+     * 用来判断这台设备上到底有没有办法还原（这关系到能不能安全地开启这个模式）。
+     */
+    fun tryRevertAppScope(): String {
+        val mode = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "DU"))
+        val steps = StringBuilder()
+        fun record(name: String) {
+            steps.append(name).append("→").append(readAppScopeMode() ?: "n/a").append("; ")
+        }
+        record("before")
+
+        invokeOrNull(clearAppScopeMethod, true)
+        record("clearAppScopeUpdate(true)")
+
+        invokeOrNull(clearAppScopeMethod)
+        record("clearAppScopeUpdate()")
+
+        applyAppScopeMethod?.let { method ->
+            if (mode != null) {
+                invokeOrNull(method, context.packageName, false, false, mode, 0)
+                record("applyAppScopeUpdate(enable=false,clear=false)")
+            }
+        }
+
+        val normal = updateOptionClass?.let { clazz ->
+            clazz.enumConstants?.firstOrNull { (it as Enum<*>).name.equals("NORMAL", true) }
+        }
+        if (normal != null) {
+            invokeOrNull(setAppScopeModeMethod, normal)
+            record("setAppScopeRefreshMode(NORMAL)")
+        }
+
+        // 方案：把显示 scheme 设回 SCHEME_NORMAL（useFastScheme() 就是 setDisplayScheme(SCHEME_SCRIBBLE)）
+        val schemeNormal = readStaticInt("SCHEME_NORMAL")
+        if (schemeNormal != null) {
+            invokeOrNull(setDisplaySchemeMethod, schemeNormal)
+            record("setDisplayScheme(SCHEME_NORMAL=$schemeNormal)")
+        }
+        appScopeReadback = readAppScopeMode()
+        Log.i(TAG, "tryRevertAppScope: $steps")
+        return steps.toString()
+    }
+
+    private fun readStaticInt(name: String): Int? {
+        val clazz = epdController ?: return null
+        return try {
+            clazz.getField(name).get(null) as? Int
+        } catch (error: Throwable) {
+            null
+        }
+    }
+
+    /** 回读应用级刷新模式（UpdateOption 枚举名） */
+    private fun readAppScopeMode(): String? {
+        val method = getAppScopeModeMethod ?: return null
+        return try {
+            modeName(method.invoke(null))
+        } catch (error: Throwable) {
+            null
+        }
+    }
+
+    /** 回读视图默认更新模式 */
+    private fun readViewDefaultMode(view: View): String? {
+        val method = getViewModeMethod ?: return null
+        return try {
+            modeName(method.invoke(null, view))
+        } catch (error: Throwable) {
+            null
+        }
     }
 
     private fun readBool(method: Method?): Boolean? {

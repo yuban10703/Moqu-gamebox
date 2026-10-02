@@ -127,6 +127,10 @@ class JsBridge(
     @JavascriptInterface
     fun getAnimationState(): String = backend.animationState()
 
+    /** 临时诊断用：逐个尝试还原应用级快刷，并记录每步回读 */
+    @JavascriptInterface
+    fun tryRevertAppScope(): String = (backend as? OnyxEinkBackend)?.tryRevertAppScope() ?: "unsupported"
+
     @JavascriptInterface
     fun setFastMode(on: Boolean) = host.runOnUiThread { backend.setFastMode(on) }
 

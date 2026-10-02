@@ -353,6 +353,17 @@ W OnyxEinkBackend: animation mode REJECTED: applyTransientUpdate(ANIMATION_QUALI
 SDK 没能识别这台机型（`Device.detectDevice` 反射报错），退化成了 `SDMDevice`，
 而 `SDMDevice.invalidate` 也会抛 `AssertionError` —— 即该机型在 SDK 里走的是兜底实现。
 
+### 应用级刷新模式：基线是 FAST（系统默认，非我们所致）
+
+在**第二台设备 P6Plus（Android 13，全新安装、从未调用开启接口）**上首次读取
+`getAppScopeRefreshMode()` 即为 `FAST`；Note X2 同样如此。
+即该值是**系统对本应用的默认设置**，不是我们修改的结果。
+因此 `applyAppScopeUpdate(enable=true)` 与随后的各种"还原"调用都没有造成实际变化 ——
+所谓「开了个关不掉的单向开关」是**误报**。
+
+**方法学教训：改动任何可读状态前，必须先读基线并记录，再改、再复查。**
+缺了基线这一步，就无法区分「我的调用造成的」与「本来就是如此」。
+
 ### 教训
 
 之前用 `enterAnimationUpdate` 时**完全无法验证是否生效**：SDK 把返回值丢掉了。

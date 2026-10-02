@@ -135,7 +135,7 @@ export interface RefreshController {
    */
   setAnimationMode(
     on: boolean,
-    preferred?: 'auto' | 'animation',
+    preferred?: 'auto' | 'animation' | 'appScope' | 'viewMode',
   ): { ok: boolean; path: string | null; state: string }
   /** 当前动画/快刷状态摘要 */
   animationState(): string

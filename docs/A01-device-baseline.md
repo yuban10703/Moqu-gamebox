@@ -88,3 +88,40 @@ fastMode: false
 webViewSufficient: true
 storage: android
 ```
+
+## 第二台设备：BOOX P6Plus（用于跨设备对比）
+
+| 项目 | 数值 |
+|---|---|
+| 连接 | `adb connect 10.1.1.69:5555` |
+| 厂商 / 型号 | ONYX / **P6Plus**（brand Onyx，fingerprint `ONYX/TabBoox/TabBoox`） |
+| Android | **13（SDK 33）**，incremental 592 |
+| 屏幕 | 物理 824×1648，density 300 → **CSS 视口 439×847 @dpr 1.875（竖屏）** |
+| WebView | Chrome/146.0.7680.178 |
+| 触摸 | 5 点，coarse |
+| 存储 | `android`（原生 SQLite，与 Note X2 相同） |
+| 波形 | `onyx waveform sg` |
+| 侧载注意 | 与 Note X2 相同：安装后包被置为 `enabled=3`（DISABLED_USER），**需要再执行一次 `pm enable --user 0`**；启动器还会标 `isAutoFreeze:true isEACEnabled:true` |
+
+### 跨设备能力对比（同一 APK，`-PonyxBundled=true`）
+
+| 探测项 | Note X2（Android 11） | P6Plus（Android 13） |
+|---|---|---|
+| `onyxSdkFound` | true | true |
+| 整屏全刷 `refreshScreen(GC)` | ✓ 可用 | ✓ 可用 |
+| 区域刷新 `refreshScreenRegion` | ✓ 调用成功（实测整屏刷新，故上报 false） | ✓ 同 |
+| 档位 `setViewDefaultUpdateMode` | 接受但回读不生效 | 接受但回读不生效 |
+| 动画模式 `animationMode` | true | true |
+| 应用级刷新模式（系统默认） | `FAST` | `FAST` |
+
+**两台截然不同的设备（Android 11 vs 13、10.3" 横屏 vs 6" 竖屏）结论完全一致**，
+说明这些 API 层结论不是某台机器的特例。
+
+### 应用级刷新模式的基线（重要教训）
+
+在两台设备上、**全新安装且从未调用过任何开启接口**时，`getAppScopeRefreshMode()`
+读回就是 `FAST` —— 这是**系统对本应用的默认设置**，不是我们改出来的。
+
+早先曾误判为「我们打开了一个应用内关不掉的单向开关」，根因是**没有先读基线值**：
+先读基线 → 再改 → 再复查，是判断「这次调用到底有没有造成变化」的唯一可靠顺序。
+现已把启动逻辑改为**只读取并记录**，不再自动"还原"（那是在还原一个本就不存在的东西）。
