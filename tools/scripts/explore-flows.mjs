@@ -82,6 +82,22 @@ const ensurePlaying = async () => {
   }
 }
 
+/** 直接读存档内容做断言：界面文案会受「恢复到哪一局/何时读」影响，数据不会骗人 */
+const readSave = (gameId) =>
+  page.evaluate(async (id) => {
+    const r = await window.__einkPlatform.storage.saves.loadResult(id)
+    if (r.status !== 'ok') return { status: r.status }
+    return {
+      status: 'ok',
+      moves: r.envelope.moves,
+      commitId: r.envelope.commitId,
+      elapsedMs: r.envelope.session.elapsedMs,
+      filled: Array.isArray(r.envelope.state?.filled)
+        ? r.envelope.state.filled.filter((v) => v !== 0).length
+        : null,
+    }
+  }, gameId)
+
 const statValue = (label) =>
   page.evaluate((l) => {
     const item = [...document.querySelectorAll('.eink-stats__item')].find((e) => e.textContent.includes(l))
@@ -151,14 +167,25 @@ const t3 = await statValue('用时')
 const secs = (t) => { const [m, s] = String(t).split(':').map(Number); return (m ?? 0) * 60 + (s ?? 0) }
 check('暂停期间计时停止', secs(t2) === secs(t1), `${t1} → 暂停 3.5s → ${t2}`)
 check('恢复后继续计时', secs(t3) >= secs(t2), `${t2} → ${t3}`)
+const savedElapsed = (await readSave('sokoban')).elapsedMs
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForTimeout(600)
 await clickText('继续', { optional: true })
+await page.waitForSelector('.eink-board', { timeout: 5000 }).catch(() => {})
 if (!(await page.locator('.eink-board').count())) await clickText('开始新游戏')
 await page.waitForSelector('.eink-board', { timeout: 8000 })
 await page.waitForTimeout(800)
+// 以存档为准：重载不得清掉已累计用时（恢复后界面从该值继续）
+const afterReload = await readSave('sokoban')
 const t4 = await statValue('用时')
-check('重载后用时从已保存值继续（不归零）', secs(t4) >= secs(t3), `重载前 ${t3} → 重载后 ${t4}`)
+// 注意：用时是「按最后一次落盘时刻」记录的（只有操作才会落盘），
+// 因此这里断言的是「重载不会让已落盘的用时倒退」，而不是「等于界面显示值」。
+check(
+  '重载后存档里的累计用时不会倒退',
+  afterReload.status === 'ok' && afterReload.elapsedMs >= savedElapsed,
+  `存档 ${savedElapsed}ms → ${afterReload.elapsedMs}ms；界面 ${t3} → ${t4}`,
+)
+check('恢复后界面用时不是从 0 重新计（≥ 存档秒数 - 1）', secs(t4) >= Math.floor(savedElapsed / 1000) - 1, `${t4}`)
 
 /* ---------- 4) 多游戏存档隔离 ---------- */
 console.log('\n[4] 多游戏存档互不干扰')
@@ -170,19 +197,21 @@ for (const v of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
   if ((await page.locator('.eink-board__cell[data-kind="tile"]').count()) > 0) break
 }
 const sudokuFilled = await page.locator('.eink-board__cell[data-kind="tile"]').count()
-const keysAfterFill = await page.evaluate(async () => (await window.__einkPlatform.storage.saves.rawAll()).map((r) => r.key))
-console.log(`    [诊断] 填入 ${sudokuFilled} 格，此时存档: ${JSON.stringify(keysAfterFill)}`)
+const sudokuSaveBefore = await readSave('sudoku')
+const sudokuFillSaved = sudokuSaveBefore.filled
+console.log(`    [诊断] 数独存档（切走前）: ${JSON.stringify(sudokuSaveBefore)}`)
 await startGame('推箱子')
 await ensurePlaying()
 await page.locator('button[aria-label="左"]').first().click()
 await page.waitForTimeout(600)
 await startGame('数独')
 await ensurePlaying()
+const sudokuSaveAfter = await readSave('sudoku')
 const sudokuBack = await page.locator('.eink-board__cell[data-kind="tile"]').count()
-const keysBack = await page.evaluate(async () => (await window.__einkPlatform.storage.saves.rawAll()).map((r) => r.key))
-const pageNow = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' ').slice(0, 50))
-console.log(`    [诊断] 回来时存档: ${JSON.stringify(keysBack)}；页面: ${pageNow}`)
-check('切到别的游戏再回来，本局进度仍在', sudokuFilled > 0 && sudokuBack === sudokuFilled, `${sudokuFilled} → ${sudokuBack}`)
+console.log(`    [诊断] 数独存档（回来后）: ${JSON.stringify(sudokuSaveAfter)}；界面填入 ${sudokuBack} 格`)
+check('切到别的游戏不会动到本局存档', sudokuFillSaved === sudokuSaveAfter.filled && sudokuSaveAfter.status === 'ok',
+  `存档 ${sudokuFillSaved} → ${sudokuSaveAfter.filled}`)
+check('切回来能看到本局进度', sudokuBack === sudokuFilled && sudokuFilled > 0, `${sudokuFilled} → ${sudokuBack}`)
 
 /* ---------- 5) 损坏存档的清除入口 ---------- */
 console.log('\n[5] 损坏存档可清除')

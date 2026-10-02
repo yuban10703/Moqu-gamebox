@@ -206,10 +206,13 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
       if (given[index] !== 0 && filled[index] !== given[index]) {
         throw illegal(`sudoku.illegal.state:overwrite-given:${index}`)
       }
-      // 玩家填的值必须与解一致：解唯一，填错一定走不到终局
-      if (given[index] === 0 && filled[index] !== 0 && filled[index] !== solution[index]) {
-        throw illegal(`sudoku.illegal.state:wrong-digit:${index}`)
-      }
+      /*
+       * 注意：这里**不能**要求「玩家填入的值必须等于解」。
+       * 规则层允许填一个不冲突但错误的数字（这是数独的正常玩法），
+       * 一旦用它当存档校验条件，玩家填错一个数之后存档就再也加载不出来 ——
+       * 实测表现为重开应用后提示「存档已损坏」（探索式测试发现）。
+       * 正确性判定交给 status/view（那里才与 solution 比较）。
+       */
     }
     const state: SudokuState = {
       difficulty,

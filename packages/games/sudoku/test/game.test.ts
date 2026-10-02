@@ -128,6 +128,37 @@ describe('view', () => {
     expect(cell.kind).toBe('tile')
   })
 
+  it('填入合法但错误的数字后，存档仍然可加载（回归：曾经判成损坏导致进度打不开）', () => {
+    const state = fresh()
+    const index = emptyCells(state)[0]!
+    const answer = state.solution[index]!
+    const next = reduceSudoku(state, { type: 'select', index })
+    // 找一个「不冲突但错误」的数字：规则层允许这样填（数独的正常玩法），
+    // 但存档校验绝不能因此判定存档损坏
+    let played: SudokuState | null = null
+    let wrong = 0
+    for (let value = 1; value <= 9; value++) {
+      if (value === answer) continue
+      try {
+        played = reduceSudoku(next, { type: 'set', value })
+        wrong = value
+        break
+      } catch {
+        // 与行列宫冲突，换一个
+      }
+    }
+    expect(played, '应能找到一个不冲突但错误的数字').not.toBeNull()
+    const playedState = played as SudokuState
+
+    // 存档往返必须成功
+    const raw = sudokuGame.encode(playedState)
+    const decoded = sudokuGame.decode(raw)
+    expect(decoded.filled[index]).toBe(wrong)
+    // 仍然是进行中，且该格被标为「填错」
+    expect(sudokuGame.status(decoded)).toBe('playing')
+    expect(sudokuGame.view(decoded).board!.cells[index]!.glyph).toContain(WRONG_MARK)
+  })
+
   it('stats 只有「已填 x/81」一项（总数在分母里，空格是同一信息，都算冗余）', () => {
     const state = fresh()
     const view = sudokuGame.view(state)
@@ -309,14 +340,6 @@ describe('encode / decode', () => {
         const first = given.findIndex((value) => value !== 0)
         filled[first] = given[first] === 1 ? 2 : 1
         return { ...raw, given, filled }
-      })(),
-      // 玩家填入与解不符
-      (() => {
-        const filled = (raw.filled as number[]).slice()
-        const index = (raw.given as number[]).findIndex((value) => value === 0)
-        const answer = (raw.solution as number[])[index]!
-        filled[index] = answer === 9 ? 1 : answer + 1
-        return { ...raw, filled }
       })(),
       // 题目有两个解（把给定值全清掉）
       { ...raw, given: new Array(81).fill(0), filled: new Array(81).fill(0) },
