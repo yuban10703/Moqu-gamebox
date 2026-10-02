@@ -10,7 +10,11 @@ export const zhCN: Dict = {
   'shell.library.empty': '还没有可玩的游戏',
   'shell.library.recent': '最近游玩',
   'shell.library.progress': '进度 {done}/{total}',
+  'shell.library.progressLabel': '进度',
   'shell.library.completed': '已通关',
+
+  'shell.pager.prev': '上一页',
+  'shell.pager.next': '下一页',
 
   'shell.nav.back': '返回',
   'shell.nav.settings': '设置',

@@ -41,3 +41,16 @@ npm run check
 - 桌面截图或模拟器通过**不算**完成（与规划的阶段完成条件一致）；
 - 未实测的能力不作为宣传或承诺依据：见 [eink-guidelines](eink-guidelines.md) 与
   [refresh-adaptation](refresh-adaptation.md) 的「明确不承诺」。
+
+## 真机验证（2026-10-03，BOOX Note X2 / Android 11）
+
+真机结果见 [A06 附录](A06-acceptance.md)，截图见 `docs/screens/`。核心结论：
+
+- 应用在真机上可完整游玩：触摸操作、存档、杀进程恢复、完整通关、结果统计与最佳记录均通过；
+- **Onyx SDK 在这台设备上不可用**（`onyxSdkFound=false`），应用按设计退回通用模式并给出系统指引；
+- 真机暴露了一个 jsdom 测不出来的严重缺陷（`useSession` 因不稳定依赖导致每次渲染都重新加载存档，
+  在原生桥上表现为「点了没反应 / 页面卡死」），已修复并补了**经验证有效**的回归测试；
+- 附带修掉 4 处只有在实屏上才看得出的文案与布局问题（进度标签未插值、分页文案误用「下一关」、
+  `idle` 状态谎称「已保存」、过关面板把按钮挤出首屏）。
+
+排障工具：`tools/scripts/devtools-eval.py`（通过 WebView DevTools 协议在页面里求值，用于真机定位）。

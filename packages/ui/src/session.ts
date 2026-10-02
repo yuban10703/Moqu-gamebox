@@ -75,7 +75,14 @@ const COMMIT_DEBOUNCE_MS = 500
 
 export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A> {
   const { game, storage, difficulty, onCommitted } = options
-  const now = options.now ?? (() => Date.now())
+  /**
+   * `now` 必须稳定：它进的是加载 effect 的依赖数组。
+   * 之前写成 `options.now ?? (() => Date.now())`，每次渲染都产生新函数，
+   * effect 于是每渲染必重跑，而 effect 里又会 setState 一个**新对象**（decode 的结果），
+   * 形成无限重渲染循环 —— 在内存存储上只是空转，走原生桥时会把渲染线程打满，
+   * 表现为「触摸没反应、JS 不响应」。真机上才暴露出来，测试用稳定 now 时看不出来。
+   */
+  const now = useMemo(() => options.now ?? (() => Date.now()), [options.now])
 
   const [state, setState] = useState<S>(() => game.create(0, difficulty))
   const [ready, setReady] = useState(false)
@@ -142,11 +149,21 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   }, [commitNow])
 
   // 载入存档；损坏或规则版本不匹配时进入 corrupt 状态（保留数据，交由界面提示与导出）
+  //
+  // 每个 (游戏, 难度) 只允许加载一次：用「已加载标识 + 世代号」而不是 cleanup 取消，
+  // 避免依赖数组变化时把正在进行的加载取消掉，导致 ready 永远为 false。
+  const loadedKeyRef = useRef<string | null>(null)
+  const generationRef = useRef(0)
   useEffect(() => {
-    let cancelled = false
+    const loadKey = `${game.id}:${difficulty}`
+    if (loadedKeyRef.current === loadKey) return
+    loadedKeyRef.current = loadKey
+    const generation = ++generationRef.current
+    const isStale = (): boolean => generationRef.current !== generation
+
     void (async () => {
       const result = await storage.saves.loadResult(game.id)
-      if (cancelled) return
+      if (isStale()) return
       if (result.status === 'empty') {
         const fresh = newEnvelope(
           {
@@ -184,7 +201,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       }
       try {
         const decoded = game.decode(existing.state)
-        if (cancelled) return
+        if (isStale()) return
         setState(decoded)
         setReady(true)
       } catch {
@@ -193,9 +210,6 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         setReady(true)
       }
     })()
-    return () => {
-      cancelled = true
-    }
   }, [game, storage, difficulty, now])
 
   const persist = useCallback(

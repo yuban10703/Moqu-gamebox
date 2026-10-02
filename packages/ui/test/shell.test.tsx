@@ -115,16 +115,48 @@ describe('游戏库 → 详情 → 游戏', () => {
     })
   })
 
+  it('进入游戏界面后，无关重渲染不会再次读取存档（加载只发生一次）', async () => {
+    // 回归测试：加载 effect 曾经因为依赖不稳定（now 每次渲染都是新函数）而每次渲染都重跑，
+    // 每次都重新读取存档并 setState 出一个新对象，把未提交的动作冲掉。
+    // 真机上表现为「点方向键没反应 + JS 无响应」（渲染线程被持续的读取打满）。
+    // 这里直接数「读取已提交存档」的次数：正确实现每个 (游戏, 难度) 只读一次。
+    const base = createMemoryKv()
+    let saveReads = 0
+    const counted: KvBackend = {
+      ...base,
+      get: (key) => {
+        if (key === 'save:1:committed:sokoban') saveReads++
+        return base.get(key)
+      },
+    }
+    await mount(counted)
+    await enterGame()
+    const afterMount = saveReads
+    expect(afterMount).toBe(1)
+
+    for (let i = 0; i < 3; i++) {
+      fireEvent.click(screen.getByText('Menu'))
+      fireEvent.click(screen.getByText('Close'))
+    }
+    expect(saveReads).toBe(afterMount)
+  })
+
   it('按见证解法走完首关会显示过关面板与下一关入口', async () => {
     const { kv } = await mount()
     await enterGame()
     const witness = LEVEL_WITNESSES['L01']!
     expect(witness.length).toBeGreaterThan(0)
     for (const dir of witness) {
+      // 见证解法可能比最优解长：过关后方向盘会消失，此时停止（设备上同理）
+      if (screen.queryByText(/Level solved/)) break
       fireEvent.click(screen.getByLabelText(DIR_LABEL[dir]!))
     }
     await waitFor(() => expect(screen.getByText(/Level solved/)).toBeTruthy())
     expect(screen.getByText('Next level')).toBeTruthy()
+    // 过关后方向盘让位给结果面板：墨水屏上不该为了看结果去滚动
+    expect(screen.queryByLabelText('Up')).toBeNull()
+    // 棋盘仍然可见，便于复盘（查看过程不改变结果）
+    expect(screen.getByRole('grid')).toBeTruthy()
 
     // 过关是「关键节点」：必须已经立即落盘（不依赖 500ms 合并窗口），并记录完成进度
     const stored = await kv.get('save:1:committed:sokoban')

@@ -10,7 +10,11 @@ export const enUS: Dict = {
   'shell.library.empty': 'No games available yet',
   'shell.library.recent': 'Recently played',
   'shell.library.progress': 'Progress {done}/{total}',
+  'shell.library.progressLabel': 'Progress',
   'shell.library.completed': 'Completed',
+
+  'shell.pager.prev': 'Previous',
+  'shell.pager.next': 'Next',
 
   'shell.nav.back': 'Back',
   'shell.nav.settings': 'Settings',

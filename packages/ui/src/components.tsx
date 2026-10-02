@@ -305,6 +305,10 @@ export function SaveBadge({ status, failureText, onRetry, onExport }: SaveBadgeP
       </p>
     )
   }
+  // idle 表示「本局还没有需要写入的变化」，此时不能显示「已保存」——那是在宣称一件没发生过的事
+  if (status === 'idle') {
+    return <p className="eink-save" data-testid="save-badge" aria-hidden="true" />
+  }
   const textKey = status === 'saving' ? 'shell.storage.saving' : 'shell.storage.saved'
   return (
     <p className="eink-save" role="status" data-testid="save-badge">
@@ -318,8 +322,6 @@ export interface PagerProps {
   pageCount: number
   onPrev: () => void
   onNext: () => void
-  prevLabelKey?: string
-  nextLabelKey?: string
   text?: string
 }
 
@@ -328,9 +330,19 @@ export function Pager({ page, pageCount, onPrev, onNext, text }: PagerProps): Re
   const { i18n } = useUi()
   return (
     <div className="eink-pager">
-      <ActionButton labelKey="shell.nav.back" text={`‹ ${i18n.t('shell.nav.back')}`} onSelect={onPrev} disabled={page <= 0} />
+      <ActionButton
+        labelKey="shell.pager.prev"
+        text={`‹ ${i18n.t('shell.pager.prev')}`}
+        onSelect={onPrev}
+        disabled={page <= 0}
+      />
       <span className="eink-pager__status">{text ?? `${page + 1} / ${pageCount}`}</span>
-      <ActionButton text={`${i18n.t('shell.result.next')} ›`} onSelect={onNext} disabled={page >= pageCount - 1} />
+      <ActionButton
+        labelKey="shell.pager.next"
+        text={`${i18n.t('shell.pager.next')} ›`}
+        onSelect={onNext}
+        disabled={page >= pageCount - 1}
+      />
     </div>
   )
 }

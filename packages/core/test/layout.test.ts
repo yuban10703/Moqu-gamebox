@@ -83,6 +83,17 @@ describe('棋盘布局不变量', () => {
     expect(board.cell).toBeGreaterThanOrEqual(44)
   })
 
+  it('为底部面板预留高度时，棋盘区会被扣掉相应空间', () => {
+    const viewport = REFERENCE_VIEWPORTS[0]!.viewport
+    const withoutPanel = computeRootLayout(viewport, DEFAULT_LAYOUT)
+    const withPanel = computeRootLayout(viewport, DEFAULT_LAYOUT, { extraBottom: 240 })
+    expect(withoutPanel.boardArea.height - withPanel.boardArea.height).toBe(240)
+    // 扣掉之后棋盘依然完整可用，且格子不会小于下限
+    const board = computeBoardLayout(withPanel.boardArea, 7, 7, DEFAULT_LAYOUT)
+    expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
+    expect(board.boardHeight).toBeLessThanOrEqual(withPanel.boardArea.height)
+  })
+
   it('极窄视口下不会算出负数或零尺寸', () => {
     const layout = computeRootLayout({ width: 320, height: 480, dpr: 2 })
     const board = computeBoardLayout(layout.boardArea, 11, 9)

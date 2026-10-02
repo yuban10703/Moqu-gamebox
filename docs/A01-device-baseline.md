@@ -1,61 +1,90 @@
 # A01 · 目标设备基线
 
-状态：**待真机填写**。所有字段都可以由应用内「设置 → 诊断」自动采集，复制后粘贴到下面表格。
+状态：**已用真机采集（2026-10-03）**。数据来自设备 `adb` 实测 + 应用内「设置 → 诊断」。
 
-## 如何采集
-
-1. 侧载 APK（或打开 Web 端）；
-2. 进入 **设置 → 诊断**；
-3. 点「复制诊断信息」，把文本粘贴到下面的「原始记录」区块；
-4. 按表格逐项填写，「实测」列只写真正观察到的结果，未测的留空。
-
-**注意**：不要假设 `1 CSS px = 1 物理 px`。BOOX 的系统 density 常被改写，
-必须使用诊断页实测的 CSS 视口与 DPR，否则棋盘与触摸目标尺寸会失真。
-
-## 设备表
+## 已采集设备
 
 | 项目 | 值 | 来源 |
 |---|---|---|
-| 型号 |  | 待填（请提供：Note Air 一代 / 2 / 3 / 3C） |
-| 屏幕尺寸 | 10.3 吋 | 用户提供 |
-| 分辨率 | 1872 × 1404 | 厂商规格（待真机确认） |
-| 黑白 / 彩色 |  | 待填（C 系列为彩屏，配色策略需相应调整） |
-| Android 版本 |  | 诊断页 `androidSdk` |
-| 固件版本 |  | 系统设置 → 关于 |
-| 系统 WebView 版本 |  | 诊断页 `webView`（低于 69 会给出更新提示） |
-| CSS 视口（竖屏） |  | 诊断页 `viewport(css)` |
-| CSS 视口（横屏） |  | 诊断页实测 |
-| DPR |  | 诊断页 `viewport @dpr` |
-| 触摸点数 / 粗指针 |  | 诊断页 `touch` |
-| 实体按键 |  | 诊断页 `hardwareKeys` |
-| 触笔 |  | 诊断页 `stylus` |
-| BOOX 屏幕接口可用 |  | 诊断页 `onyxSdkFound` |
-| 可用刷新模式名 |  | 诊断页 `refreshModes` |
-| 支持整屏全刷 |  | 诊断页 `fullRefresh` |
-| 支持临时快刷 |  | 诊断页 `fastMode` |
+| 型号 | BOOX **Note X2** | `ro.product.model` = NoteX2，`ro.product.manufacturer` = ONYX |
+| 屏幕尺寸 | 10.3 吋 | 型号规格 |
+| 分辨率（物理） | 1872 × 1404（当前为横屏） | `wm size` / 诊断页 `screen` |
+| 系统密度 | 240（dpi 基准 160 → DPR 1.5） | `wm density` |
+| 黑白 / 彩色 | 黑白（待你确认是否为彩屏版本） | 待确认 |
+| Android 版本 | 11（API 30） | `ro.build.version.release` / `ro.build.version.sdk` |
+| 固件 | `D60_SMT_V02_2022_0309`（incremental 1658） | `ro.build.display.id` |
+| 系统 WebView | **156.0.8078.4**（com.google.android.webview） | `dumpsys webviewupdate` / 诊断页 |
+| CSS 视口（横屏） | **1248 × 903 @ DPR 1.5** | 诊断页 `viewport(css)` |
+| CSS 视口（竖屏） | 待测 | — |
+| 触摸点数 / 粗指针 | 5 / coarse=true | 诊断页 `touch` |
+| 实体按键 | 待采集（诊断页未展示 `hardwareKeys` 字段） | — |
+| 触笔 | 待采集 | — |
+| BOOX 屏幕接口可用 | **否（未检测到）** | 诊断页 `onyxSdkFound` |
+| 可用刷新模式名 | 无 | 诊断页 `refreshModes` |
+| 支持整屏全刷 / 临时快刷 | 否 / 否 | 诊断页 `fullRefresh` / `fastMode` |
 
-## 支持的平台下限（据基线确定）
+## 平台支持下限的复核
 
-- Android：`minSdk 23`（Android 6.0）。WebView 语法按 chrome69 降级构建；
-  低于该版本时应用内提示更新系统 WebView。
-- Web：需要浏览器支持 IndexedDB 与 ES2017；Service Worker 为渐进增强，
-  **不可用时仍可游玩**（只是无法离线冷启动）。
+- **WebView 156** 远高于构建目标（chrome69），代码里的语法降级对本机无影响，但对老机型仍是必要保险；
+- `minSdk 23` / `targetSdk 35` 在本机（API 30）运行正常；
+- 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **78px**（远超 48px 门槛）。
 
-## 原始记录（粘贴区）
+## 关于 Onyx SDK（重要，已实测）
 
-```
-（在此粘贴诊断页复制出来的文本）
-```
+| 检查 | 结果 |
+|---|---|
+| `/system/framework` 下是否有 onyx jar | **没有**（64 个条目里无任何 onyx 相关） |
+| 全盘搜索 `*onyx*` | 只有系统原生库与自家应用：`/system/lib/libonyx_epd_listener.so`、`libonyx_neo_dither.so`、`/system/priv-app/OnyxOtaService`、`/system/etc/sysconfig/onyx_whitelist.xml` 等 |
+| 第三方应用能否 `Class.forName("...EpdController")` | **不能**（诊断页 `onyxSdkFound=false`，应用自动退回通用模式，未崩溃） |
 
-## 实测观察记录（每台设备一份）
+结论：这台 Note X2 上第三方应用**拿不到** Java 层的 Onyx 屏幕接口。因此：
 
-| 观察项 | 结论 | 日期 |
+1. 应用如实显示「当前设备不支持直接控制刷新」，并给出系统设置指引 —— 符合「不把未验证能力写成可用」的原则；
+2. 若确实需要应用内全刷/档位控制，用 `-PonyxBundled` 把 SDK 打进 APK 再实测（见 [android.md](android.md)）；
+3. 网页端（Neo 浏览器）同样无法直接控制刷新，只能依赖系统的「应用优化/刷新模式」。
+
+## 实测观察记录
+
+| 观察项 | 结论 | 备注 |
 |---|---|---|
-| 输入是否跟手（触摸到可读画面） |  |  |
-| 单步操作后残影程度 |  |  |
-| 整屏全刷的闪烁是否可接受 |  |  |
-| 文字最小可读字号 |  |  |
-| 棋盘格子最小可点尺寸 |  |  |
-| 返回键 / 翻页键行为 |  |  |
+| 输入是否跟手 | 是 | 合成触摸（`input tap`）与真实点击均能触发；应用内即时出画 |
+| 单步操作残影 | 轻微，可接受 | 未做长时间观察，待 100 步连续测试 |
+| 整屏全刷 | 应用无法触发（SDK 不可用）；系统手势可用 | — |
+| 文字最小可读字号 | 标准档（18/20px）完全可读 | 三个棋盘符号在 1-bit 下区分清楚 |
+| 棋盘格子可点尺寸 | 78 CSS px（7×7 关卡） | 远高于 48px |
+| 返回键 | 正常：应用内返回、系统返回键均按预期 | 系统返回键由网页层 `__einkHandleBack` 接管 |
+| 关卡分页 | 正常：16 关分 2 页，上一页/下一页文案正确 | — |
+| 存档持久化 | **通过**：杀进程后重启，步数 1 被恢复；SQLite 库 20KB | 落在 `/data/data/com.einkgamebox/databases/eink-gamebox.db` |
+| 完整通关 | **通过**：第 1 关走完出现「过关」面板，统计与最佳记录正确 | 结果面板曾把按钮挤出首屏，已修（过关后方向盘让位） |
+| 覆盖安装保留数据 | 通过 | `adb install -r` 后进度仍在 |
 
-> 填写原则：**没测过的写「未测」，不要写结论**。未验证的表现不作为宣传或承诺依据。
+## 本机部署注意事项（实测踩到的）
+
+1. **BOOX 会把新装的第三方包置为 `disabled`（`enabled=3` / DISABLED_USER）**，
+   表现为 `am start` 报 `Activity class does not exist`、桌面图标点了没反应。
+   解决：`adb shell pm enable --user 0 com.einkgamebox`。
+   （正常从应用商店/文件管理器安装可能不会触发；侧载时需要留意。）
+2. **`adb exec-out screencap -p` 的输出前面会被塞一行 `capture from screenshot!`**，
+   导致 PNG 头部损坏。正确做法：`adb shell screencap -p /sdcard/x.png` 再 `adb pull`。
+3. 抓图与排障脚本：`tools/scripts/devtools-eval.py`（在页面里求值，需要 debug 构建）。
+
+## 原始记录（诊断页复制）
+
+```
+appVersion: 0.1.0
+platform: android
+manufacturer/model: ONYX NoteX2
+androidSdk: 30
+webView: 156.0.8078.4
+viewport(css): 1248x903 @dpr 1.5
+screen(px): 1872x1404
+locale: zh-CN
+touch: maxTouchPoints=5 coarse=true
+onyxSdkFound: false
+refreshFeatures: none
+refreshModes: none
+fullRefresh: false
+fastMode: false
+webViewSufficient: true
+storage: android
+```

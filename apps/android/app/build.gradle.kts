@@ -96,7 +96,12 @@ val syncWebAssets by tasks.registering(Exec::class) {
     }
 }
 
-val copyWebAssets by tasks.registering(Copy::class) {
+/**
+ * 把 Web 端产物同步进 assets。
+ * 用 Sync 而不是 Copy：Web 产物的文件名带内容哈希，Copy 会把旧哈希文件留在 APK 里，
+ * 既浪费体积也容易让人误判「改的到底是哪一版」。
+ */
+val copyWebAssets by tasks.registering(Sync::class) {
     dependsOn(syncWebAssets)
     val dist = file("${rootProject.projectDir.parentFile.parentFile}/apps/web/dist")
     from(dist)

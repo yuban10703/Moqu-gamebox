@@ -28,6 +28,9 @@ export interface GameScreenProps {
   onCommitted: (envelope: SaveEnvelope) => void
 }
 
+/** 过关面板在底部预留的高度（CSS px）：标题 + 4 行统计 + 三个按钮 */
+const RESULT_PANEL_RESERVE = 240
+
 export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig } = useUi()
   const session = useSession({
@@ -41,8 +44,15 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   const [menuOpen, setMenuOpen] = useState(false)
 
   const root = useMemo(
-    () => computeRootLayout(viewport, layoutConfig, { showDpad: settings.dpad, showStats: true }),
-    [viewport, layoutConfig, settings.dpad],
+    () =>
+      computeRootLayout(viewport, layoutConfig, {
+        // 过关后方向盘不显示，同时要给结果面板留出高度：否则按钮会被挤出首屏，
+        // 玩家得滚动才能点到「下一关」（墨水屏上不该这样）。
+        showDpad: settings.dpad,
+        showStats: true,
+        extraBottom: session.solved ? RESULT_PANEL_RESERVE : 0,
+      }),
+    [viewport, layoutConfig, settings.dpad, session.solved],
   )
   const boardLayout = useMemo(() => {
     const board = session.view.board
@@ -170,7 +180,9 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
             </section>
           ) : null}
 
-          {settings.dpad ? (
+          {/* 过关后方向盘让位给结果面板：此时它没有用处，而结果面板必须与棋盘一起
+              落在首屏内（墨水屏上不该为了看结果去滚动）。 */}
+          {!session.solved && settings.dpad ? (
             <div className="eink-controls">
               <Dpad
                 controls={session.controls}

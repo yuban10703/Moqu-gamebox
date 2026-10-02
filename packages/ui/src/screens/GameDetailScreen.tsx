@@ -90,7 +90,10 @@ export function GameDetailScreen({
         <h2>{i18n.t('shell.detail.levels')}</h2>
         <StatBar
           stats={[
-            { labelKey: 'shell.library.progress', text: i18n.t('shell.library.progress'), value: `${summary.done}/${summary.total}` },
+            {
+              labelKey: 'shell.library.progressLabel',
+              value: `${summary.done}/${summary.total}`,
+            },
           ]}
         />
         {levels.length === 0 ? (

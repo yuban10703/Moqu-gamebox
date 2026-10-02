@@ -66,10 +66,16 @@ function baseFontFor(width: number): number {
 export function computeRootLayout(
   viewport: Viewport,
   config: LayoutConfig = DEFAULT_LAYOUT,
-  options: { showDpad?: boolean; showStats?: boolean } = {},
+  options: {
+    showDpad?: boolean
+    showStats?: boolean
+    /** 底部需要额外预留的高度（例如过关面板）：从棋盘区里扣掉，避免为了看结果去滚动 */
+    extraBottom?: number
+  } = {},
 ): RootLayout {
   const showDpad = options.showDpad ?? true
   const showStats = options.showStats ?? true
+  const extraBottom = Math.max(0, Math.round(options.extraBottom ?? 0))
   const margin = Math.max(config.margin, Math.round(viewport.width * 0.015))
   const gap = Math.max(config.gap, Math.round(margin * 0.75))
   const baseFont = Math.round(baseFontFor(viewport.width) * config.fontScale)
@@ -82,7 +88,10 @@ export function computeRootLayout(
   const controlsHeight = dpadHeight + (showDpad ? buttonHeight : 0) + gap * 2 + statsHeight
   const boardArea = {
     width: contentWidth,
-    height: Math.max(1, Math.round(viewport.height - topBarHeight - controlsHeight - margin * 2)),
+    height: Math.max(
+      1,
+      Math.round(viewport.height - topBarHeight - controlsHeight - extraBottom - margin * 2),
+    ),
   }
   return {
     baseFont,
