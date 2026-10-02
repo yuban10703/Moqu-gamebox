@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/connect4": ["packages/games/connect4/src/index.ts"],
+      "@eink/connect4/*": ["packages/games/connect4/src/*"],
       "@eink/memory": ["packages/games/memory/src/index.ts"],
       "@eink/memory/*": ["packages/games/memory/src/*"],
       "@eink/gomoku": ["packages/games/gomoku/src/index.ts"],
