@@ -493,25 +493,24 @@ html[data-bold-lines='on'] .eink-board__cell {
   color: var(--ink-white);
 }
 .eink-board__cell[data-kind='flag'] {
-  background: var(--ink-white);
   font-weight: 700;
-}
-.eink-board__cell[data-kind='number'] {
-  background: var(--ink-white);
-}
-.eink-board__cell[data-kind='tile'],
-.eink-board__cell[data-kind='given'],
-.eink-board__cell[data-kind='empty'] {
-  background: var(--ink-white);
 }
 /* 当前选中格：更重的内描边（靠线宽区分，不用灰度） */
 .eink-board__cell[data-selected='yes'] {
   box-shadow: inset 0 0 0 3px var(--ink-black);
 }
 
-/* 题目给定：加粗描边（靠线宽区分，不用灰度） */
-.eink-board__cell[data-kind='given'] {
-  box-shadow: inset 0 0 0 2px var(--ink-black);
+/*
+ * 题目给定 vs 玩家填入：只靠**字重**区分，不动边框。
+ * 原先给给定格加了 inset 2px 内描边，它叠在格子边框上变成 4px，
+ * 45 个给定格全部加粗，整块棋盘显得很重（用户实测反馈「已有数字的方块还是太粗了」）。
+ */
+.eink-board__cell[data-kind='given'] .eink-board__text {
+  font-weight: 800;
+}
+
+.eink-board__cell[data-kind='tile'] .eink-board__text {
+  font-weight: 400;
 }
 
 /* 其余格子铺白，遮住容器的纹理 */
