@@ -14,7 +14,7 @@ import { GameDetailScreen } from './screens/GameDetailScreen.js'
 import { GameScreen } from './screens/GameScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen.js'
-import { RefreshTestScreen } from './screens/RefreshTestScreen.js'
+import { MotionTestScreen } from './screens/MotionTestScreen.js'
 import { HelpScreen } from './screens/HelpScreen.js'
 
 type Screen =
@@ -23,7 +23,7 @@ type Screen =
   | { name: 'game'; gameId: string; difficulty: string; nonce: number }
   | { name: 'settings' }
   | { name: 'diagnostics' }
-  | { name: 'refreshTest' }
+  | { name: 'motionTest' }
   | { name: 'help' }
 
 export interface AppProps {
@@ -216,11 +216,11 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
           <DiagnosticsScreen
             onBack={goBack}
             recovery={recovery}
-            onOpenRefreshTest={() => navigate({ name: 'refreshTest' })}
+            onOpenRefreshTest={() => navigate({ name: 'motionTest' })}
           />
         )
-      case 'refreshTest':
-        return <RefreshTestScreen onBack={goBack} />
+      case 'motionTest':
+        return <MotionTestScreen onBack={goBack} />
       case 'help':
         return <HelpScreen onBack={goBack} onDiagnostics={() => navigate({ name: 'diagnostics' })} />
     }

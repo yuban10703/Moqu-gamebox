@@ -581,3 +581,30 @@ html[data-bold-lines='on'] .eink-board__cell {
 .eink-screen--refresh-test .eink-section h2 {
   margin: 2px 0 4px;
 }
+
+
+/* ---------- 连续运动测试页 ---------- */
+.eink-motion-track {
+  position: relative;
+  border: 4px solid #000;
+  overflow: hidden;
+}
+
+.eink-motion-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  height: 2px;
+  background: #000;
+}
+
+/* 用 transform 移动：只触发合成，不触发布局，才谈得上「连续」 */
+.eink-motion-dot {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  border-radius: 50%;
+  background: #000;
+  will-change: transform;
+}

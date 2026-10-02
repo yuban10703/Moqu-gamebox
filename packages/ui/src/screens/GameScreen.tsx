@@ -3,7 +3,7 @@
  *
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { computeBoardLayout, computeRootLayout, type CellKind, type MoveDir, type SaveEnvelope } from '@eink/core'
 import {
   ActionButton,
@@ -41,7 +41,6 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     difficulty,
     onCommitted,
   })
-  const boardRef = useRef<HTMLDivElement | null>(null)
   const [confirmRestart, setConfirmRestart] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -66,32 +65,17 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   }, [session.view.board, root.boardArea, layoutConfig])
 
   /**
-   * 走一步之后，只请求刷新棋盘那一块区域，而不是整屏。
-   * 等两帧再发：要等浏览器把新画面合成完，否则面板可能刷出旧内容。
-   * 坐标用**视图像素**（CSS × DPR）—— 实测该坐标系与截图坐标一致。
+   * 走一步之后不再调用区域刷新。
+   *
+   * 原因：真机实测（Note X2）传入区域矩形后**面板仍然整屏刷新**，
+   * 与整屏全刷在观感上无差别 —— 也就是说这个 API 在这台设备上并没有「只刷一块」的效果。
+   * 既然没有收益，就不该每一步都去驱动一次面板；离屏内容交由系统自身的刷新策略处理，
+   * 需要清残影时用户可以在暂停菜单里手动「立即整屏全刷」。
    */
-  const requestBoardRegionRefresh = useCallback((): void => {
-    const refresh = platform.refresh
-    if (!refresh.capability().regionRefresh) return
-    const element = boardRef.current
-    if (!element) return
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const rect = element.getBoundingClientRect()
-        const dpr = window.devicePixelRatio || 1
-        refresh.refreshRegion({
-          left: Math.round(rect.left * dpr),
-          top: Math.round(rect.top * dpr),
-          right: Math.round(rect.right * dpr),
-          bottom: Math.round(rect.bottom * dpr),
-        })
-      })
-    })
-  }, [platform])
 
   const onMove = (dir: MoveDir): void => {
     session.clearNotice()
-    if (session.dispatch({ type: 'move', dir } as never)) requestBoardRegionRefresh()
+    session.dispatch({ type: 'move', dir } as never)
   }
 
   useKeyboardControls({
@@ -158,7 +142,6 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         <>
           <div
             className="eink-board-area"
-            ref={boardRef}
             style={{ width: root.boardArea.width, height: root.boardArea.height }}
           >
             {session.view.board && boardLayout ? (
@@ -206,10 +189,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
                   emphasis="primary"
                   size="large"
                   disabled={!session.controls.some((control) => control.id === 'next-level' && control.enabled)}
-                  onSelect={() => {
-                session.nextLevel()
-                requestBoardRegionRefresh()
-              }}
+                  onSelect={() => session.nextLevel()}
                 />
                 <ActionButton labelKey="shell.result.again" onSelect={() => setConfirmRestart(true)} />
                 <ActionButton labelKey="shell.result.library" onSelect={onExit} />

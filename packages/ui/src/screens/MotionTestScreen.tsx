@@ -1,0 +1,335 @@
+/**
+ * 连续运动测试页：判定墨水屏上「连续运动」到底能做到什么程度。
+ *
+ * 为什么改成连续运动：上一版是一格一格跳的，用户反馈「只改画面时不够连续，看不出差异」，
+ * 而且实测发现区域刷新传了矩形也是整屏刷新（见 docs/refresh-adaptation.md）。
+ * 所以这一版用一个 **rAF 匀速滑动** 的圆点，配合五种刷新策略做对照，
+ * 并且把「每秒帧数」直接显示出来 —— 流畅度是可量化的，不必只靠感觉。
+ *
+ * 五种策略：
+ *   - 只改画面：不动用任何刷新接口（基线）
+ *   - 动画模式：EpdDeviceManager.enterAnimationUpdate（应用级快刷）
+ *   - 系统快刷：EpdController.applySystemFastMode（整机级，退出即恢复；会临时影响其它应用）
+ *   - 每帧区域刷新：对圆点矩形调用 refreshScreenRegion（用于确认它是否真的只刷那块）
+ *   - 每帧整屏全刷：最差对照，必然闪
+ *
+ * 安全性：动画模式在停止、离开页面、组件卸载时都会退出，且只撤销本应用自己开的开关。
+ */
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ActionButton, TopBar } from '../components.js'
+import { useUi } from '../contexts.js'
+
+type Strategy = 'dom' | 'animation' | 'systemFast' | 'region' | 'full'
+
+const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
+  { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
+  { value: 'animation', labelKey: 'shell.motiontest.strategy.animation' },
+  { value: 'systemFast', labelKey: 'shell.motiontest.strategy.systemFast' },
+  { value: 'region', labelKey: 'shell.motiontest.strategy.region' },
+  { value: 'full', labelKey: 'shell.motiontest.strategy.full' },
+]
+
+const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
+  { px: 120, labelKey: 'shell.motiontest.speed.slow' },
+  { px: 300, labelKey: 'shell.motiontest.speed.normal' },
+  { px: 600, labelKey: 'shell.motiontest.speed.fast' },
+]
+
+const TRACK_WIDTH = 1100
+const DOT_SIZE = 96
+/** 每帧刷新类的策略限速：桥调用同步 ~2ms，避免把桥线程刷满 */
+const BRIDGE_CALL_INTERVAL_MS = 50
+/** 自动对比时每种策略的时长 */
+const AUTO_PHASE_MS = 9000
+
+export interface MotionTestScreenProps {
+  onBack: () => void
+}
+
+export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
+  const { i18n, platform } = useUi()
+  const [strategy, setStrategy] = useState<Strategy>('dom')
+  const [speed, setSpeed] = useState(300)
+  const [running, setRunning] = useState(false)
+  const [position, setPosition] = useState(0)
+  const [fps, setFps] = useState(0)
+  const [frames, setFrames] = useState(0)
+  const [stateText, setStateText] = useState('—')
+  const [summary, setSummary] = useState<string[]>([])
+  const [autoIndex, setAutoIndex] = useState(-1)
+
+  const dotRef = useRef<HTMLDivElement | null>(null)
+  const positionRef = useRef(0)
+  const frameCountRef = useRef(0)
+  const lastCallRef = useRef(0)
+  const fpsWindowRef = useRef<{ start: number; frames: number }>({ start: 0, frames: 0 })
+  const strategyRef = useRef<Strategy>(strategy)
+  const autoRef = useRef<{ active: boolean; index: number; phaseStart: number; fps: number[] }>({
+    active: false,
+    index: 0,
+    phaseStart: 0,
+    fps: [],
+  })
+
+  strategyRef.current = strategy
+
+  /** 根据当前策略，在画完一帧之后驱动面板 */
+  const drivePanel = useCallback(
+    (now: number) => {
+      const current = strategyRef.current
+      if (current === 'dom') return
+      if (now - lastCallRef.current < BRIDGE_CALL_INTERVAL_MS) return
+      lastCallRef.current = now
+
+      if (current === 'animation' || current === 'systemFast') return // 这两者是开始/停止时开关一次
+
+      if (current === 'full') {
+        platform.refresh.fullRefresh()
+        return
+      }
+      const element = dotRef.current
+      if (!element) return
+      const rect = element.getBoundingClientRect()
+      const dpr = window.devicePixelRatio || 1
+      platform.refresh.refreshRegion({
+        left: Math.round(rect.left * dpr),
+        top: Math.round(rect.top * dpr),
+        right: Math.round(rect.right * dpr),
+        bottom: Math.round(rect.bottom * dpr),
+      })
+    },
+    [platform],
+  )
+
+  // 连续运动主循环
+  useEffect(() => {
+    if (!running) return
+    let raf = 0
+    let last = performance.now()
+    fpsWindowRef.current = { start: performance.now(), frames: 0 }
+
+    const loop = (now: number): void => {
+      const delta = Math.min(now - last, 100)
+      last = now
+      frameCountRef.current += 1
+      positionRef.current = (positionRef.current + (speed * delta) / 1000) % (TRACK_WIDTH - DOT_SIZE)
+      setPosition(positionRef.current)
+      drivePanel(now)
+
+      const window = fpsWindowRef.current
+      window.frames += 1
+      if (now - window.start >= 1000) {
+        const measured = Math.round((window.frames * 1000) / (now - window.start))
+        setFps(measured)
+        setFrames(frameCountRef.current)
+        if (autoRef.current.active) autoRef.current.fps.push(measured)
+        window.start = now
+        window.frames = 0
+      }
+      setStateText(platform.refresh.animationState())
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [running, speed, drivePanel, platform])
+
+  // 进入/退出对应策略的面板状态；任何路径退出都要恢复
+  const applyStrategyState = useCallback(
+    (next: Strategy, on: boolean): void => {
+      if (next === 'animation' || next === 'systemFast') {
+        // 必须指定路径：否则「系统快刷」会被 enterAnimationUpdate 接走，测的就不是系统快刷
+        const result = platform.refresh.setAnimationMode(on, next)
+        setStateText(result.state)
+        if (on && !result.ok) {
+          setStateText(`${i18n.t('shell.motiontest.animationUnavailable')} · ${result.state}`)
+        }
+        return
+      }
+      setStateText(platform.refresh.animationState())
+    },
+    [i18n, platform],
+  )
+
+  const stop = useCallback((): void => {
+    setRunning(false)
+    applyStrategyState(strategyRef.current, false)
+  }, [applyStrategyState])
+
+  const start = useCallback(
+    (next?: Strategy): void => {
+      const target = next ?? strategyRef.current
+      if (next) {
+        setStrategy(next)
+        strategyRef.current = next
+      }
+      frameCountRef.current = 0
+      setFrames(0)
+      applyStrategyState(target, true)
+      setRunning(true)
+    },
+    [applyStrategyState],
+  )
+
+  // 离开页面/卸载时一定要把动画模式关掉
+  useEffect(() => {
+    return () => {
+      platform.refresh.setAnimationMode(false, 'auto')
+    }
+  }, [platform])
+
+  /** 自动依次对比：每种策略跑一段时间，记录稳定后的帧数 */
+  const runAuto = useCallback((): void => {
+    const sequence: Strategy[] = ['dom', 'animation', 'systemFast']
+    autoRef.current = { active: true, index: 0, phaseStart: performance.now(), fps: [] }
+    setSummary([])
+    setAutoIndex(0)
+    start(sequence[0])
+
+    const advance = (index: number): void => {
+      if (index >= sequence.length) {
+        autoRef.current.active = false
+        setAutoIndex(-1)
+        setRunning(false)
+        platform.refresh.setAnimationMode(false, 'auto')
+        return
+      }
+      autoRef.current = {
+        active: true,
+        index,
+        phaseStart: performance.now(),
+        fps: [],
+      }
+      setAutoIndex(index)
+      start(sequence[index])
+      window.setTimeout(() => {
+        const measured = autoRef.current.fps
+        // 丢掉前 2 秒（进入模式后的稳定期），取后面的平均
+        const stable = measured.slice(2)
+        const average = stable.length
+          ? Math.round(stable.reduce((sum, value) => sum + value, 0) / stable.length)
+          : 0
+        setSummary((previous) => [
+          ...previous,
+          `${i18n.t(sequence[index] === 'dom'
+            ? 'shell.motiontest.strategy.dom'
+            : sequence[index] === 'animation'
+              ? 'shell.motiontest.strategy.animation'
+              : 'shell.motiontest.strategy.systemFast')}: ${average} FPS`,
+        ])
+        setRunning(false)
+        platform.refresh.setAnimationMode(false, 'auto')
+        window.setTimeout(() => advance(index + 1), 1500)
+      }, AUTO_PHASE_MS)
+    }
+    advance(0)
+  }, [i18n, platform, start])
+
+  const dots = useMemo(() => Array.from({ length: 40 }, (_, index) => index), [])
+
+  return (
+    <div className="eink-screen eink-screen--motion-test">
+      <TopBar
+        title={i18n.t('shell.motiontest.title')}
+        subtitle={i18n.t('shell.motiontest.status', {
+          fps: running ? fps : 0,
+          frames,
+          state: stateText,
+        })}
+        onBack={() => {
+          stop()
+          onBack()
+        }}
+      />
+
+      <section className="eink-section">
+        <h2>{i18n.t('shell.motiontest.strategy')}</h2>
+        <div className="eink-choice-row">
+          {STRATEGIES.map((option) => (
+            <ActionButton
+              key={option.value}
+              labelKey={option.labelKey}
+              emphasis={strategy === option.value ? 'primary' : 'normal'}
+              onSelect={() => {
+                stop()
+                setStrategy(option.value)
+                strategyRef.current = option.value
+              }}
+            />
+          ))}
+        </div>
+        <div className="eink-choice-row">
+          {SPEEDS.map((option) => (
+            <ActionButton
+              key={option.px}
+              labelKey={option.labelKey}
+              emphasis={speed === option.px ? 'primary' : 'normal'}
+              onSelect={() => setSpeed(option.px)}
+            />
+          ))}
+        </div>
+        <div className="eink-choice-row">
+          <ActionButton
+            labelKey={running ? 'shell.motiontest.stop' : 'shell.motiontest.start'}
+            emphasis="primary"
+            size="large"
+            onSelect={() => (running ? stop() : start())}
+          />
+          <ActionButton labelKey="shell.motiontest.auto" size="large" onSelect={runAuto} />
+          <ActionButton
+            labelKey="shell.motiontest.clean"
+            onSelect={() => platform.refresh.fullRefresh()}
+          />
+        </div>
+        {strategy === 'systemFast' ? (
+          <p className="eink-notice">{i18n.t('shell.motiontest.systemFastWarning')}</p>
+        ) : null}
+        {platform.refresh.capability().animationMode ? null : (
+          <p className="eink-muted">{i18n.t('shell.motiontest.animationUnavailable')}</p>
+        )}
+        {autoIndex >= 0 ? (
+          <p className="eink-text">
+            {i18n.t('shell.motiontest.autoRunning', { index: autoIndex + 1 })}
+          </p>
+        ) : null}
+        {summary.length > 0 ? (
+          <ul className="eink-list">
+            {summary.map((line) => (
+              <li className="eink-list__item" key={line}>
+                {line}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+
+      {/* 运动轨道：圆点匀速滑动，位置每帧更新（不是一格一格跳） */}
+      <section className="eink-section">
+        <h2>{i18n.t('shell.motiontest.track')}</h2>
+        <div className="eink-motion-track" style={{ width: TRACK_WIDTH, height: DOT_SIZE + 16 }}>
+          <div className="eink-motion-rail" aria-hidden="true" />
+          <div
+            className="eink-motion-dot"
+            ref={dotRef}
+            style={{
+              width: DOT_SIZE,
+              height: DOT_SIZE,
+              transform: `translateX(${Math.round(position)}px)`,
+            }}
+          />
+        </div>
+      </section>
+
+      {/* 参照区：静止不动。变淡/发灰说明整屏被反复驱动 */}
+      <section className="eink-section">
+        <h2>{i18n.t('shell.motiontest.reference')}</h2>
+        <div className="eink-refresh-stripes" aria-hidden="true">
+          {dots.map((index) => (
+            <span key={index} />
+          ))}
+        </div>
+        <div className="eink-refresh-solid" aria-hidden="true" />
+        <p className="eink-text">{i18n.t('shell.motiontest.watch')}</p>
+      </section>
+    </div>
+  )
+}

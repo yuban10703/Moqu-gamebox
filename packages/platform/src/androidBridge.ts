@@ -137,6 +137,7 @@ export function readAndroidRefreshCapability(bridge: EinkNativeBridge): RefreshC
       // 缺省视为「未验证」：宁可少显示一个开关，也不要显示一个点了没用的
       partialProfiles: parsed.partialProfiles === true,
       regionRefresh: parsed.regionRefresh === true,
+      animationMode: parsed.animationMode === true,
     }
   } catch {
     return null

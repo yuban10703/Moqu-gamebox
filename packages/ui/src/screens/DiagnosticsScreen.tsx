@@ -38,7 +38,7 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
   return (
     <div className="eink-screen">
       <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack}>
-        {capability.regionRefresh ? (
+        {capability.animationMode ? (
           <ActionButton
             labelKey="shell.diagnostics.refreshTest"
             size="large"

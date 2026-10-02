@@ -138,3 +138,46 @@
    **静默失效**（返回 undefined，原生侧完全收不到请求，且不报错）。必须写成 `bridge.refreshRegion(...)`。
 2. **提示行会把方向键挤出屏幕**：方向键原本在提示出现后被推到 y=1433（屏高 1404）。
    修法是给「提示 + 保存状态」一个固定高度的状态条（`.eink-statusstrip`），并在布局计算里预留同样的高度。
+
+## 真机结论更新（用户实测反馈）
+
+1. **区域参数无效**：用户在真机上对比后反馈「区域刷新和整屏全刷都是刷全屏」。
+   即 `refreshScreenRegion` 虽然调用成功，但面板并不只更新传入的矩形 ——
+   因此本项目**不再把它当区域刷新使用**（已停止在游戏里按步调用）。
+   能力位 `regionRefresh` 改为恒为 false，并在 features 里留下
+   `regionRefreshNotHonored:updatesFullScreen` 作为证据，避免后人再被 API 名骗一次。
+2. **只改画面时连续运动不流畅**：不再显式调用刷新接口时，连续动画观感不够连续。
+   于是新增「连续运动测试」页做对照（见下）。
+
+## 连续运动测试页（连续运动 + 五种策略）
+
+页面：诊断 → 顶栏「连续运动测试」。圆点以 rAF 逐帧匀速滑动（120/300/600 px/s），
+五种策略各自走自己的路径，互不借用：
+
+| 策略 | 实际调用 |
+|---|---|
+| 只改画面 | 不调用任何刷新接口（基线） |
+| 动画模式 | `EpdDeviceManager.enterAnimationUpdate(true)` / `exitAnimationUpdate(true)` |
+| 系统快刷 | `EpdController.applySystemFastMode(true/false)`，可回读 `inSystemFastMode()` |
+| 每帧区域刷新 | 对圆点矩形调用 `refreshScreenRegion`（用于复验上一条结论） |
+| 每帧整屏全刷 | `refreshScreen(View, GC)`，最差对照 |
+
+### 实测数据（Note X2）
+
+- **三种策略下网页侧都是 ~45–46 FPS**（共 181–369 帧）。也就是说 WebView/合成**不是**瓶颈，
+  视觉流畅度取决于面板 —— 所以「哪个更流畅」只能靠人眼判断，页面把 FPS 直接显示出来供参考。
+- **动画模式确实进入了**：`animation=true(enterAnimationUpdate)`，停止/离开页面会退出
+  （日志 `animation mode OFF via enterAnimationUpdate`）。
+- **系统快刷在这台设备上启用不了**：`applySystemFastMode(true)` 被接受（未抛异常），
+  但回读 `inSystemFastMode()` 与 `isInFastMode()` 仍为 false。
+  日志：`applySystemFastMode accepted but readback still false`。如实报告为不可用。
+  可能原因：Onyx 的 `/system/etc/sysconfig/onyx_whitelist.xml` 未包含本应用。
+- `exitAnimationUpdate` 等接口**没有公开的「当前是否在动画模式」查询**，
+  因此动画模式的能力位只能表达「接口存在且调用被接受」，features 里以
+  `animationVerified:no-readback-api` 标注该区别。
+
+### 安全性
+
+- 退出动画模式时**只撤销本应用自己开的开关**：绝不无条件调用 `applySystemFastMode(false)`，
+  否则会把用户在系统设置里自己打开的快刷关掉。
+- 停止、离开页面、组件卸载三条路径都会退出动画模式。

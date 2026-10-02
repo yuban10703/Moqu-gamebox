@@ -14,8 +14,15 @@ data class RefreshCapability(
     val fastMode: Boolean,
     /** 刷新档位（局部模式）是否**验证过**确实生效，而不是「方法存在」 */
     val partialProfiles: Boolean = false,
-    /** 区域刷新是否**验证过**真的能调用（能只刷指定矩形） */
+    /**
+     * 区域刷新是否可用。
+     * 注意：真机（Note X2）实测「传入区域参数仍然整屏刷新」——
+     * 调用会成功，但面板并不只更新该矩形，因此这里报告 false（不可用），
+     * 证据记在 features 里。
+     */
     val regionRefresh: Boolean = false,
+    /** 动画（快刷）模式是否可用：连续运动要用它才可能流畅 */
+    val animationMode: Boolean = false,
 )
 
 /**
@@ -36,6 +43,13 @@ interface EinkBackend {
      * 返回实际生效的实现名；不支持或全部失败返回 null。
      */
     fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String?
+    /**
+     * 进入/退出动画（快刷）模式。返回实际生效的路径名；不支持返回 null。
+     * 必须在结束时退出，否则会把设备留在快刷状态。
+     */
+    fun setAnimationMode(on: Boolean, preferred: String): String?
+    /** 当前动画/快刷状态的文本摘要，用于界面显示与验证是否真的生效 */
+    fun animationState(): String
     fun setFastMode(on: Boolean)
     fun setFrontLight(level: Int)
     fun setFullscreen(activity: Activity?, on: Boolean)
@@ -77,6 +91,10 @@ abstract class BaseEinkBackend(protected val context: Context) : EinkBackend {
     /** 通用设备没有区域刷新能力 */
     override fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String? = null
 
+    override fun setAnimationMode(on: Boolean, preferred: String): String? = null
+
+    override fun animationState(): String = "unsupported"
+
     override fun release() = Unit
 }
 
@@ -91,11 +109,14 @@ class NoopEinkBackend(context: Context) : BaseEinkBackend(context) {
         fastMode = false,
         partialProfiles = false,
         regionRefresh = false,
+        animationMode = false,
     )
 
     override fun bindView(view: View, onVerified: Runnable) = onVerified.run()
     override fun setProfile(profile: String) = Unit
     override fun fullRefresh(target: View?) = Unit
     override fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String? = null
+    override fun setAnimationMode(on: Boolean, preferred: String): String? = null
+    override fun animationState(): String = "unsupported"
     override fun setFastMode(on: Boolean) = Unit
 }

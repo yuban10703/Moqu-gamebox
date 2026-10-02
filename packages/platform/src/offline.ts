@@ -129,6 +129,16 @@ export interface RefreshController {
    * 返回实际生效的实现名；不可用返回 null。
    */
   refreshRegion(rect: { left: number; top: number; right: number; bottom: number }): string | null
+  /**
+   * 进入/退出动画（快刷）模式。返回本次实际使用的路径与状态；
+   * 退出时只撤销本应用自己开的开关。
+   */
+  setAnimationMode(
+    on: boolean,
+    preferred?: 'auto' | 'animation' | 'systemFast',
+  ): { ok: boolean; path: string | null; state: string }
+  /** 当前动画/快刷状态摘要 */
+  animationState(): string
   stats(): RefreshStats
   dispose(): void
 }
@@ -143,6 +153,7 @@ export function createWebRefresh(): RefreshController {
     fastMode: false,
     partialProfiles: false,
     regionRefresh: false,
+    animationMode: false,
   }
   return {
     capability: () => capability,
@@ -155,6 +166,8 @@ export function createWebRefresh(): RefreshController {
     },
     setFastMode: () => undefined,
     refreshRegion: () => null,
+    setAnimationMode: () => ({ ok: false, path: null, state: 'unsupported' }),
+    animationState: () => 'unsupported',
     stats: () => ({ ...stats }),
     dispose: () => undefined,
   }
@@ -166,6 +179,8 @@ export function createAndroidRefresh(bridge: {
   setFastMode(on: boolean): void
   getRefreshCapability(): string
   refreshRegion?(left: number, top: number, right: number, bottom: number): string
+  setAnimationMode?(on: boolean, preferred: string): string
+  getAnimationState?(): string
 }): RefreshController {
   const stats: RefreshStats = { fullRefreshes: 0, profileChanges: 0 }
 
@@ -180,6 +195,7 @@ export function createAndroidRefresh(bridge: {
         fastMode: parsed?.fastMode === true,
         partialProfiles: parsed?.partialProfiles === true,
         regionRefresh: parsed?.regionRefresh === true,
+        animationMode: parsed?.animationMode === true,
       }
     } catch {
       // 探测失败就按「不支持」处理，界面给出系统指引
@@ -191,6 +207,7 @@ export function createAndroidRefresh(bridge: {
         fastMode: false,
         partialProfiles: false,
         regionRefresh: false,
+        animationMode: false,
       }
     }
   }
@@ -236,6 +253,35 @@ export function createAndroidRefresh(bridge: {
         return parsed.ok === true ? (parsed.path ?? 'unknown') : null
       } catch {
         return null
+      }
+    },
+    setAnimationMode: (on, preferred = 'auto') => {
+      if (typeof bridge.setAnimationMode !== 'function') {
+        return { ok: false, path: null, state: 'unsupported' }
+      }
+      try {
+        // 与 refreshRegion 同理：必须在桥对象上直接调用，取出方法再调会静默失效
+        const parsed = JSON.parse(bridge.setAnimationMode(on, preferred)) as {
+          ok?: boolean
+          path?: string | null
+          state?: string
+        }
+        capability = readCapability()
+        return {
+          ok: parsed.ok === true,
+          path: typeof parsed.path === 'string' ? parsed.path : null,
+          state: parsed.state ?? '—',
+        }
+      } catch {
+        return { ok: false, path: null, state: 'error' }
+      }
+    },
+    animationState: () => {
+      if (typeof bridge.getAnimationState !== 'function') return 'unsupported'
+      try {
+        return bridge.getAnimationState()
+      } catch {
+        return 'error'
       }
     },
     setFastMode: (on) => {

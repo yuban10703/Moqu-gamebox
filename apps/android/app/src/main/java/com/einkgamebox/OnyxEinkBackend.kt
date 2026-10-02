@@ -48,6 +48,27 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             ?.let { "invalidate" to it },
     )
 
+    private val deviceManagerClass: Class<*>? =
+        tryLoad("com.onyx.android.sdk.api.device.EpdDeviceManager")
+
+    /** 动画模式：EpdDeviceManager.enterAnimationUpdate / exitAnimationUpdate */
+    private val enterAnimationMethod: Method? =
+        findStatic(deviceManagerClass, "enterAnimationUpdate", Boolean::class.javaPrimitiveType)
+    private val exitAnimationMethod: Method? =
+        findStatic(deviceManagerClass, "exitAnimationUpdate", Boolean::class.javaPrimitiveType)
+
+    /** 系统级快刷开关（与系统「快刷模式」同一入口），可回读确认是否生效 */
+    private val applySystemFastModeMethod: Method? =
+        findStatic(epdController, "applySystemFastMode", Boolean::class.javaPrimitiveType)
+    private val inSystemFastModeMethod: Method? = findStatic(epdController, "inSystemFastMode")
+    private val isInFastModeMethod: Method? = findStatic(epdController, "isInFastMode")
+
+    /** 一次性模式切换：applyTransientUpdate / clearTransientUpdate */
+    private val applyTransientMethod: Method? =
+        findStatic(epdController, "applyTransientUpdate", updateModeClass)
+    private val clearTransientMethod: Method? =
+        findStatic(epdController, "clearTransientUpdate", Boolean::class.javaPrimitiveType)
+
     private val frontLightMethod: Method? = findFrontLight()
 
     /**
@@ -69,6 +90,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     private var currentView: View? = null
     private var fastModeOn = false
+    /** 已进入的动画/快刷路径，退出时必须按原路退出 */
+    private var activeAnimationPath: String? = null
 
     /** 实际验证成功的全刷实现名；一旦全部失败就置为空并改口为「不支持」 */
     private var workingFullRefresh: String? = null
@@ -152,6 +175,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
         val features = buildList {
             if (classesPresent) add("sdk-classes")
+            if (workingRegionRefresh != null) add("regionRefreshNotHonored:updatesFullScreen")
             if (onyxDevice) add("onyx-device")
             if (setViewModeMethod != null) add("partialMode")
             if (getViewModeMethod != null) add("partialModeReadback")
@@ -161,6 +185,12 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             regionRefreshCandidates.forEach { add("regionRefreshCandidate:${it.first}") }
             workingRegionRefresh?.let { add("regionRefreshWorks:$it") }
             lastRegionError?.let { add("regionRefreshError:$it") }
+            if (enterAnimationMethod != null) add("animationCandidate:enterAnimationUpdate")
+            if (applyTransientMethod != null) add("animationCandidate:applyTransientUpdate")
+            if (applySystemFastModeMethod != null) add("animationCandidate:applySystemFastMode")
+            if (inSystemFastModeMethod != null) add("animationReadback:inSystemFastMode")
+            add("animationVerified:no-readback-api")
+            activeAnimationPath?.let { add("animationActive:$it") }
             if (frontLightClass != null) add("FrontLightController")
         }
 
@@ -171,7 +201,12 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             fullRefresh = fullRefreshUsable,
             fastMode = false, // 3 参数的 applyApplicationFastMode 在 1.3.6 不存在；5 参数版语义未知，不猜
             partialProfiles = supported && setViewModeMethod != null && partialModeVerified,
-            regionRefresh = supported && workingRegionRefresh != null,
+            // 区域刷新：真机实测「传了区域仍然整屏刷新」，因此报告为不可用，
+            // 并把证据留在 features 里，避免后续再有人被这个 API 名骗一次。
+            regionRefresh = false,
+            animationMode = supported &&
+                (enterAnimationMethod != null || applyTransientMethod != null ||
+                    applySystemFastModeMethod != null),
         )
     }
 
@@ -237,8 +272,126 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
         Log.w(TAG, "no working full refresh path on this device ($lastFullRefreshError)")
     }
 
+    override fun setAnimationMode(on: Boolean, preferred: String): String? {
+        val view = currentView
+
+        if (!on) {
+            val path = activeAnimationPath ?: return null
+            // 只撤销「我们自己开的那一个」。
+            // 特别注意：绝不能无条件调用 applySystemFastMode(false) ——
+            // 那会把用户在系统设置里自己打开的快刷关掉，属于擅自改动整机设置。
+            when (path) {
+                "enterAnimationUpdate" -> invokeOrNull(exitAnimationMethod, true)
+                "applySystemFastMode" -> invokeOrNull(applySystemFastModeMethod, false)
+                "applyTransientUpdate" -> invokeOrNull(clearTransientMethod, true)
+            }
+            activeAnimationPath = null
+            Log.i(TAG, "animation mode OFF via $path, state=${animationState()}")
+            return path
+        }
+
+        // preferred 指定了就走哪条路：否则「系统快刷」会先被 enterAnimationUpdate 接走，
+        // 两条路径被混为一谈，测出来的就不是系统快刷（实测踩过）。
+        if (preferred == "systemFast") {
+            if (applySystemFastModeMethod == null) return null
+            invokeOrNull(applySystemFastModeMethod, true)
+            // 这条路是可以回读验证的
+            if (readBool(inSystemFastModeMethod) == true || readBool(isInFastModeMethod) == true) {
+                activeAnimationPath = "applySystemFastMode"
+                Log.i(TAG, "animation mode ON via applySystemFastMode (readback confirmed)")
+                return activeAnimationPath
+            }
+            Log.w(TAG, "applySystemFastMode accepted but readback still false")
+            return null
+        }
+        if (preferred == "animation" && enterAnimationMethod != null) {
+            val accepted = try {
+                enterAnimationMethod.invoke(null, true)
+                true
+            } catch (error: Throwable) {
+                false
+            }
+            if (accepted) {
+                activeAnimationPath = "enterAnimationUpdate"
+                Log.i(TAG, "animation mode ON via enterAnimationUpdate (preferred)")
+                return activeAnimationPath
+            }
+            return null
+        }
+
+        // 未指定时按优先级尝试，谁没抛异常用谁。
+        // 说明：这几个接口都是 void，没有公开的「当前是否在动画模式」查询接口，
+        // 因此这里只能确认「调用被接受且未抛异常」，无法像系统快刷那样回读验证 ——
+        // 能力清单里把这一点如实标出来（animationVerified:no-readback-api）。
+        if (enterAnimationMethod != null) {
+            val accepted = try {
+                enterAnimationMethod.invoke(null, true)
+                true
+            } catch (error: Throwable) {
+                Log.w(TAG, "enterAnimationUpdate failed: ${(error.cause ?: error).javaClass.simpleName}")
+                false
+            }
+            if (accepted) {
+                activeAnimationPath = "enterAnimationUpdate"
+                Log.i(TAG, "animation mode ON via enterAnimationUpdate")
+                return activeAnimationPath
+            }
+        }
+        // 2) 一次性模式（ANIMATION 快刷）
+        val animationMode = modeValue(listOf("ANIMATION", "ANIMATION_QUALITY", "ANIMATION_MONO", "DU"))
+        if (applyTransientMethod != null && animationMode != null) {
+            val ok = invokeOrNull(applyTransientMethod, animationMode)
+            if (ok != false) {
+                activeAnimationPath = "applyTransientUpdate"
+                Log.i(TAG, "animation mode ON via applyTransientUpdate(${modeName(animationMode)})")
+                return activeAnimationPath
+            }
+        }
+        // 3) 系统级快刷（影响整机，仅在需要时使用，且退出时一定会关）
+        if (applySystemFastModeMethod != null) {
+            invokeOrNull(applySystemFastModeMethod, true)
+            if (readBool(inSystemFastModeMethod) == true || readBool(isInFastModeMethod) == true) {
+                activeAnimationPath = "applySystemFastMode"
+                Log.i(TAG, "animation mode ON via applySystemFastMode")
+                return activeAnimationPath
+            }
+        }
+        // 4) 只剩 view 也能做的：不做猜测
+        if (view == null) return null
+        Log.w(TAG, "no working animation mode path")
+        return null
+    }
+
+    override fun animationState(): String {
+        val animationOn = activeAnimationPath != null
+        val systemFast = readBool(inSystemFastModeMethod)
+        val fastMode = readBool(isInFastModeMethod)
+        return "animation=$animationOn(${activeAnimationPath ?: "-"})" +
+            " systemFast=${systemFast ?: "n/a"} fastMode=${fastMode ?: "n/a"}"
+    }
+
+    private fun readBool(method: Method?): Boolean? {
+        if (method == null) return null
+        return try {
+            method.invoke(null) as? Boolean
+        } catch (error: Throwable) {
+            null
+        }
+    }
+
+    private fun invokeOrNull(method: Method?, vararg args: Any?): Any? {
+        if (method == null) return null
+        return try {
+            method.invoke(null, *args)
+        } catch (error: Throwable) {
+            Log.w(TAG, "invoke ${method.name} failed: ${(error.cause ?: error).javaClass.simpleName}")
+            null
+        }
+    }
+
     override fun setFastMode(on: Boolean) {
-        // 未找到语义确定的接口，不做猜测调用；能力清单里也如实报告 false
+        // 保留旧入口：映射到动画模式（不指定路径，走优先级链）
+        setAnimationMode(on, "auto")
         fastModeOn = on
     }
 

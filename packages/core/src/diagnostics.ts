@@ -30,6 +30,12 @@ export interface RefreshCapability {
    * 需要实屏观察（见 docs/refresh-adaptation.md）。
    */
   regionRefresh: boolean
+  /**
+   * 动画（快刷）模式是否可用：连续运动要靠它才可能流畅。
+   * 注意：这几个接口没有「当前是否在动画模式」的查询接口，
+   * 因此这里的 true 只表示「接口存在且调用被接受」，不像系统快刷那样能回读验证。
+   */
+  animationMode: boolean
 }
 
 export interface DeviceBaseline {
@@ -74,6 +80,7 @@ export function emptyCapability(): RefreshCapability {
     fastMode: false,
     partialProfiles: false,
     regionRefresh: false,
+    animationMode: false,
   }
 }
 

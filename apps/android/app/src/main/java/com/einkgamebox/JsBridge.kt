@@ -110,6 +110,23 @@ class JsBridge(
         }
     }
 
+    /**
+     * 进入/退出动画（快刷）模式。退出时只撤销本应用自己开的开关。
+     * 返回本次实际使用的路径与当前状态，便于界面显示与事后核对。
+     */
+    @JavascriptInterface
+    fun setAnimationMode(on: Boolean, preferred: String): String {
+        val path = backend.setAnimationMode(on, preferred)
+        return JSONObject()
+            .put("ok", path != null)
+            .put("path", path ?: JSONObject.NULL)
+            .put("state", backend.animationState())
+            .toString()
+    }
+
+    @JavascriptInterface
+    fun getAnimationState(): String = backend.animationState()
+
     @JavascriptInterface
     fun setFastMode(on: Boolean) = host.runOnUiThread { backend.setFastMode(on) }
 
@@ -154,5 +171,6 @@ class JsBridge(
             .put("fastMode", capability.fastMode)
             .put("partialProfiles", capability.partialProfiles)
             .put("regionRefresh", capability.regionRefresh)
+            .put("animationMode", capability.animationMode)
     }
 }
