@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -85,6 +86,33 @@ class MainActivity : Activity() {
                 request: WebResourceRequest,
             ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
 
+            /**
+             * 渲染进程崩溃自愈。
+             *
+             * 为什么必须有：渲染进程一死，网页就变成一张**冻住的死图**，
+             * 点什么都没反应 —— 用户会以为「按钮坏了」。真机上已经踩到过
+             * （日志：Scheduling restart of crashed service
+             * com.einkgamebox/org.chromium.content.app.SandboxedProcessService0），
+             * 当时只能杀进程。这里返回 true 表示已处理，避免整个应用被一起干掉，
+             * 并立刻清理设备状态、重新加载页面。
+             */
+            override fun onRenderProcessGone(
+                view: WebView,
+                detail: RenderProcessGoneDetail,
+            ): Boolean {
+                val didCrash = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail.didCrash()
+                Log.w(TAG, "renderer process gone: didCrash=$didCrash - reloading UI")
+                // 先把设备状态收拾干净：退出动画模式、停掉刷新泵，别把面板留在快刷状态
+                backend.setAnimationMode(false, "auto")
+                backend.stopRefreshPump()
+                view.postDelayed({
+                    if (::webView.isInitialized && !isFinishing) {
+                        webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
+                    }
+                }, RENDERER_RESTART_DELAY_MS)
+                return true
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url
                 if (url.host == ASSET_HOST) return false
@@ -124,6 +152,13 @@ class MainActivity : Activity() {
                 super.onBackPressed()
             }
         }
+    }
+
+    override fun onPause() {
+        // 切走/熄屏时立即停掉刷新泵并退出动画模式：绝不把设备留在高频刷新状态
+        backend.stopRefreshPump()
+        backend.setAnimationMode(false, "auto")
+        super.onPause()
     }
 
     override fun onDestroy() {
@@ -246,5 +281,7 @@ class MainActivity : Activity() {
         private const val REQUEST_IMPORT = 1002
         /** 给能力验证留出时间（验证要驱动一次真实全刷，耗时以百毫秒计） */
         private const val CAPABILITY_NOTIFY_DELAY_MS = 1200L
+        /** 渲染进程崩溃后重新加载页面的延迟 */
+        private const val RENDERER_RESTART_DELAY_MS = 600L
     }
 }

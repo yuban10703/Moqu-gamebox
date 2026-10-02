@@ -139,6 +139,12 @@ export interface RefreshController {
   ): { ok: boolean; path: string | null; state: string }
   /** 当前动画/快刷状态摘要 */
   animationState(): string
+  /**
+   * 原生刷新泵：把高频整屏全刷放到原生侧做。
+   * 网页里每帧同步调桥会占满主线程（触摸收不到、渲染进程还可能被杀），因此搬到原生侧。
+   */
+  startRefreshPump(intervalMs: number, maxDurationMs: number): boolean
+  stopRefreshPump(): string
   stats(): RefreshStats
   dispose(): void
 }
@@ -168,6 +174,8 @@ export function createWebRefresh(): RefreshController {
     refreshRegion: () => null,
     setAnimationMode: () => ({ ok: false, path: null, state: 'unsupported' }),
     animationState: () => 'unsupported',
+    startRefreshPump: () => false,
+    stopRefreshPump: () => 'unsupported',
     stats: () => ({ ...stats }),
     dispose: () => undefined,
   }
@@ -181,6 +189,8 @@ export function createAndroidRefresh(bridge: {
   refreshRegion?(left: number, top: number, right: number, bottom: number): string
   setAnimationMode?(on: boolean, preferred: string): string
   getAnimationState?(): string
+  startRefreshPump?(intervalMs: number, maxDurationMs: number): string
+  stopRefreshPump?(): string
 }): RefreshController {
   const stats: RefreshStats = { fullRefreshes: 0, profileChanges: 0 }
 
@@ -280,6 +290,26 @@ export function createAndroidRefresh(bridge: {
       if (typeof bridge.getAnimationState !== 'function') return 'unsupported'
       try {
         return bridge.getAnimationState()
+      } catch {
+        return 'error'
+      }
+    },
+    startRefreshPump: (intervalMs, maxDurationMs) => {
+      if (typeof bridge.startRefreshPump !== 'function') return false
+      try {
+        const parsed = JSON.parse(bridge.startRefreshPump(intervalMs, maxDurationMs)) as {
+          ok?: boolean
+        }
+        return parsed.ok === true
+      } catch {
+        return false
+      }
+    },
+    stopRefreshPump: () => {
+      if (typeof bridge.stopRefreshPump !== 'function') return 'unsupported'
+      try {
+        const parsed = JSON.parse(bridge.stopRefreshPump()) as { stats?: string }
+        return parsed.stats ?? '—'
       } catch {
         return 'error'
       }

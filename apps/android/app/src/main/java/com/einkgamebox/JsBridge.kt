@@ -127,6 +127,19 @@ class JsBridge(
     @JavascriptInterface
     fun getAnimationState(): String = backend.animationState()
 
+    /**
+     * 原生刷新泵：高频整屏全刷放在原生侧做，网页只开关，避免同步调用阻塞主线程。
+     * 返回本次实际使用的间隔等参数，便于界面显示。
+     */
+    @JavascriptInterface
+    fun startRefreshPump(intervalMs: Int, maxDurationMs: Int): String {
+        val started = backend.startRefreshPump(intervalMs, maxDurationMs)
+        return JSONObject().put("ok", started).put("intervalMs", intervalMs).toString()
+    }
+
+    @JavascriptInterface
+    fun stopRefreshPump(): String = JSONObject().put("stats", backend.stopRefreshPump()).toString()
+
     @JavascriptInterface
     fun setFastMode(on: Boolean) = host.runOnUiThread { backend.setFastMode(on) }
 

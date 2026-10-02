@@ -50,6 +50,14 @@ interface EinkBackend {
     fun setAnimationMode(on: Boolean, preferred: String): String?
     /** 当前动画/快刷状态的文本摘要，用于界面显示与验证是否真的生效 */
     fun animationState(): String
+    /**
+     * 原生刷新泵：按间隔在原生侧反复整屏全刷，网页只负责开关。
+     * 为什么要有它：在网页里「每帧调桥刷新」是同步阻塞调用，会把 WebView 主线程占满，
+     * 触摸收不到、渲染进程还可能因内存压力被杀（真机已实测到 SandboxedProcessService 崩溃）。
+     * 放到原生侧后网页不再阻塞，且泵自身会自适应降频、并在超时后自动停止。
+     */
+    fun startRefreshPump(intervalMs: Int, maxDurationMs: Int): Boolean
+    fun stopRefreshPump(): String
     fun setFastMode(on: Boolean)
     fun setFrontLight(level: Int)
     fun setFullscreen(activity: Activity?, on: Boolean)
@@ -94,6 +102,10 @@ abstract class BaseEinkBackend(protected val context: Context) : EinkBackend {
     override fun setAnimationMode(on: Boolean, preferred: String): String? = null
 
     override fun animationState(): String = "unsupported"
+
+    override fun startRefreshPump(intervalMs: Int, maxDurationMs: Int): Boolean = false
+
+    override fun stopRefreshPump(): String = "unsupported"
 
     override fun release() = Unit
 }

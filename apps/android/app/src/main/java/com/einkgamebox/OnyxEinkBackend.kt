@@ -2,6 +2,9 @@ package com.einkgamebox
 
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import java.lang.reflect.Method
@@ -294,9 +297,11 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
                 "applyTransientUpdate" -> invokeOrNull(clearTransientMethod, true)
             }
             activeAnimationPath = null
+            cancelAnimationWatchdog()
             Log.i(TAG, "animation mode OFF via $path, state=${animationState()}")
             return path
         }
+
 
         // preferred 指定了就走哪条路：否则「系统快刷」会先被 enterAnimationUpdate 接走，
         // 两条路径被混为一谈，测出来的就不是系统快刷（实测踩过）。
@@ -306,6 +311,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             // 这条路是可以回读验证的
             if (readBool(inSystemFastModeMethod) == true || readBool(isInFastModeMethod) == true) {
                 activeAnimationPath = "applySystemFastMode"
+                armAnimationWatchdog()
                 Log.i(TAG, "animation mode ON via applySystemFastMode (readback confirmed)")
                 return activeAnimationPath
             }
@@ -321,6 +327,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             }
             if (accepted) {
                 activeAnimationPath = "enterAnimationUpdate"
+                armAnimationWatchdog()
                 Log.i(TAG, "animation mode ON via enterAnimationUpdate (preferred)")
                 return activeAnimationPath
             }
@@ -341,6 +348,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             }
             if (accepted) {
                 activeAnimationPath = "enterAnimationUpdate"
+                armAnimationWatchdog()
                 Log.i(TAG, "animation mode ON via enterAnimationUpdate")
                 return activeAnimationPath
             }
@@ -351,6 +359,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             val ok = invokeOrNull(applyTransientMethod, animationMode)
             if (ok != false) {
                 activeAnimationPath = "applyTransientUpdate"
+                armAnimationWatchdog()
                 Log.i(TAG, "animation mode ON via applyTransientUpdate(${modeName(animationMode)})")
                 return activeAnimationPath
             }
@@ -371,11 +380,37 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     }
 
     override fun animationState(): String {
+        // 泵的状态也一并汇报，便于界面与日志核对
         val animationOn = activeAnimationPath != null
         val systemFast = readBool(inSystemFastModeMethod)
         val fastMode = readBool(isInFastModeMethod)
         return "animation=$animationOn(${activeAnimationPath ?: "-"})" +
             " systemFast=${systemFast ?: "n/a"} fastMode=${fastMode ?: "n/a"}"
+    }
+
+    /**
+     * 动画模式的原生看门狗。
+     *
+     * 为什么必须有：退出动画模式目前靠网页调用。可一旦网页冻住、渲染进程被杀、
+     * 或者进程被强杀，这个调用就没机会执行，设备会被留在快刷状态
+     * （真机上已经发生过一次，只能杀进程，且下一次启动才被清掉）。
+     * 看门狗不依赖网页，到时自动退出。
+     */
+    private fun armAnimationWatchdog() {
+        cancelAnimationWatchdog()
+        val runnable = Runnable {
+            if (activeAnimationPath != null) {
+                Log.w(TAG, "animation watchdog fired - forcing exit after ${ANIMATION_WATCHDOG_MS}ms")
+                setAnimationMode(false, "auto")
+            }
+        }
+        watchdogRunnable = runnable
+        watchdogHandler.postDelayed(runnable, ANIMATION_WATCHDOG_MS)
+    }
+
+    private fun cancelAnimationWatchdog() {
+        watchdogRunnable?.let { watchdogHandler.removeCallbacks(it) }
+        watchdogRunnable = null
     }
 
     private fun readBool(method: Method?): Boolean? {
@@ -395,6 +430,53 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             Log.w(TAG, "invoke ${method.name} failed: ${(error.cause ?: error).javaClass.simpleName}")
             null
         }
+    }
+
+    private val pumpHandler = Handler(Looper.getMainLooper())
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private var watchdogRunnable: Runnable? = null
+    private var pumpRunnable: Runnable? = null
+    private var pumpStats: String = "idle"
+
+    override fun startRefreshPump(intervalMs: Int, maxDurationMs: Int): Boolean {
+        val view = currentView ?: return false
+        stopRefreshPump()
+        val requested = intervalMs.coerceIn(200, 5000)
+        val startedAt = System.currentTimeMillis()
+        var calls = 0
+        var averageCost = 0L
+
+        pumpRunnable = object : Runnable {
+            override fun run() {
+                if (System.currentTimeMillis() - startedAt > maxDurationMs) {
+                    Log.i(TAG, "refresh pump auto-stopped after ${maxDurationMs}ms ($pumpStats)")
+                    stopRefreshPump()
+                    return
+                }
+                val begin = SystemClock.elapsedRealtime()
+                fullRefresh(view)
+                val cost = SystemClock.elapsedRealtime() - begin
+                calls += 1
+                averageCost = if (averageCost == 0L) cost else (averageCost * 3 + cost) / 4
+                pumpStats = "calls=$calls avgCost=${averageCost}ms"
+                // 自适应：单次刷新越慢，间隔就拉得越大。
+                // 目标是**永远不把主线程占满** —— 主线程被占满时触摸事件就收不到，
+                // 用户会以为「按钮坏了」（这正是之前那次事故的真相）。
+                val next = maxOf(requested.toLong(), averageCost * 3)
+                pumpHandler.postDelayed(this, next)
+            }
+        }
+        pumpHandler.post(pumpRunnable!!)
+        Log.i(TAG, "refresh pump started: requested=${requested}ms maxDuration=${maxDurationMs}ms")
+        return true
+    }
+
+    override fun stopRefreshPump(): String {
+        pumpRunnable?.let { pumpHandler.removeCallbacks(it) }
+        pumpRunnable = null
+        val previous = pumpStats
+        pumpStats = "idle"
+        return previous
     }
 
     override fun setFastMode(on: Boolean) {
@@ -459,6 +541,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     override fun release() {
         fastModeOn = false
+        stopRefreshPump()
+        cancelAnimationWatchdog()
     }
 
     private fun readBackMode(view: View): String? {
@@ -517,6 +601,8 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
         private const val TAG = "OnyxEinkBackend"
         /** 启动时用于验证局部模式是否真的生效 */
         private const val DEFAULT_PROFILE = "quality"
+        /** 动画模式的最长驻留时间：到点由原生强制退出，不依赖网页 */
+        private const val ANIMATION_WATCHDOG_MS = 60_000L
 
         fun isLikelyOnyx(): Boolean {
             if (Build.MANUFACTURER.equals("onyx", ignoreCase = true)) return true

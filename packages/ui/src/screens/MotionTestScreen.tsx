@@ -19,14 +19,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ActionButton, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
 
-type Strategy = 'dom' | 'animation' | 'systemFast' | 'region' | 'full'
+type Strategy = 'dom' | 'animation' | 'systemFast' | 'pump'
 
 const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
   { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
   { value: 'animation', labelKey: 'shell.motiontest.strategy.animation' },
   { value: 'systemFast', labelKey: 'shell.motiontest.strategy.systemFast' },
-  { value: 'region', labelKey: 'shell.motiontest.strategy.region' },
-  { value: 'full', labelKey: 'shell.motiontest.strategy.full' },
+  { value: 'pump', labelKey: 'shell.motiontest.strategy.pump' },
 ]
 
 const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
@@ -37,19 +36,15 @@ const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
 
 const TRACK_WIDTH = 1100
 const DOT_SIZE = 96
-/**
- * 每帧刷新类的策略限速。
- * 同步桥调用会占用 WebView 主线程，太密会让触摸事件处理不及时 ——
- * 实测 20 次/秒（50ms）就已经把「停止」按钮按不动了，因此降到 10 次/秒。
- */
-const BRIDGE_CALL_INTERVAL_MS = 100
+/** 原生刷新泵的间隔：2 次/秒。泵自身还会按实测耗时自适应降频 */
+const PUMP_INTERVAL_MS = 500
 /** 状态栏刷新间隔：绝不能每帧调桥（每帧一次同步调用会把主线程占满） */
 const STATUS_INTERVAL_MS = 1000
 /**
  * 硬性自动停止：万一界面卡到点不动「停止」，也必须能自己停下来，
  * 不能把设备留在动画模式里（真机上已经踩过一次，只能杀进程）。
  */
-const MAX_RUN_MS = 90000
+const MAX_RUN_MS = 20000
 /** 自动对比时每种策略的时长 */
 const AUTO_PHASE_MS = 9000
 
@@ -71,10 +66,10 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
 
   const dotRef = useRef<HTMLDivElement | null>(null)
   const runStartRef = useRef(0)
+  const pumpStatsRef = useRef('')
   const lastStatusRef = useRef(0)
   const positionRef = useRef(0)
   const frameCountRef = useRef(0)
-  const lastCallRef = useRef(0)
   const fpsWindowRef = useRef<{ start: number; frames: number }>({ start: 0, frames: 0 })
   const strategyRef = useRef<Strategy>(strategy)
   const autoRef = useRef<{ active: boolean; index: number; phaseStart: number; fps: number[] }>({
@@ -86,33 +81,15 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
 
   strategyRef.current = strategy
 
-  /** 根据当前策略，在画完一帧之后驱动面板 */
-  const drivePanel = useCallback(
-    (now: number) => {
-      const current = strategyRef.current
-      if (current === 'dom') return
-      if (now - lastCallRef.current < BRIDGE_CALL_INTERVAL_MS) return
-      lastCallRef.current = now
-
-      if (current === 'animation' || current === 'systemFast') return // 这两者是开始/停止时开关一次
-
-      if (current === 'full') {
-        platform.refresh.fullRefresh()
-        return
-      }
-      const element = dotRef.current
-      if (!element) return
-      const rect = element.getBoundingClientRect()
-      const dpr = window.devicePixelRatio || 1
-      platform.refresh.refreshRegion({
-        left: Math.round(rect.left * dpr),
-        top: Math.round(rect.top * dpr),
-        right: Math.round(rect.right * dpr),
-        bottom: Math.round(rect.bottom * dpr),
-      })
-    },
-    [platform],
-  )
+  /**
+   * 主循环里**不再有任何桥调用**。
+   *
+   * 这是用两次事故换来的结论：在 rAF 循环里同步调原生桥会把 WebView 主线程占满，
+   * 触摸事件收不到（用户以为按钮坏了），渲染进程还可能因内存压力被杀
+   * （真机日志：Scheduling restart of crashed service ...SandboxedProcessService0），
+   * 此时页面直接变成一张冻住的死图。
+   * 需要高频刷新就交给原生刷新泵，网页只负责开关。
+   */
 
   // 连续运动主循环
   useEffect(() => {
@@ -132,8 +109,6 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
       positionRef.current = (positionRef.current + (speed * delta) / 1000) % (TRACK_WIDTH - DOT_SIZE)
       const dot = dotRef.current
       if (dot) dot.style.transform = `translateX(${Math.round(positionRef.current)}px)`
-
-      drivePanel(now)
 
       const window = fpsWindowRef.current
       window.frames += 1
@@ -164,11 +139,21 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [running, speed, drivePanel, platform])
+  }, [running, speed, platform])
 
   // 进入/退出对应策略的面板状态；任何路径退出都要恢复
   const applyStrategyState = useCallback(
     (next: Strategy, on: boolean): void => {
+      if (next === 'pump') {
+        if (on) {
+          platform.refresh.startRefreshPump(PUMP_INTERVAL_MS, MAX_RUN_MS)
+        } else {
+          const stats = platform.refresh.stopRefreshPump()
+          pumpStatsRef.current = stats
+          setStateText(`${i18n.t('shell.motiontest.pumpStopped', { stats })}`)
+        }
+        return
+      }
       if (next === 'animation' || next === 'systemFast') {
         // 必须指定路径：否则「系统快刷」会被 enterAnimationUpdate 接走，测的就不是系统快刷
         const result = platform.refresh.setAnimationMode(on, next)
@@ -203,11 +188,18 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
     [applyStrategyState],
   )
 
+  // 注意：这里**不要**加「任意触摸即停止」。
+  // 试过，结果是「先停后启」：pointerdown 先把 running 置 false，
+  // 紧接着按钮 click 看到 false 就调了 start()，用户看到的是「点停止反而在跑」。
+  // 而且页面真冻住时根本收不到任何事件，这类网页侧保险没有意义 ——
+  // 真正的兜底在原生侧：刷新泵的硬超时、动画模式的原生看门狗、onPause 清理、
+  // 以及渲染进程崩溃后的自愈重载。
   // 离开页面/卸载/页面被隐藏时都要退出动画模式：
   // 仅仅依赖「点停止」是不够的，真机上出现过界面卡住点不动的情况。
   useEffect(() => {
     const restore = (): void => {
       platform.refresh.setAnimationMode(false, 'auto')
+      platform.refresh.stopRefreshPump()
     }
     const onHide = (): void => {
       if (document.visibilityState === 'hidden') restore()
@@ -318,11 +310,21 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
           ))}
         </div>
         <div className="eink-choice-row">
+          {/* 开始与停止是两个独立按钮，不做二合一 toggle：
+              toggle 依赖渲染时的 running 值，一旦有竞态就会「点停止反而在跑」。 */}
           <ActionButton
-            labelKey={running ? 'shell.motiontest.stop' : 'shell.motiontest.start'}
-            emphasis="primary"
+            labelKey="shell.motiontest.start"
+            emphasis={running ? 'normal' : 'primary'}
             size="large"
-            onSelect={() => (running ? stop() : start())}
+            disabled={running}
+            onSelect={() => start()}
+          />
+          <ActionButton
+            labelKey="shell.motiontest.stop"
+            emphasis={running ? 'primary' : 'normal'}
+            size="large"
+            disabled={!running}
+            onSelect={stop}
           />
           <ActionButton labelKey="shell.motiontest.auto" size="large" onSelect={runAuto} />
           <ActionButton
