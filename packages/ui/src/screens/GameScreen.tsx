@@ -175,7 +175,10 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
             ) : null}
           </div>
 
-          <div className="eink-statusstrip">
+          <div
+            className="eink-statusstrip"
+            data-expanded={session.failureReason ? 'yes' : 'no'}
+          >
             <NoticeLine {...(session.view.notice ? { textKey: session.view.notice.textKey } : {})} />
             <SaveBadge
               status={session.saveStatus}

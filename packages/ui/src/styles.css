@@ -529,12 +529,35 @@ html[data-bold-lines='on'] .eink-board__cell {
 
 /* 提示与保存状态占用固定高度：这两行会随交互出现/消失，
    如果让它们改变布局，下面的方向键就会被挤出首屏（墨水屏上不该需要滚动）。 */
+/*
+ * 状态条：默认压缩成一行（提示与保存状态并排）。
+ * 原先是两行 84px，竖屏下白白吃掉本可以给棋盘的高度。
+ * 只有保存失败时需要「重试/导出」按钮，才放开换行 —— 那种情况下绝不能把按钮挤没。
+ */
 .eink-statusstrip {
-  min-height: 84px;
+  min-height: 44px;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.eink-statusstrip > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eink-statusstrip[data-expanded='yes'] {
+  min-height: 0;
   flex-direction: column;
-  gap: 6px;
-  justify-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  white-space: normal;
+  overflow: visible;
 }
 
 .eink-save {
@@ -723,4 +746,25 @@ html[data-bold-lines='on'] .eink-board__cell {
 
 .eink-gray-wedge > span {
   flex: 1 1 auto;
+}
+
+
+/* ---------- 竖屏：控制区居中 ---------- */
+/*
+ * 横屏时 .eink-controls 用 space-between 把方向盘放左、操作放右很合适；
+ * 但竖屏宽度只有 400 多，方向盘会被挤到最左边、右边留一大片空白、拇指也够不着对侧。
+ * 竖屏改为上下两段、都水平居中。
+ */
+@media (orientation: portrait) {
+  .eink-controls {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap);
+  }
+
+  .eink-controls__actions {
+    justify-content: center;
+    width: 100%;
+  }
 }
