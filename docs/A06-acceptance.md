@@ -108,6 +108,18 @@
 方法与证据见 [refresh-adaptation.md](refresh-adaptation.md#补充残影不能被截图测量实测证据)。
 `screencap` 能测的是渲染内容本身的灰度分布（误用灰阶、抗锯齿过重），工具为 `tools/scripts/png-stats.py`。
 
+## 刷新控制能力（开启 -PonyxBundled 后实测）
+
+| 能力 | 结论 |
+|---|---|
+| 整屏全刷 | 可用（`refreshScreen(view, GC)`） |
+| **区域刷新** | **可用**（`refreshScreenRegion(view, l,t,r,b, mode)`）；已接入为「每走一步只刷棋盘区域」 |
+| 刷新档位（清晰/均衡/速度） | 不可用（写入被接受但回读不生效），界面如实提示并指向系统设置 |
+| 临时快刷 | 不可用（1.3.6 无 3 参数版本） |
+
+面板是否真的「只动那一块」需要实屏观察：截图与驱动帧计数都无法证明（详见
+[refresh-adaptation.md](refresh-adaptation.md#区域刷新能不能指定只刷这块)）。
+
 ## 尚未执行（需人工或后续轮次）
 
 - 备份导出/导入（需要走系统文件选择器，人工确认）；

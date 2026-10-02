@@ -20,6 +20,10 @@ async function bootstrap(): Promise<void> {
     ...(import.meta.env.PROD ? { swUrl: './sw.js' } : {}),
   })
 
+  // 真机排障用：把平台对象挂到 window，便于用 WebView DevTools 直接查看运行时状态
+  // （能力缓存、刷新统计等），否则这些问题只能靠猜。
+  ;(window as unknown as { __einkPlatform?: unknown }).__einkPlatform = platform
+
   createRoot(container).render(<App platform={platform} library={library} />)
 }
 

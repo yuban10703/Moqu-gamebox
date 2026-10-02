@@ -3,7 +3,7 @@
  *
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeBoardLayout, computeRootLayout, type CellKind, type MoveDir, type SaveEnvelope } from '@eink/core'
 import {
   ActionButton,
@@ -30,6 +30,8 @@ export interface GameScreenProps {
 
 /** 过关面板在底部预留的高度（CSS px）：标题 + 4 行统计 + 三个按钮 */
 const RESULT_PANEL_RESERVE = 240
+/** 「提示 + 保存状态」状态条的固定高度（CSS px），与 .eink-statusstrip 的 min-height 一致 */
+const STATUS_STRIP_RESERVE = 84
 
 export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig } = useUi()
@@ -39,6 +41,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     difficulty,
     onCommitted,
   })
+  const boardRef = useRef<HTMLDivElement | null>(null)
   const [confirmRestart, setConfirmRestart] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -46,11 +49,13 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   const root = useMemo(
     () =>
       computeRootLayout(viewport, layoutConfig, {
-        // 过关后方向盘不显示，同时要给结果面板留出高度：否则按钮会被挤出首屏，
+        // 过关后方向盘不显示（showDpad 必须跟着改，否则会白留一大块高度），
+        // 同时给结果面板与状态条预留高度：否则按钮会被挤出首屏，
         // 玩家得滚动才能点到「下一关」（墨水屏上不该这样）。
-        showDpad: settings.dpad,
+        showDpad: settings.dpad && !session.solved,
         showStats: true,
-        extraBottom: session.solved ? RESULT_PANEL_RESERVE : 0,
+        extraBottom:
+          STATUS_STRIP_RESERVE + (session.solved ? RESULT_PANEL_RESERVE : 0),
       }),
     [viewport, layoutConfig, settings.dpad, session.solved],
   )
@@ -60,9 +65,33 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     return computeBoardLayout(root.boardArea, board.cols, board.rows, layoutConfig)
   }, [session.view.board, root.boardArea, layoutConfig])
 
+  /**
+   * 走一步之后，只请求刷新棋盘那一块区域，而不是整屏。
+   * 等两帧再发：要等浏览器把新画面合成完，否则面板可能刷出旧内容。
+   * 坐标用**视图像素**（CSS × DPR）—— 实测该坐标系与截图坐标一致。
+   */
+  const requestBoardRegionRefresh = useCallback((): void => {
+    const refresh = platform.refresh
+    if (!refresh.capability().regionRefresh) return
+    const element = boardRef.current
+    if (!element) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const rect = element.getBoundingClientRect()
+        const dpr = window.devicePixelRatio || 1
+        refresh.refreshRegion({
+          left: Math.round(rect.left * dpr),
+          top: Math.round(rect.top * dpr),
+          right: Math.round(rect.right * dpr),
+          bottom: Math.round(rect.bottom * dpr),
+        })
+      })
+    })
+  }, [platform])
+
   const onMove = (dir: MoveDir): void => {
     session.clearNotice()
-    session.dispatch({ type: 'move', dir } as never)
+    if (session.dispatch({ type: 'move', dir } as never)) requestBoardRegionRefresh()
   }
 
   useKeyboardControls({
@@ -127,7 +156,11 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         </section>
       ) : (
         <>
-          <div className="eink-board-area" style={{ width: root.boardArea.width, height: root.boardArea.height }}>
+          <div
+            className="eink-board-area"
+            ref={boardRef}
+            style={{ width: root.boardArea.width, height: root.boardArea.height }}
+          >
             {session.view.board && boardLayout ? (
               <Board
                 board={session.view.board}
@@ -137,16 +170,17 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
             ) : null}
           </div>
 
-          <NoticeLine {...(session.view.notice ? { textKey: session.view.notice.textKey } : {})} />
-
-          <SaveBadge
-            status={session.saveStatus}
-            failureText={
-              session.failureReason ? i18n.t(`shell.storage.reason.${session.failureReason}`) : undefined
-            }
-            onRetry={session.retrySave}
-            onExport={() => void exportBackup()}
-          />
+          <div className="eink-statusstrip">
+            <NoticeLine {...(session.view.notice ? { textKey: session.view.notice.textKey } : {})} />
+            <SaveBadge
+              status={session.saveStatus}
+              failureText={
+                session.failureReason ? i18n.t(`shell.storage.reason.${session.failureReason}`) : undefined
+              }
+              onRetry={session.retrySave}
+              onExport={() => void exportBackup()}
+            />
+          </div>
 
           {session.solved && session.view.result ? (
             <section className="eink-section eink-section--result" role="status">
@@ -172,7 +206,10 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
                   emphasis="primary"
                   size="large"
                   disabled={!session.controls.some((control) => control.id === 'next-level' && control.enabled)}
-                  onSelect={() => session.nextLevel()}
+                  onSelect={() => {
+                session.nextLevel()
+                requestBoardRegionRefresh()
+              }}
                 />
                 <ActionButton labelKey="shell.result.again" onSelect={() => setConfirmRestart(true)} />
                 <ActionButton labelKey="shell.result.library" onSelect={onExit} />

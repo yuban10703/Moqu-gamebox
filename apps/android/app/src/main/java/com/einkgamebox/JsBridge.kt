@@ -96,6 +96,20 @@ class JsBridge(
     @JavascriptInterface
     fun fullRefresh() = host.runOnUiThread { backend.fullRefresh(host.gameView()) }
 
+    /**
+     * 只刷新一个矩形区域（视图坐标，像素；网页侧需把 CSS 坐标乘 DPR）。
+     * 典型用途：走一步棋之后只刷棋盘那一块，而不是整屏闪一次。
+     */
+    @JavascriptInterface
+    fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String {
+        val applied = backend.refreshRegion(left, top, right, bottom)
+        return if (applied != null) {
+            JSONObject().put("ok", true).put("path", applied).toString()
+        } else {
+            JSONObject().put("ok", false).put("error", "unsupported").toString()
+        }
+    }
+
     @JavascriptInterface
     fun setFastMode(on: Boolean) = host.runOnUiThread { backend.setFastMode(on) }
 
@@ -139,5 +153,6 @@ class JsBridge(
             .put("fullRefresh", capability.fullRefresh)
             .put("fastMode", capability.fastMode)
             .put("partialProfiles", capability.partialProfiles)
+            .put("regionRefresh", capability.regionRefresh)
     }
 }

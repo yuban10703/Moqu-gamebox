@@ -24,6 +24,12 @@ export interface RefreshCapability {
    * 只在真机上回读确认过才算 true —— 「方法存在」不等于「设置生效」。
    */
   partialProfiles: boolean
+  /**
+   * 区域刷新是否可用：能指定「只刷这个矩形」。
+   * 注意这只表示**调用可用**；面板是否真的只动那一块，无法用截图或驱动计数证明，
+   * 需要实屏观察（见 docs/refresh-adaptation.md）。
+   */
+  regionRefresh: boolean
 }
 
 export interface DeviceBaseline {
@@ -67,6 +73,7 @@ export function emptyCapability(): RefreshCapability {
     fullRefresh: false,
     fastMode: false,
     partialProfiles: false,
+    regionRefresh: false,
   }
 }
 

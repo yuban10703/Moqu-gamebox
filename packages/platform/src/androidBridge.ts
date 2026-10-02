@@ -55,6 +55,20 @@ declare global {
     __EINK_EXPORT_RESULT__?: (payload: string) => void
     /** 网页层决定系统返回键的行为：返回 true 表示已处理 */
     __einkHandleBack?: () => boolean
+    /** 壳层在能力验证完成后调用，通知网页重新读取能力清单 */
+    __einkCapabilityChanged?: () => void
+  }
+}
+
+/**
+ * 监听「能力验证完成」通知。
+ * 返回取消订阅函数；在不支持的环境里是空操作。
+ */
+export function onCapabilityChanged(handler: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined
+  window.__einkCapabilityChanged = handler
+  return () => {
+    delete window.__einkCapabilityChanged
   }
 }
 
@@ -122,6 +136,7 @@ export function readAndroidRefreshCapability(bridge: EinkNativeBridge): RefreshC
       fastMode: parsed.fastMode === true,
       // 缺省视为「未验证」：宁可少显示一个开关，也不要显示一个点了没用的
       partialProfiles: parsed.partialProfiles === true,
+      regionRefresh: parsed.regionRefresh === true,
     }
   } catch {
     return null

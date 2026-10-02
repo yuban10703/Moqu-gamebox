@@ -117,11 +117,18 @@ export interface RefreshStats {
 
 export interface RefreshController {
   capability(): RefreshCapability
+  /** 强制重新向原生读取能力清单（用于「验证完成」通知之后） */
+  refreshCapability(): RefreshCapability
   setProfile(profile: RefreshProfile): void
   /** 整屏全刷：清除残影 */
   fullRefresh(): void
   /** 临时快刷模式，必须成对进入/退出 */
   setFastMode(on: boolean): void
+  /**
+   * 只刷新指定矩形（**视图像素**坐标，即 CSS 坐标 × DPR）。
+   * 返回实际生效的实现名；不可用返回 null。
+   */
+  refreshRegion(rect: { left: number; top: number; right: number; bottom: number }): string | null
   stats(): RefreshStats
   dispose(): void
 }
@@ -135,9 +142,11 @@ export function createWebRefresh(): RefreshController {
     fullRefresh: false,
     fastMode: false,
     partialProfiles: false,
+    regionRefresh: false,
   }
   return {
     capability: () => capability,
+    refreshCapability: () => capability,
     setProfile: () => {
       stats.profileChanges++
     },
@@ -145,6 +154,7 @@ export function createWebRefresh(): RefreshController {
       stats.fullRefreshes++
     },
     setFastMode: () => undefined,
+    refreshRegion: () => null,
     stats: () => ({ ...stats }),
     dispose: () => undefined,
   }
@@ -155,6 +165,7 @@ export function createAndroidRefresh(bridge: {
   fullRefresh(): void
   setFastMode(on: boolean): void
   getRefreshCapability(): string
+  refreshRegion?(left: number, top: number, right: number, bottom: number): string
 }): RefreshController {
   const stats: RefreshStats = { fullRefreshes: 0, profileChanges: 0 }
 
@@ -168,6 +179,7 @@ export function createAndroidRefresh(bridge: {
         fullRefresh: parsed?.fullRefresh === true,
         fastMode: parsed?.fastMode === true,
         partialProfiles: parsed?.partialProfiles === true,
+        regionRefresh: parsed?.regionRefresh === true,
       }
     } catch {
       // 探测失败就按「不支持」处理，界面给出系统指引
@@ -178,17 +190,22 @@ export function createAndroidRefresh(bridge: {
         fullRefresh: false,
         fastMode: false,
         partialProfiles: false,
+        regionRefresh: false,
       }
     }
   }
 
-  // 缓存能力清单，但在会改变结论的调用之后重新读取：
-  // 「档位是否真的生效」「全刷是否真的可用」都要调用过才知道；
-  // 一直返回旧结论会让界面留下点了没用的按钮。这样也避免每次渲染都过一次同步桥。
+  // 缓存能力清单：这些能力要真机调用过才知道结论（全刷能不能用、档位是否生效、区域刷新是否可用），
+  // 而原生侧的验证是启动后异步完成的。若一开始就固化成「未验证」，界面会一直少一个本来可用的功能。
+  // 因此：只要还有能力项处于「未验证」状态，就按需重读，但**上限 8 次**——避免在真正不支持的设备上每次渲染都过一次同步桥。
   let capability = readCapability()
   let fastModeOn = false
   return {
     capability: () => capability,
+    refreshCapability: () => {
+      capability = readCapability()
+      return capability
+    },
     setProfile: (profile) => {
       stats.profileChanges++
       try {
@@ -206,6 +223,20 @@ export function createAndroidRefresh(bridge: {
         // 同上
       }
       capability = readCapability()
+    },
+    refreshRegion: (rect) => {
+      if (typeof bridge.refreshRegion !== 'function') return null
+      try {
+        // 必须**在桥对象上直接调用**：把 Java 桥的方法取出来再调用会脱离接收者，
+        // 调用会静默失效（实测返回 undefined，且原生侧完全收不到请求）。
+        const parsed = JSON.parse(
+          bridge.refreshRegion(rect.left, rect.top, rect.right, rect.bottom),
+        ) as { ok?: boolean; path?: string }
+        capability = readCapability()
+        return parsed.ok === true ? (parsed.path ?? 'unknown') : null
+      } catch {
+        return null
+      }
     },
     setFastMode: (on) => {
       if (on === fastModeOn) return

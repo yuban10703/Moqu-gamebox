@@ -454,6 +454,16 @@ html[data-bold-lines='on'] .eink-board__cell {
   flex-wrap: wrap;
 }
 
+/* 提示与保存状态占用固定高度：这两行会随交互出现/消失，
+   如果让它们改变布局，下面的方向键就会被挤出首屏（墨水屏上不该需要滚动）。 */
+.eink-statusstrip {
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: flex-start;
+}
+
 .eink-save {
   margin: 0;
   font-size: 0.9em;

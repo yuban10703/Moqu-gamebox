@@ -14,6 +14,8 @@ data class RefreshCapability(
     val fastMode: Boolean,
     /** 刷新档位（局部模式）是否**验证过**确实生效，而不是「方法存在」 */
     val partialProfiles: Boolean = false,
+    /** 区域刷新是否**验证过**真的能调用（能只刷指定矩形） */
+    val regionRefresh: Boolean = false,
 )
 
 /**
@@ -26,9 +28,14 @@ interface EinkBackend {
      * 绑定承载网页的视图。局部刷新模式是按「视图」设置的，
      * 不绑定就会出现「能力探测说支持、调用却静默返回」的假象。
      */
-    fun bindView(view: View)
+    fun bindView(view: View, onVerified: Runnable)
     fun setProfile(profile: String)
     fun fullRefresh(target: View?)
+    /**
+     * 只刷新指定矩形区域（视图坐标系，像素）。
+     * 返回实际生效的实现名；不支持或全部失败返回 null。
+     */
+    fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String?
     fun setFastMode(on: Boolean)
     fun setFrontLight(level: Int)
     fun setFullscreen(activity: Activity?, on: Boolean)
@@ -67,6 +74,9 @@ abstract class BaseEinkBackend(protected val context: Context) : EinkBackend {
 
     override fun setFrontLight(level: Int) = Unit
 
+    /** 通用设备没有区域刷新能力 */
+    override fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String? = null
+
     override fun release() = Unit
 }
 
@@ -80,10 +90,12 @@ class NoopEinkBackend(context: Context) : BaseEinkBackend(context) {
         fullRefresh = false,
         fastMode = false,
         partialProfiles = false,
+        regionRefresh = false,
     )
 
-    override fun bindView(view: View) = Unit
+    override fun bindView(view: View, onVerified: Runnable) = onVerified.run()
     override fun setProfile(profile: String) = Unit
     override fun fullRefresh(target: View?) = Unit
+    override fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String? = null
     override fun setFastMode(on: Boolean) = Unit
 }

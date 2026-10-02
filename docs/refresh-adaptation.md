@@ -107,3 +107,34 @@
   也不能只看「读回是否变化」——全刷刚结束时读回是 GC，写任何值都会"变化"（也是假阳性，我第一版就被骗过）。
   正确判据：**写入一个与当前不同的值，且读回确实变成了请求的值**。
 - 验证必须发生在网页读取能力清单**之前**，否则 JS 会在「尚未验证」的窗口里读到乐观结论。
+
+## 区域刷新：能不能指定「只刷这块」
+
+**能。** 实测可用路径是 `EpdController.refreshScreenRegion(View, left, top, right, bottom, UpdateMode)`，
+坐标是**视图坐标系像素**（网页侧把 CSS 坐标乘 DPR）。
+
+| 项目 | 结论 |
+|---|---|
+| 可用接口 | `refreshScreenRegion`（已实测调用成功）；退路 `invalidate(view, l, t, r, b, mode)` |
+| 能力上报 | `regionRefresh: true`，并记录实际生效的实现名（`regionRefreshWorks:refreshScreenRegion`） |
+| 无区域能力的接口 | `EpdDeviceManager` 只有整屏级（`refreshScreen` / `applyGCUpdate` / `refreshScreenWithGCInterval`） |
+| 已接入应用 | 每走一步、撤销、下一关：只请求刷新**棋盘区域**；暂停菜单里另保留「立即整屏全刷」用于清残影 |
+| 实测日志 | `region refresh via refreshScreenRegion rect=[54,200,1869,893] mode=REGAL`（= 棋盘 CSS 矩形 × DPR 1.5） |
+
+### 面板是否真的「只动那块」——我无法客观证明
+
+- **截图不行**：`screencap` 取的是 framebuffer，不反映面板层的更新范围（与残影同理）。
+- **驱动计数器也不行**：`/sys/devices/virtual/sepdc/debug/status` 里的 `frame[...]` 只与**波形模式**有关，与面积无关。
+  受控实测（同一模式、同一屏内容）：50×50 → 141 帧；1800×1300 → 141 帧；GC 全刷 → 149/151 帧。
+  这个结果本身也说明：面板很可能是**对整屏行施加波形**，区域只决定「哪些像素换内容」。
+
+因此「区域刷新在视觉上到底有没有意义（是否只有那块闪）」**只能由眼睛判断**。
+当前设备上已按「每步只刷棋盘」运行：走一步即可看出是局部变化还是整屏闪。
+若实屏看起来与整屏刷新无异，这个能力就没有实际价值，应当关掉。
+
+### 踩到的两个坑（值得记下来）
+
+1. **Java 桥的方法不能取出来单独调用**：`const fn = bridge.refreshRegion; fn(...)` 会脱离接收者而
+   **静默失效**（返回 undefined，原生侧完全收不到请求，且不报错）。必须写成 `bridge.refreshRegion(...)`。
+2. **提示行会把方向键挤出屏幕**：方向键原本在提示出现后被推到 y=1433（屏高 1404）。
+   修法是给「提示 + 保存状态」一个固定高度的状态条（`.eink-statusstrip`），并在布局计算里预留同样的高度。

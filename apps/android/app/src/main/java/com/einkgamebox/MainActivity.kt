@@ -102,8 +102,11 @@ class MainActivity : Activity() {
         webView.addJavascriptInterface(JsBridge(this, store, backend), "EinkNative")
         setContentView(webView)
         // 局部刷新模式是按视图设置的：必须先绑定承载网页的视图，否则调用会静默无效
-        backend.bindView(webView)
+        backend.bindView(webView) { webView.post { notifyCapabilityChanged() } }
         webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
+
+        // 兜底：万一验证回调没跑到（例如后端是通用实现），也再通知一次
+        webView.postDelayed({ notifyCapabilityChanged() }, CAPABILITY_NOTIFY_DELAY_MS)
     }
 
     fun gameView(): View = webView
@@ -131,6 +134,14 @@ class MainActivity : Activity() {
             webView.destroy()
         }
         super.onDestroy()
+    }
+
+    private fun notifyCapabilityChanged() {
+        if (!::webView.isInitialized) return
+        webView.evaluateJavascript(
+            "window.__einkCapabilityChanged && window.__einkCapabilityChanged()",
+            null,
+        )
     }
 
     fun applyLocale(locale: String) {
@@ -233,5 +244,7 @@ class MainActivity : Activity() {
         private const val ASSET_HOST = "appassets.androidplatform.net"
         private const val REQUEST_EXPORT = 1001
         private const val REQUEST_IMPORT = 1002
+        /** 给能力验证留出时间（验证要驱动一次真实全刷，耗时以百毫秒计） */
+        private const val CAPABILITY_NOTIFY_DELAY_MS = 1200L
     }
 }

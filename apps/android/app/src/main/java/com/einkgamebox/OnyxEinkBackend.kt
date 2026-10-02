@@ -50,6 +50,23 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     private val frontLightMethod: Method? = findFrontLight()
 
+    /**
+     * 区域刷新的候选实现。坐标是**视图坐标系**（像素），因此网页侧要把 CSS 坐标乘 DPR。
+     * `refreshScreenRegion` 是专门做这件事的；六参数的 `invalidate` 是退路。
+     */
+    private val regionRefreshCandidates: List<Pair<String, Method>> = listOfNotNull(
+        findStatic(
+            epdController, "refreshScreenRegion", View::class.java,
+            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, updateModeClass,
+        )?.let { "refreshScreenRegion" to it },
+        findStatic(
+            epdController, "invalidate", View::class.java,
+            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, updateModeClass,
+        )?.let { "invalidateRegion" to it },
+    )
+
     private var currentView: View? = null
     private var fastModeOn = false
 
@@ -57,6 +74,10 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     private var workingFullRefresh: String? = null
     private var fullRefreshAttempted = false
     private var lastFullRefreshError: String? = null
+    /** 区域刷新同样只认「实测可用」的实现 */
+    private var workingRegionRefresh: String? = null
+    private var regionRefreshAttempted = false
+    private var lastRegionError: String? = null
     /**
      * 局部模式（刷新档位）是否**验证过**确实生效。
      * 默认 false：未经验证就不算可用；只有「写入与当前不同的模式后读回真的变了」才算通过。
@@ -65,7 +86,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     override val backendName = "onyx"
 
-    override fun bindView(view: View) {
+    override fun bindView(view: View, onVerified: Runnable) {
         currentView = view
         view.post {
             // 顺序很重要：先验证局部模式，再做全刷。
@@ -76,6 +97,12 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             // 启动时做一次真实全刷：既清理残影，也顺带验证这条路到底能不能走通。
             // 未验证前 capability 只声明「方法存在」，验证失败后立刻改口，避免界面留着点了没用的按钮。
             fullRefresh(view)
+            // 顺带用一个小到几乎看不见的矩形验证区域刷新这条路（4×4 像素）
+            refreshRegion(0, 0, 4, 4)
+            // 全部验证结束后再通知网页重新读取能力清单。
+            // 用固定延时通知是不够的：验证本身要驱动一次真实全刷（百毫秒级），
+            // 通知早于验证完成时，网页读到的是「未验证」的值，功能会被静默禁用。
+            onVerified.run()
         }
     }
 
@@ -131,6 +158,9 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             fullRefreshCandidates.forEach { add("fullRefreshCandidate:${it.first}") }
             workingFullRefresh?.let { add("fullRefreshWorks:$it") }
             lastFullRefreshError?.let { add("fullRefreshError:$it") }
+            regionRefreshCandidates.forEach { add("regionRefreshCandidate:${it.first}") }
+            workingRegionRefresh?.let { add("regionRefreshWorks:$it") }
+            lastRegionError?.let { add("regionRefreshError:$it") }
             if (frontLightClass != null) add("FrontLightController")
         }
 
@@ -141,6 +171,7 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             fullRefresh = fullRefreshUsable,
             fastMode = false, // 3 参数的 applyApplicationFastMode 在 1.3.6 不存在；5 参数版语义未知，不猜
             partialProfiles = supported && setViewModeMethod != null && partialModeVerified,
+            regionRefresh = supported && workingRegionRefresh != null,
         )
     }
 
@@ -218,6 +249,51 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
         } catch (error: Throwable) {
             Log.w(TAG, "setFrontLight failed", error)
         }
+    }
+
+    override fun refreshRegion(left: Int, top: Int, right: Int, bottom: Int): String? {
+        val view = currentView ?: return null
+        if (regionRefreshCandidates.isEmpty()) return null
+        if (right <= left || bottom <= top) return null
+        val mode = modeValue(RefreshMapping.regionCandidates()) ?: return null
+
+        regionRefreshAttempted = true
+        for ((name, method) in regionRefreshCandidates) {
+            // 四个 int 参数按签名顺序填 left/top/right/bottom
+            val intIndices = method.parameterTypes.withIndex()
+                .filter { it.value == Int::class.javaPrimitiveType }
+                .map { it.index }
+            if (intIndices.size != 4) continue
+            val values = listOf(left, top, right, bottom)
+            val arguments = arrayOfNulls<Any?>(method.parameterTypes.size)
+            method.parameterTypes.forEachIndexed { index, type ->
+                arguments[index] = when {
+                    type == View::class.java -> view
+                    type == updateModeClass -> mode
+                    type == Int::class.javaPrimitiveType -> values[intIndices.indexOf(index)]
+                    else -> null
+                }
+            }
+            if (arguments.any { it == null }) continue
+            try {
+                val result = method.invoke(null, *arguments)
+                if (result is Boolean && !result) {
+                    lastRegionError = "$name:returned-false"
+                    continue
+                }
+                workingRegionRefresh = name
+                lastRegionError = null
+                Log.i(TAG, "region refresh via $name rect=[$left,$top,$right,$bottom] mode=${modeName(mode)}")
+                return name
+            } catch (error: Throwable) {
+                val cause = error.cause ?: error
+                lastRegionError = "$name:${cause.javaClass.simpleName}"
+                Log.w(TAG, "region refresh via $name failed: ${cause.javaClass.simpleName}: ${cause.message}")
+            }
+        }
+        workingRegionRefresh = null
+        Log.w(TAG, "no working region refresh path ($lastRegionError)")
+        return null
     }
 
     override fun release() {

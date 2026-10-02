@@ -32,6 +32,13 @@ object RefreshMapping {
     fun fastCandidates(): List<String> =
         listOf("ANIMATION", "ANIMATION_QUALITY", "ANIMATION_MONO", "DU", "DU4", "GU_FAST")
 
+    /**
+     * 区域刷新用的模式：小面积局部更新，优先 16 级灰阶的局部模式，
+     * 这样棋盘数字与符号不会被压成黑白；退化到 DU 时至少速度最快。
+     */
+    fun regionCandidates(): List<String> =
+        listOf("REGAL", "GU", "DU_QUALITY", "DU", "GC")
+
     /** 从候选里挑出设备实际提供的第一个模式名；都没有则返回 null */
     fun pick(candidates: List<String>, available: Collection<String>): String? =
         candidates.firstOrNull { name -> available.any { it.equals(name, ignoreCase = true) } }

@@ -8,6 +8,7 @@ import {
   androidExportBackup,
   androidImportBackup,
   isAndroidBridgeAvailable,
+  onCapabilityChanged,
   onHardwareKey,
   type EinkNativeBridge,
   type HardwareKeyEvent,
@@ -81,6 +82,9 @@ export async function createPlatform(options: PlatformOptions = {}): Promise<Pla
   })
 
   const releaseFastModeGuard = installFastModeGuard(refresh)
+  // 原生验证完成后会通知一次，此时重新读取能力清单（否则界面会一直用启动时的乐观/悲观值）
+  const releaseCapabilityListener =
+    kind === 'android' ? onCapabilityChanged(() => refresh.refreshCapability()) : () => undefined
 
   return {
     kind,
@@ -103,6 +107,7 @@ export async function createPlatform(options: PlatformOptions = {}): Promise<Pla
     },
     dispose() {
       releaseFastModeGuard()
+      releaseCapabilityListener()
       refresh.dispose()
       offline.dispose()
     },
