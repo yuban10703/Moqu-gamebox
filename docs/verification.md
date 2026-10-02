@@ -81,7 +81,7 @@ mkdir -p .toolchain/pw && cd .toolchain/pw && npm i playwright \
 npm run smoke:web                       # 运行冒烟测试
 ```
 
-### 覆盖与结果（19/19 通过）
+### 覆盖与结果（25/25 通过）
 
 - 首页 / 详情页 / 游戏页渲染；`platform.kind = web`、`storage.kind = indexeddb`
 - **不谎报 BOOX 能力**：网页版 `onyxSdkFound = false`
@@ -92,6 +92,10 @@ npm run smoke:web                       # 运行冒烟测试
 - **两种视口逐页断言「主操作都在首屏内」**：1248×903 与 439×847，
   首页/详情页/游戏页均 0 个屏外按钮；统计栏行数固定为 1
 
+- **离线能力**（Service Worker）：
+  SW 注册并激活（`activated`）、资源预缓存 5 条、**断网后重载仍能打开应用**、
+  状态显示「已可离线」、**离线时存档仍可读**（步数一致）
+
 截图：`docs/screens/web-01-landscape-game.png`、`web-02-portrait-game.png`
 
 ### 过程中踩到的两个坑（脚本自身）
@@ -100,3 +104,14 @@ npm run smoke:web                       # 运行冒烟测试
    这反而验证了「语言跟随浏览器」这条行为。测试里显式指定 `locale` 才稳定。
 2. **API 名字**：`saves.load()` 返回存档或 null，`saves.loadResult()` 才返回 `{status, envelope}`；
    用错方法会得到 null 而非报错，断言会假失败。
+3. **不要在脚本里用 `URL` 作局部变量名**：它会遮蔽全局 `URL`，
+   使 `new URL(..., import.meta.url)` 抛 `Cannot access 'URL' before initialization`。
+   （同一个坑在 smoke 与临时脚本里各踩了一次，第二次才意识到是同一个原因。）
+
+### 本地访问提示
+
+- 静态服务用**托管后台任务**启动，避免随会话结束被回收：`npm run serve:web`
+- 服务监听 `0.0.0.0`，容器内 `http://127.0.0.1:8899/` 与容器 IP 均可访问。
+- 若浏览器在**容器外**（例如 GUI 是 `127.0.0.1:3080` 通过端口映射进来的），
+  则只有被映射的端口可达，`127.0.0.1:8899` 会「拒绝连接」；
+  此时用容器 IP（`hostname -I` 的第一个地址）访问。

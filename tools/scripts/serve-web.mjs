@@ -27,4 +27,8 @@ const server = createServer(async (req, res) => {
     res.end('not found')
   }
 })
-server.listen(port, () => console.log(`serving ${root} on http://127.0.0.1:${port}`))
+// 绑定所有网卡：只监听 127.0.0.1 时，容器外的浏览器会「拒绝连接」
+const HOST = process.env.HOST ?? '0.0.0.0'
+server.listen(port, HOST, () => {
+  console.log(`serving ${root} on http://${HOST}:${port}`)
+})

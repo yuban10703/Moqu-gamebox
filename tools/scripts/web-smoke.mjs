@@ -20,7 +20,8 @@
  *   4) 运行：npm run smoke:web      （或 WEB_URL=... node tools/scripts/web-smoke.mjs）
  *
  * 覆盖：首页/详情/游戏页渲染 → 方向键操作 → 存档提交与 IndexedDB 落盘 →
- *       刷新恢复 → 语言跟随浏览器 → 横竖两种视口的「主操作都在首屏内」断言。
+ *       刷新恢复 → 语言跟随浏览器 → 横竖两种视口的「主操作都在首屏内」断言 →
+ *       离线能力（Service Worker 接管、断网重载、离线读档）。
  */
 import { createRequire } from 'node:module'
 
@@ -149,6 +150,65 @@ async function auditViewport(width, height, tag) {
 
 await auditViewport(1248, 903, '横屏')
 await auditViewport(439, 847, '竖屏')
+
+/* ---------- 3) 离线可用（Service Worker） ---------- */
+console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
+{
+  const c = await browser.newContext({ viewport: { width: 1248, height: 903 }, locale: 'zh-CN' })
+  const p = await c.newPage()
+  await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
+  await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+
+  const controlled = await p
+    .waitForFunction(() => navigator.serviceWorker?.controller != null, { timeout: 20000 })
+    .then(() => true)
+    .catch(() => false)
+  check('Service Worker 已接管页面', controlled)
+
+  const sw = await p.evaluate(async () => {
+    const regs = await navigator.serviceWorker.getRegistrations()
+    const names = await caches.keys()
+    let cached = 0
+    for (const name of names) cached += (await (await caches.open(name)).keys()).length
+    return { active: regs[0]?.active?.state ?? null, cached }
+  })
+  check('Service Worker 已注册并激活', sw.active === 'activated', `active=${sw.active}`)
+  check('资源已预缓存（离线可读）', sw.cached > 0, `缓存条目=${sw.cached}`)
+
+  // 先玩一步，确保有存档
+  await p.getByRole('button', { name: /推箱子/ }).first().click()
+  await p.waitForSelector('text=玩法说明', { timeout: 8000 })
+  const btn = p.getByRole('button', { name: /开始新游戏|继续/ }).first()
+  await btn.click()
+  await p.waitForTimeout(300)
+  const cfd = p.getByRole('button', { name: /替换并开始/ })
+  if (await cfd.count()) await cfd.first().click()
+  await p.waitForSelector('.eink-board', { timeout: 8000 })
+  await p.locator('button[aria-label="左"]').first().click()
+  await p.waitForTimeout(900)
+  const movesOffline = await p.evaluate(() => document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? null)
+
+  await c.setOffline(true)
+  let openedOffline = true
+  try {
+    await p.reload({ waitUntil: 'domcontentloaded', timeout: 15000 })
+    await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  } catch {
+    openedOffline = false
+  }
+  check('断网后重载仍能打开应用', openedOffline)
+  if (openedOffline) {
+    const st = await p.evaluate(() => ({
+      badge: document.querySelector('.eink-badge')?.textContent ?? '',
+      moves: document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? null,
+    }))
+    check('离线状态显示「已可离线」', /已可离线/.test(st.badge), st.badge)
+    check('离线时存档仍可读（步数一致）', st.moves === movesOffline,
+      `断网前 ${movesOffline} → 断网后 ${st.moves}`)
+  }
+  await c.setOffline(false)
+  await c.close()
+}
 
 await browser.close()
 
