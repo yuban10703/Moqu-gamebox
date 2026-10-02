@@ -122,7 +122,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   }
 
   // 内容 id：优先由游戏包提供（无关卡制游戏用难度等），否则回退到 state.levelId
-  const contentId = entry.contentIdOf?.(session.state) ?? fallbackLevelId(session.state)
+  const contentId = entry.game.contentId?.(session.state) ?? fallbackLevelId(session.state)
 
   const levelIndex =
     entry.indexOfLevel?.(contentId, session.state) !== undefined
@@ -131,10 +131,11 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   const levelTotal = entry.levels?.length ?? 0
   // 标题带上「当前/总数」，因此统计栏里不再重复一项「关卡 12/16」
   const hasLevels = levelTotal > 0
-  const levelLabel =
-    hasLevels
-      ? i18n.t(`${entry.game.i18nNamespace}.level.position`, { index: levelIndex, total: levelTotal })
-      : i18n.t(`${entry.game.i18nNamespace}.level.label`, { index: levelIndex })
+  // 只在确实有关卡时才算关卡文案：否则会去取 <ns>.level.label，
+  // 无关卡的游戏没定义这个 key，会往 i18n.missingKeys() 里留一个幽灵缺失项（诊断页可见）
+  const levelLabel = hasLevels
+    ? i18n.t(`${entry.game.i18nNamespace}.level.position`, { index: levelIndex, total: levelTotal })
+    : ''
   const clearedCount = session.progress.completed?.length ?? 0
   // difficulty 是本组件的 prop（详情页选定的难度），直接使用
   const subtitleParts = [
@@ -144,6 +145,14 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
       : '',
   ].filter(Boolean)
   const best = (session.progress.bestMoves ?? {})[contentId]
+  /**
+   * 游戏自定义按钮：`controls()` 里 role 为 action、且不由壳层代管的那些。
+   * 壳层自己渲染 undo / restart / menu（id 固定），因此这里排除它们。
+   */
+  const SHELL_CONTROL_IDS = new Set(['undo', 'restart', 'nextLevel'])
+  const gameActions = session.controls.filter(
+    (control) => control.role === 'action' && !SHELL_CONTROL_IDS.has(control.id),
+  )
 
   return (
     <div className="eink-screen eink-screen--game">
@@ -252,16 +261,37 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
             </section>
           ) : null}
 
-          {/* 过关后方向盘让位给结果面板：此时它没有用处，而结果面板必须与棋盘一起
-              落在首屏内（墨水屏上不该为了看结果去滚动）。 */}
-          {!session.solved && settings.dpad ? (
+          {/* 过关后控制区让位给结果面板：此时没有用处，而结果面板必须与棋盘一起
+              落在首屏内（墨水屏上不该为了看结果去滚动）。
+              注意：方向键受「显示方向按钮」设置控制，**游戏自定义按钮与壳层按钮不受它影响** ——
+              否则数独、扫雷这类没有方向控件的游戏会连自己的按钮都不显示。 */}
+          {!session.solved ? (
             <div className="eink-controls">
-              <Dpad
-                controls={session.controls}
-                onMove={onMove}
-                size={root.buttonHeight}
-                labelKey={`${entry.game.i18nNamespace}.dpad.label`}
-              />
+              {settings.dpad ? (
+                <Dpad
+                  controls={session.controls}
+                  onMove={onMove}
+                  size={root.buttonHeight}
+                  labelKey={`${entry.game.i18nNamespace}.dpad.label`}
+                />
+              ) : null}
+              {gameActions.length > 0 ? (
+                <div className="eink-controls__game">
+                  {gameActions.map((control) => (
+                    <ActionButton
+                      key={control.id}
+                      labelKey={control.labelKey}
+                      size="large"
+                      emphasis={control.emphasis}
+                      disabled={!control.enabled}
+                      onSelect={() => {
+                        session.clearNotice()
+                        session.runControl?.(control.id)
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : null}
               <div className="eink-controls__actions">
                 <ActionButton
                   labelKey="shell.game.undo"

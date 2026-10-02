@@ -11,8 +11,11 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
   defaultDifficulty: string
   /** 详情页展示的内容列表（关卡等） */
   levels?: readonly { id: string }[]
-  /** 用已完成内容 id 计算进度 */
-  progressFor(completed: readonly string[]): { done: number; total: number }
+  /**
+   * 用已完成内容 id 计算进度。关卡制游戏给出「已过关/总数」；
+   * 不提供时界面不显示进度行（例如 2048 这类没有关卡进度的玩法）。
+   */
+  progressFor?(completed: readonly string[]): { done: number; total: number }
   /** 该存档处于内容的第几项（用于「继续」定位） */
   indexOfLevel?(levelId: string, state: unknown): number
   /**
@@ -20,12 +23,7 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
    * 壳层不应硬编码任何具体玩法的文案 key（原先写死了 sokoban.cell.*）。
    */
   cellLabelKey?(kind: CellKind): string | undefined
-  /**
-   * 从存档状态里取出「内容 id」，用于「继续」定位与通关进度。
-   * 关卡制游戏（推箱子）就是关卡 id；无关卡制的游戏（2048）可用难度 id 等。
-   * 缺省时壳层回退到读取 state.levelId。
-   */
-  contentIdOf?(state: unknown): string
+
 }
 
 export type AnyRegistryEntry = GameRegistryEntry<never, never> | GameRegistryEntry<unknown, unknown>

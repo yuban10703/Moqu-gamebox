@@ -507,6 +507,15 @@ html[data-bold-lines='on'] .eink-board {
   border: 1px solid var(--ink-black);
 }
 
+/* 游戏自定义按钮（数独数字键、扫雷标记模式等）：可换行、居中 */
+.eink-controls__game {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+  justify-content: center;
+}
+
 .eink-controls__actions {
   display: flex;
   gap: 8px;
@@ -871,7 +880,16 @@ html[data-bold-lines='on'] .eink-board {
     gap: var(--gap);
   }
 
-  .eink-controls__actions {
+  /* 游戏自定义按钮（数独数字键、扫雷标记模式等）：可换行、居中 */
+.eink-controls__game {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+  justify-content: center;
+}
+
+.eink-controls__actions {
     justify-content: center;
     width: 100%;
   }

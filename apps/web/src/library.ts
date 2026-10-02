@@ -10,6 +10,9 @@ import {
   sokobanGame,
   sokobanZh,
 } from '@eink/sokoban'
+import { game2048, game2048En, game2048Zh } from '@eink/2048'
+import { minesweeperEn, minesweeperGame, minesweeperZh } from '@eink/minesweeper'
+import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -29,9 +32,42 @@ export const library: GameLibrary = {
         return index >= 0 ? index : 0
       },
     }),
+    defineGame({
+      game: sudokuGame,
+      // 数独没有 cell.* 字典键 → 不设 cellLabelKey，无障碍标签回退到格子自身符号（数字）
+      rulesKeys: ['sudoku.rules.body'],
+      defaultDifficulty: 'starter',
+      // 无关卡制：进度按「已通关难度 / 总难度」算
+      progressFor: (completed) => ({
+        done: sudokuGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: sudokuGame.difficulties.length,
+      }),
+    }),
+    defineGame({
+      game: minesweeperGame,
+      cellLabelKey: (kind) => `minesweeper.cell.${kind}`,
+      rulesKeys: ['minesweeper.rules.body'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: minesweeperGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: minesweeperGame.difficulties.length,
+      }),
+    }),
+    defineGame({
+      game: game2048,
+      cellLabelKey: (kind) => `2048.cell.${kind}`,
+      rulesKeys: ['2048.rules.body'],
+      defaultDifficulty: 'starter',
+      // 刻意不传 levels：2048 没有关卡制，传了标题会变成「2048 · 第 1/3 局」这种关卡化措辞。
+      // 进度按「已通关难度 / 总难度」算。
+      progressFor: (completed) => ({
+        done: game2048.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: game2048.difficulties.length,
+      }),
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh },
-    'en-US': { ...coreDictEn, ...sokobanEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En },
   },
 }

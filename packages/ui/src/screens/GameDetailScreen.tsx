@@ -95,8 +95,11 @@ export function GameDetailScreen({
   // 容量变化后页码可能越界，这里夹紧（例如从第 2 页切回单页）
   const safePage = Math.min(page, pageCount - 1)
   const pageLevels = levels.slice(safePage * perPage, (safePage + 1) * perPage)
-  const summary = entry.progressFor(progress.completed)
-  const currentLevelId = entry.contentIdOf?.(envelope?.state) ?? levelIdOf(envelope)
+  const summary = entry.progressFor?.(progress.completed)
+  // 没有存档时不能拿 undefined 去调游戏方法（游戏会按有效状态读字段）
+  const currentLevelId = envelope
+    ? (entry.game.contentId?.(envelope.state) ?? levelIdOf(envelope))
+    : ''
 
   const start = (): void => {
     void updateGameSettings(entry.game.id, { difficulty })
@@ -141,14 +144,16 @@ export function GameDetailScreen({
 
       <section className="eink-section">
         <h2>{i18n.t('shell.detail.levels')}</h2>
-        <StatBar
-          stats={[
-            {
-              labelKey: 'shell.library.progressLabel',
-              value: `${summary.done}/${summary.total}`,
-            },
-          ]}
-        />
+        {summary ? (
+          <StatBar
+            stats={[
+              {
+                labelKey: 'shell.library.progressLabel',
+                value: `${summary.done}/${summary.total}`,
+              },
+            ]}
+          />
+        ) : null}
         {levels.length === 0 ? (
           <p className="eink-muted">{i18n.t('shell.detail.none')}</p>
         ) : (

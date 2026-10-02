@@ -118,6 +118,25 @@ export interface GameDef<S, A> {
    * 数独、扫雷这类格子交互靠它接入，壳层因此不必知道任何具体玩法。
    */
   selectAction?(state: S, index: number): A | null
+  /**
+   * 把「点了某个 role:'action' 的控件」映射成动作；返回 null 表示无动作。
+   *
+   * 为什么需要：`controls()` 里除方向键外的按钮（数独数字键、扫雷标记模式开关）
+   * 必须由**游戏自己**说明点下去派发什么，否则壳层只能硬编码少数几个动作 id，
+   * 新游戏的按钮就点不到（这正是接入扫雷时发现的缺口）。
+   */
+  controlAction?(state: S, controlId: string): A | null
+  /**
+   * 内容 id：用于「继续」定位与通关进度。关卡制游戏返回关卡 id；
+   * 无关卡制游戏可返回难度 id。缺省时壳层回退读 state.levelId。
+   * 约定：**只会收到来自有效存档的 state**（壳层不得传 undefined）。
+   */
+  contentId?(state: S): string
+  /**
+   * 计步数：用于记录「最佳成绩」。缺口时不记录最佳（例如数独、扫雷这类不计步的玩法）。
+   * 缺省时壳层回退读 state.moves。
+   */
+  movesOf?(state: S): number
   status(state: S): GameStatus
   view(state: S): GameView
   controls(state: S): ControlSpec[]

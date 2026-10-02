@@ -82,8 +82,8 @@ export function LibraryScreen({
           {(() => {
             const envelope = saves[continued.game.id]!
             const done = progressOf(envelope)
-            const summary = continued.progressFor(done.completed)
-            const contentId = continued.contentIdOf?.(envelope.state) ?? levelIdOf(envelope)
+            const summary = continued.progressFor?.(done.completed)
+            const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
             const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
             return (
               <div className="eink-card eink-card--continue">
@@ -95,12 +95,14 @@ export function LibraryScreen({
                       { labelKey: 'shell.common.moves', value: String(envelope.moves) },
                     ]}
                   />
-                  <p className="eink-muted">
-                    {i18n.t('shell.library.progress', {
-                      done: summary.done,
-                      total: summary.total,
-                    })}
-                  </p>
+                  {summary ? (
+                    <p className="eink-muted">
+                      {i18n.t('shell.library.progress', {
+                        done: summary.done,
+                        total: summary.total,
+                      })}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="eink-card__actions">
                   <ActionButton
@@ -125,16 +127,19 @@ export function LibraryScreen({
           <ul className="eink-grid">
             {entries.map((entry) => {
               const envelope = saves[entry.game.id]
-              const progress = entry.progressFor(progressOf(envelope).completed)
+              const progress = entry.progressFor?.(progressOf(envelope).completed)
               return (
                 <li key={entry.game.id} className="eink-grid__item">
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <span className="eink-tile__host" aria-hidden="true">{hostGlyph(entry.game.i18nNamespace)}</span>
                     <span className="eink-tile__title">{i18n.t(`${entry.game.i18nNamespace}.title`)}</span>
-                    <span className="eink-tile__meta">
-                      {i18n.t('shell.library.progress', { done: progress.done, total: progress.total })}
-                    </span>
-                    {progress.done >= progress.total && progress.total > 0 ? (
+                    {/* 没有进度概念的玩法（2048）不显示进度行，避免出现「0/0」这种噪音 */}
+                    {progress ? (
+                      <span className="eink-tile__meta">
+                        {i18n.t('shell.library.progress', { done: progress.done, total: progress.total })}
+                      </span>
+                    ) : null}
+                    {progress && progress.done >= progress.total && progress.total > 0 ? (
                       <span className="eink-tile__done">{i18n.t('shell.library.completed')}</span>
                     ) : null}
                   </button>

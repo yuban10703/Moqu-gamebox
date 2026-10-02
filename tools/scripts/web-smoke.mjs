@@ -151,6 +151,43 @@ async function auditViewport(width, height, tag) {
 await auditViewport(1248, 903, '横屏')
 await auditViewport(439, 847, '竖屏')
 
+/* ---------- 2b) 每款游戏都能进详情并开局（通用：以后加游戏自动覆盖） ---------- */
+console.log('\n[2b] 逐款游戏：进详情 → 开局 → 棋盘渲染 + 按钮不越界')
+{
+  const c = await browser.newContext({ viewport: { width: 1248, height: 903 }, locale: 'zh-CN' })
+  const p = await c.newPage()
+  await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
+  await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  const titles = await p.evaluate(() =>
+    [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent?.trim() ?? ''),
+  )
+  check('首页列出全部游戏', titles.length >= 3, titles.join(' / '))
+
+  for (const title of titles) {
+    await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
+    await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+    await p.getByRole('button', { name: new RegExp(title) }).first().click()
+    await p.waitForSelector('text=玩法说明', { timeout: 8000 })
+    // 无关卡的游戏不该出现「暂无进行中的局面」以外的报错，也不该出现缺键标记
+    const hasMissingKey = await p.evaluate(() => document.body.innerText.includes('⟦'))
+    await p.getByRole('button', { name: /开始新游戏|继续/ }).first().click()
+    await p.waitForTimeout(300)
+    const cf = p.getByRole('button', { name: /替换并开始/ })
+    if (await cf.count()) await cf.first().click()
+    await p.waitForSelector('.eink-board', { timeout: 8000 })
+    const info = await p.evaluate(() => {
+      const cells = document.querySelectorAll('.eink-board__cell').length
+      const off = [...document.querySelectorAll('button')].filter(
+        (b) => b.getBoundingClientRect().bottom > innerHeight + 1,
+      ).length
+      return { cells, off, missing: document.body.innerText.includes('⟦') }
+    })
+    check(`${title}：开局渲染 + 按钮不越界`, info.cells > 0 && info.off === 0 && !info.missing,
+      `格子 ${info.cells} 屏外 ${info.off}${info.missing ? ' 有缺键' : ''}${hasMissingKey ? '（详情页有缺键）' : ''}`)
+  }
+  await c.close()
+}
+
 /* ---------- 3) 离线可用（Service Worker） ---------- */
 console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
 {

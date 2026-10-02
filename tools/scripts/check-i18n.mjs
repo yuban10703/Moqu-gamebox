@@ -15,11 +15,16 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 const root = process.cwd()
+// 游戏包目录自动枚举：新增游戏不需要改这里（原先写死了 sokoban，新游戏会被漏扫）
+const gameRoots = readdirSync(join(root, 'packages/games'), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `packages/games/${entry.name}/src`)
+
 const roots = [
   'packages/core/src',
   'packages/platform/src',
   'packages/ui/src',
-  'packages/games/sokoban/src',
+  ...gameRoots,
   'apps/web/src',
   'apps/android/app/src/main/java',
 ]

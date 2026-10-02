@@ -62,6 +62,8 @@ export interface SessionApi<S, A> {
   dispatch(action: A): boolean
   /** 点格子：交给游戏自己映射成动作（数独/扫雷等格子玩法用）；不可点时为 undefined */
   selectCell?: (index: number) => void
+  /** 点游戏自定义按钮（数独数字键、扫雷标记模式等）：同样交给游戏映射成动作 */
+  runControl?: (controlId: string) => void
   undo(): void
   restart(): void
   nextLevel(): void
@@ -236,13 +238,19 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
 
   const finalizeLevel = useCallback(
     (next: S) => {
-      const levelId = (next as { levelId?: string }).levelId ?? ''
-      const stats = game.view(next).stats
-      const moves = Number.parseInt(stats.find((stat) => stat.labelKey === 'sokoban.stat.moves')?.value ?? '0', 10)
+      // 内容 id 与计步都由游戏自己声明（原先硬编码 sokoban.stat.moves 与 state.levelId，
+      // 导致无关卡游戏通关会写入 completed:[''] 与 0 步的最佳成绩）
+      const levelId = game.contentId?.(next) ?? (next as { levelId?: string }).levelId ?? ''
+      const moves = game.movesOf?.(next) ?? (next as { moves?: number }).moves
       const completed = new Set(progress.completed ?? [])
-      completed.add(levelId)
+      if (levelId) completed.add(levelId)
       const bestMoves = { ...(progress.bestMoves ?? {}) }
-      if (Number.isFinite(moves) && (bestMoves[levelId] === undefined || moves < bestMoves[levelId]!)) {
+      if (
+        levelId &&
+        typeof moves === 'number' &&
+        Number.isFinite(moves) &&
+        (bestMoves[levelId] === undefined || moves < bestMoves[levelId]!)
+      ) {
         bestMoves[levelId] = moves
       }
       const nextProgress: GameProgress = { completed: [...completed], bestMoves }
@@ -385,6 +393,14 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       ? {
           selectCell: (index: number) => {
             const action = game.selectAction?.(state, index)
+            if (action) dispatch(action)
+          },
+        }
+      : {}),
+    ...(game.controlAction
+      ? {
+          runControl: (controlId: string) => {
+            const action = game.controlAction?.(state, controlId)
             if (action) dispatch(action)
           },
         }
