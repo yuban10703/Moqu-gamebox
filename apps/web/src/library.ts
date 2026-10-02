@@ -16,6 +16,7 @@ export const library: GameLibrary = {
   entries: [
     defineGame({
       game: sokobanGame,
+      cellLabelKey: (kind) => `sokoban.cell.${kind}`,
       rulesKeys: ['sokoban.rules.body', 'sokoban.rules.body2'],
       defaultDifficulty: 'starter',
       levels: PACK.map((level) => ({ id: level.def.id })),

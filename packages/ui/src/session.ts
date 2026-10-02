@@ -60,6 +60,8 @@ export interface SessionApi<S, A> {
   /** 计时是否应该在跑 */
   clockActive: boolean
   dispatch(action: A): boolean
+  /** 点格子：交给游戏自己映射成动作（数独/扫雷等格子玩法用）；不可点时为 undefined */
+  selectCell?: (index: number) => void
   undo(): void
   restart(): void
   nextLevel(): void
@@ -378,6 +380,15 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     levelStartRef,
     clockActive: ready && !paused && !solved && !corrupt,
     dispatch,
+    // 只有声明了 selectAction 的游戏才把点格子接进来，其余游戏点击格子的行为完全不变
+    ...(game.selectAction
+      ? {
+          selectCell: (index: number) => {
+            const action = game.selectAction?.(state, index)
+            if (action) dispatch(action)
+          },
+        }
+      : {}),
     undo: () => dispatch({ type: 'undo' } as unknown as A),
     restart: () => dispatch({ type: 'restart' } as unknown as A),
     nextLevel: () => dispatch({ type: 'nextLevel' } as unknown as A),

@@ -14,7 +14,8 @@ import {
   type SokobanLevel,
 } from './pack.js'
 
-export const CELL_GLYPHS: Record<CellKind, string> = {
+// 只覆盖推箱子用到的 kind（CellKind 还包含其它玩法的通用 kind）
+export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
   floor: '',
   wall: '█',
   goal: '○',
@@ -24,7 +25,7 @@ export const CELL_GLYPHS: Record<CellKind, string> = {
   playerOnGoal: '△',
 }
 
-export const CELL_LABEL_KEYS: Record<CellKind, string> = {
+export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   floor: 'sokoban.cell.floor',
   wall: 'sokoban.cell.wall',
   goal: 'sokoban.cell.goal',
@@ -48,7 +49,7 @@ export function buildBoard(level: ParsedLevel, position: Position): BoardView {
   const cells: CellView[] = []
   for (let index = 0; index < level.cols * level.rows; index++) {
     const kind = cellKindAt(level, position, index)
-    cells.push({ index, kind, glyph: CELL_GLYPHS[kind] })
+    cells.push({ index, kind, glyph: CELL_GLYPHS[kind] ?? '' })
   }
   return { kind: 'grid', cols: level.cols, rows: level.rows, cells }
 }

@@ -12,6 +12,14 @@
 export type MoveDir = 'up' | 'down' | 'left' | 'right'
 
 /** 棋盘格语义：状态之间的区别必须能靠形状/符号分辨，不能只靠灰阶 */
+/**
+ * 格子语义。壳层只按 kind 决定「用什么图形/纹理画」与无障碍标签，
+ * 不假设任何具体玩法 —— 新增游戏只需使用既有 kind 或在此追加通用 kind。
+ *
+ * 推箱子：floor / wall / goal / box / boxOnGoal / player / playerOnGoal
+ * 通用：empty（空格）、hidden（未翻开）、flag（标记）、mine（雷）、
+ *       number（已翻开且带数字）、tile（承载数字/文字的方块）、given（题目给定，描边更重）
+ */
 export type CellKind =
   | 'floor'
   | 'wall'
@@ -20,13 +28,26 @@ export type CellKind =
   | 'boxOnGoal'
   | 'player'
   | 'playerOnGoal'
+  | 'empty'
+  | 'hidden'
+  | 'flag'
+  | 'mine'
+  | 'number'
+  | 'tile'
+  | 'given'
 
 export interface CellView {
   /** 行优先索引 */
   index: number
   kind: CellKind
-  /** 无障碍/黑白双编码用的文字符号（同时作为 aria-label 的一部分） */
+  /**
+   * 格子文字：数字类玩法（数独、2048、扫雷计数）直接放数字 ——
+   * 墨水屏上数字比图标更易读；其余玩法放符号。
+   * 壳层按 kind 决定是「画图形」还是「显示文字」。
+   */
   glyph: string
+  /** 当前选中/光标所在格：壳层加重描边（黑白屏上靠线宽区分，不用灰度） */
+  selected?: boolean
 }
 
 export interface BoardView {
@@ -92,6 +113,11 @@ export interface GameDef<S, A> {
   reduce(state: S, action: A): S
   /** 当前局面下被规则允许的动作（用于禁用按钮与服务端/回放校验） */
   legal(state: S): readonly A[]
+  /**
+   * 把「点了第 index 个格子」映射成一个动作；返回 null 表示该格不可点。
+   * 数独、扫雷这类格子交互靠它接入，壳层因此不必知道任何具体玩法。
+   */
+  selectAction?(state: S, index: number): A | null
   status(state: S): GameStatus
   view(state: S): GameView
   controls(state: S): ControlSpec[]

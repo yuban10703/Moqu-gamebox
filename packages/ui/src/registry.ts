@@ -2,7 +2,7 @@
  * 游戏注册表：游戏盒子只需要认识这一个结构。
  * 新增一款游戏 = 补规则/内容/呈现 + 在这里登记一条，壳层代码不用改（对应 C 阶段完成条件）。
  */
-import type { DictSet, GameDef } from '@eink/core'
+import type { CellKind, DictSet, GameDef } from '@eink/core'
 
 export interface GameRegistryEntry<S = unknown, A = unknown> {
   game: GameDef<S, A>
@@ -15,6 +15,11 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
   progressFor(completed: readonly string[]): { done: number; total: number }
   /** 该存档处于内容的第几项（用于「继续」定位） */
   indexOfLevel?(levelId: string, state: unknown): number
+  /**
+   * 格子无障碍标签的 i18n key。由**游戏包提供** ——
+   * 壳层不应硬编码任何具体玩法的文案 key（原先写死了 sokoban.cell.*）。
+   */
+  cellLabelKey?(kind: CellKind): string | undefined
 }
 
 export type AnyRegistryEntry = GameRegistryEntry<never, never> | GameRegistryEntry<unknown, unknown>

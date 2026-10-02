@@ -418,13 +418,55 @@ html[data-bold-lines='on'] .eink-board__cell {
   background: transparent;
 }
 
+/* 数字/符号类格子：文字即内容（1-bit，天然清晰） */
+.eink-board__text {
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 通用格子纹理：全部纯黑白（快刷是 1-bit，灰阶会被抖动压平） */
+.eink-board__cell[data-kind='hidden'] {
+  background-image: repeating-linear-gradient(45deg, #000 0 1px, #fff 1px 5px);
+}
+.eink-board__cell[data-kind='mine'] {
+  background: var(--ink-black);
+  color: var(--ink-white);
+}
+.eink-board__cell[data-kind='flag'] {
+  background: var(--ink-white);
+  font-weight: 700;
+}
+.eink-board__cell[data-kind='number'] {
+  background: var(--ink-white);
+}
+.eink-board__cell[data-kind='tile'],
+.eink-board__cell[data-kind='given'],
+.eink-board__cell[data-kind='empty'] {
+  background: var(--ink-white);
+}
+/* 当前选中格：更重的内描边（靠线宽区分，不用灰度） */
+.eink-board__cell[data-selected='yes'] {
+  box-shadow: inset 0 0 0 3px var(--ink-black);
+}
+
+/* 题目给定：加粗描边（靠线宽区分，不用灰度） */
+.eink-board__cell[data-kind='given'] {
+  box-shadow: inset 0 0 0 2px var(--ink-black);
+}
+
 /* 其余格子铺白，遮住容器的纹理 */
 .eink-board__cell[data-kind='floor'],
 .eink-board__cell[data-kind='goal'],
 .eink-board__cell[data-kind='box'],
 .eink-board__cell[data-kind='boxOnGoal'],
 .eink-board__cell[data-kind='player'],
-.eink-board__cell[data-kind='playerOnGoal'] {
+.eink-board__cell[data-kind='playerOnGoal'],
+.eink-board__cell[data-kind='number'],
+.eink-board__cell[data-kind='tile'],
+.eink-board__cell[data-kind='given'],
+.eink-board__cell[data-kind='flag'],
+.eink-board__cell[data-kind='empty'] {
   background: var(--ink-white);
 }
 

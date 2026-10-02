@@ -161,6 +161,9 @@ export function Timer({
  * 箱子会**占满整个格子**（见 Board 里的 glyphSize）：推箱子的箱体本来就是格子的内容，
  * 留白反而让箱子和地板混淆；占满后「箱体/通道」一眼可分。
  */
+/** 以「文字」呈现的格子：数字/符号在墨水屏上比图形更清楚，且天然是 1-bit */
+const TEXT_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(['tile', 'given', 'number', 'flag', 'mine'])
+
 function BoardGlyph({
   kind,
   size,
@@ -170,7 +173,7 @@ function BoardGlyph({
   size: number
   bold: boolean
 }): ReactNode {
-  if (kind === 'floor' || kind === 'wall') return null
+  if (kind === 'floor' || kind === 'wall' || TEXT_KINDS.has(kind)) return null
   const stroke = bold ? 2.6 : 1.6
   const thin = bold ? 2 : 1.1
   const common = {
@@ -230,7 +233,8 @@ export interface BoardProps {
   bold?: boolean
   board: BoardView
   cell: number
-  labelFor: (kind: CellKind, index: number) => string
+  /** 无障碍标签：优先用游戏包提供的 i18n key；缺省时回退到 glyph */
+  labelFor?: (kind: CellKind, index: number, glyph: string) => string
   onCellSelect?: (index: number) => void
 }
 
@@ -266,9 +270,15 @@ export function Board({
           role="gridcell"
           className="eink-board__cell"
           data-kind={cellView.kind}
-          aria-label={labelFor(cellView.kind, cellView.index)}
+          {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
+          aria-label={labelFor ? labelFor(cellView.kind, cellView.index, cellView.glyph) : cellView.glyph}
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}
         >
+          {TEXT_KINDS.has(cellView.kind) && cellView.glyph ? (
+            <span className="eink-board__text" aria-hidden="true">
+              {cellView.glyph}
+            </span>
+          ) : null}
           <BoardGlyph
             kind={cellView.kind}
             size={

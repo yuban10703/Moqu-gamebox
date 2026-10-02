@@ -114,9 +114,11 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     enabled: session.ready && !session.corrupt,
   })
 
-  const cellLabel = (kind: CellKind, index: number): string => {
+  // 无障碍标签：优先用游戏包声明的 key，缺省回退到格子自身的符号
+  const cellLabel = (kind: CellKind, index: number, glyph: string): string => {
     const row = cellLabelRow(session.view.board, index)
-    return `${i18n.t(`sokoban.cell.${kind}`)}${row}`
+    const key = entry.cellLabelKey?.(kind)
+    return `${key ? i18n.t(key) : glyph}${row}`
   }
 
   const levelIndex =
@@ -190,6 +192,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
                 cell={boardLayout.cell}
                 labelFor={cellLabel}
                 bold={settings.boldLines}
+                {...(session.selectCell ? { onCellSelect: session.selectCell } : {})}
               />
             ) : null}
           </div>
