@@ -27,6 +27,28 @@ function run(title, command, args = []) {
   return r.status === 0
 }
 
+/*
+ * 前置检查：探索套件用的 Playwright 装在 gitignored 的 .toolchain/pw，
+ * 新克隆的仓库里没有 —— 缺了只会报 ERR_MODULE_NOT_FOUND，很难定位。
+ * 这里提前给出可直接执行的安装步骤。
+ */
+const playwrightDir = fileURLToPath(new URL('../../.toolchain/pw/node_modules/playwright', import.meta.url))
+if (!existsSync(playwrightDir)) {
+  console.error(
+    [
+      '',
+      '缺少探索套件依赖（Playwright，装在 gitignored 的 .toolchain/pw）。一次即可：',
+      '',
+      '  mkdir -p .toolchain/pw && cd .toolchain/pw && npm init -y && npm i playwright',
+      '  npx playwright install chromium && npx playwright install-deps chromium',
+      '',
+      '（需要 sudo/root 安装系统库；仅首次需要，之后 npm run verify 可直接跑。）',
+      '',
+    ].join('\n'),
+  )
+  process.exit(1)
+}
+
 let server = null
 try {
   if (!run('类型检查 + 单元测试 + i18n + 构建（npm run check）', 'npm', ['run', 'check'])) throw new Error('check')

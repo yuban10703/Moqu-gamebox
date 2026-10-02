@@ -69,8 +69,17 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 
 ## 5. 验证体系
 
+**首次准备（新克隆的仓库必需，一次即可）**：探索套件用 Playwright，它装在 **gitignored** 的 `.toolchain/pw`：
+
+```bash
+mkdir -p .toolchain/pw && cd .toolchain/pw && npm init -y && npm i playwright
+npx playwright install chromium && npx playwright install-deps chromium   # 需要 root 装系统库
 ```
-npm run check      类型检查 + 706 个单测 + i18n + web 构建
+
+`npm run verify` 会先检查该依赖，缺失时直接打印上面这几行命令（而不是抛 ERR_MODULE_NOT_FOUND）。
+
+```
+npm run check      类型检查 + 707 个单测 + i18n + web 构建
 npm run explore    5 个探索套件（真实 Chromium，真实交互）：
                    ui 98 / data 9 / flows 17 / maxscale 60 / landscape 52 项断言
 npm run verify     上面全部串起来，自带静态服务，结束打印汇总表与退出码
