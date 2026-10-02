@@ -33,6 +33,7 @@ export const zhCN: Dict = {
   'shell.detail.replace.cancel': '取消',
   'shell.detail.levels': '关卡',
 
+  'shell.game.cleared': '已过关 {done}/{total}',
   'shell.game.pause': '暂停',
   'shell.game.resume': '继续',
   'shell.game.restart': '重新开始',

@@ -82,7 +82,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
 
   // 统计栏列数：横屏一行放得下就一行；竖屏固定两列（行数恒定，不会因数值变宽而多出一行）
   const statCount = session.view.stats.length + (settings.timer ? 1 : 0)
-  const statColumns = viewport.width > viewport.height ? statCount : Math.min(2, statCount)
+  const statColumns = viewport.width > viewport.height ? statCount : Math.min(3, statCount)
 
   const boardArea = boardBox ?? root.boardArea
 
@@ -119,17 +119,31 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     return `${i18n.t(`sokoban.cell.${kind}`)}${row}`
   }
 
-  const levelLabel = i18n.t('sokoban.level.label', {
-    index: entry.indexOfLevel?.(extractLevelId(session.state), session.state) !== undefined
+  const levelIndex =
+    entry.indexOfLevel?.(extractLevelId(session.state), session.state) !== undefined
       ? (entry.indexOfLevel(extractLevelId(session.state), session.state) ?? 0) + 1
-      : 1,
-  })
+      : 1
+  const levelTotal = entry.levels?.length ?? 0
+  // 标题带上「当前/总数」，因此统计栏里不再重复一项「关卡 12/16」
+  const levelLabel =
+    levelTotal > 0
+      ? i18n.t('sokoban.level.position', { index: levelIndex, total: levelTotal })
+      : i18n.t('sokoban.level.label', { index: levelIndex })
+  const clearedCount = session.progress.completed?.length ?? 0
+  // difficulty 是本组件的 prop（详情页选定的难度），直接使用
+  const subtitleParts = [
+    difficulty ? i18n.t(`sokoban.difficulty.${difficulty}`) : '',
+    clearedCount > 0 && levelTotal > 0
+      ? i18n.t('shell.game.cleared', { done: clearedCount, total: levelTotal })
+      : '',
+  ].filter(Boolean)
   const best = (session.progress.bestMoves ?? {})[extractLevelId(session.state)]
 
   return (
     <div className="eink-screen eink-screen--game">
       <TopBar
         title={`${i18n.t(`${entry.game.i18nNamespace}.title`)} · ${levelLabel}`}
+        {...(subtitleParts.length > 0 ? { subtitle: subtitleParts.join(' · ') } : {})}
         onBack={() => {
           session.pause()
           onExit()

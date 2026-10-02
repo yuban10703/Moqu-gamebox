@@ -112,10 +112,8 @@ export function buildView(level: SokobanLevel, state: SokobanState, extras: View
   const stats = [
     { labelKey: 'sokoban.stat.moves', value: String(position.moves) },
     { labelKey: 'sokoban.stat.pushes', value: String(position.pushes) },
-    {
-      labelKey: 'shell.common.level',
-      value: `${level.index}/${PACK.length}`,
-    },
+    // 不再放「关卡 12/16」：与标题重复。标题里已写成「第 12/16 关」，
+    // 少一项后竖屏统计栏也能排成一行，棋盘因此多出约 50px。
   ]
   const details: Array<{ key: string; params?: Record<string, string | number> }> = []
   if (position.solved) {
