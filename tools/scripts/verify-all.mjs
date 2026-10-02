@@ -10,6 +10,7 @@
  * 用法：npm run verify
  */
 import { spawn, spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
 
