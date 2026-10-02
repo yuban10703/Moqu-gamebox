@@ -31,8 +31,10 @@ fi
 "$ADB" -s "$DEVICE" shell echo ok >/dev/null 2>&1 \
   || die "设备不可达（$DEVICE）。WiFi ADB 掉线时需在设备上重新开启无线调试；被防火墙挡住会报 No route to host。"
 
-step "2/7 构建 APK（含 Onyx SDK）"
-(cd "$ROOT" && source .toolchain/env.sh && cd apps/android && "$GRADLE_BIN" --no-daemon -PonyxBundled=true assembleDebug >/dev/null) \
+step "2/7 构建 APK（用默认配置：Onyx SDK 默认内置）"
+# 刻意不传 -PonyxBundled：验收要验证「发布时的真实默认配置」，
+# 显式传参等于绕过默认值，默认值错了也发现不了。
+(cd "$ROOT" && source .toolchain/env.sh && cd apps/android && "$GRADLE_BIN" --no-daemon assembleDebug >/dev/null) \
   || die "构建失败"
 [ -f "$APK" ] || die "没有找到产物：$APK"
 
