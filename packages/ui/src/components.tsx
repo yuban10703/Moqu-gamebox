@@ -490,6 +490,53 @@ export function Pager({ page, pageCount, onPrev, onNext, text }: PagerProps): Re
 }
 
 /** 键盘支持：方向键、U 撤销、R 重开、Esc 暂停/返回 */
+/**
+ * 实体翻页键（BOOX 等设备的 PageUp/PageDown）→ 滚动当前可滚动区域。
+ *
+ * 之前 `useKeyboardControls` 里写着「翻页键交给列表分页逻辑」，但那段逻辑并不存在，
+ * 于是物理翻页键完全没反应（真机实测：WebView 收到了 PageDown/PageUp 事件，应用没处理）。
+ * 对阅读器类设备来说，这两个键的预期行为就是翻页/滚动，因此在壳层统一处理。
+ */
+function findScrollableRegion(): HTMLElement | null {
+  const candidates: HTMLElement[] = []
+  for (const el of document.querySelectorAll<HTMLElement>('*')) {
+    const cs = getComputedStyle(el)
+    if (cs.overflowY !== 'auto' && cs.overflowY !== 'scroll') continue
+    if (el.clientHeight < 40 || el.scrollHeight <= el.clientHeight + 4) continue
+    candidates.push(el)
+  }
+  // 取「在视口里可见面积最大」的那个，避免误滚到被遮挡的容器
+  let best: HTMLElement | null = null
+  let bestArea = 0
+  for (const el of candidates) {
+    const r = el.getBoundingClientRect()
+    const w = Math.max(0, Math.min(r.right, window.innerWidth) - Math.max(r.left, 0))
+    const h = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0))
+    if (w * h > bestArea) {
+      bestArea = w * h
+      best = el
+    }
+  }
+  return bestArea > 2000 ? best : null
+}
+
+export function useHardwarePageKeys(): void {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'PageDown' && event.key !== 'PageUp') return
+      const target = findScrollableRegion()
+      // 没有可滚动内容时不拦截：避免干扰将来可能添加的游戏内快捷键
+      if (!target) return
+      event.preventDefault()
+      // 一次翻一屏（留 10% 重叠，便于接续阅读）；不用平滑滚动，墨水屏上动画只会造成残影
+      const delta = Math.round(target.clientHeight * 0.9)
+      target.scrollTop += event.key === 'PageDown' ? delta : -delta
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+}
+
 export function useKeyboardControls(handlers: {
   onMove?: (dir: MoveDir) => void
   onUndo?: () => void

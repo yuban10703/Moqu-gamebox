@@ -9,6 +9,7 @@ export default defineConfig({
       '@eink/core': pkg('core/src/index.ts'),
       '@eink/sokoban': pkg('games/sokoban/src/index.ts'),
       '@eink/sudoku': pkg('games/sudoku/src/index.ts'),
+      '@eink/reversi': pkg('games/reversi/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
       '@eink/ui': pkg('ui/src/index.ts'),

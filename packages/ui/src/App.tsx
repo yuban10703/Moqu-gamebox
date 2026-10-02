@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { RecoveryReport, SaveEnvelope } from '@eink/core'
 import type { Platform } from '@eink/platform'
+import { useHardwarePageKeys } from './components.js'
 import { UiProvider, useRootAttributes, useUi } from './contexts.js'
 import type { GameLibrary, GameRegistryEntry } from './registry.js'
 import { LibraryScreen } from './screens/LibraryScreen.js'
@@ -49,6 +50,8 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
   const nonceRef = useRef(1)
 
   useRootAttributes(ui.locale, ui.settings)
+  // 实体翻页键 → 滚动当前可滚动区域（全应用生效，游戏页无滚动内容时自动无操作）
+  useHardwarePageKeys()
 
   const refreshSaves = useCallback(async () => {
     const metas = await platform.storage.saves.list()
