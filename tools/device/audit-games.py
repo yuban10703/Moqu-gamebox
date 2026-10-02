@@ -5,6 +5,9 @@
 """
 import json, subprocess, sys, time
 
+# 审计问题收集：脚本必须能失败，否则 verify-device.sh 的最后一步形同虚设
+problems = []
+
 WS = open(sys.argv[1]).read().strip()
 EVAL = '/root/墨水屏游戏/tools/scripts/devtools-eval.py'
 DIFFICULTY = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != '-' else None
@@ -68,3 +71,23 @@ for name in names:
     time.sleep(3)
     info = js("""JSON.stringify((()=>{const vh=innerHeight,vw=innerWidth;const cell=document.querySelector('[role=gridcell]');const cr=cell?cell.getBoundingClientRect():null;const board=document.querySelector('.eink-board');const br=board?board.getBoundingClientRect():null;const cells=document.querySelectorAll('[role=gridcell]').length;const off=[...document.querySelectorAll('button')].filter(b=>b.getBoundingClientRect().bottom>vh+1).map(b=>(b.getAttribute('aria-label')||b.innerText||'').trim().slice(0,8));const txt=document.body.innerText;const stats=[...document.querySelectorAll('.eink-stats__item')].map(e=>e.textContent);return {视口:vw+'x'+vh,格子数:cells,格子:cr?Math.round(cr.width):null,棋盘:br?[Math.round(br.width),Math.round(br.height)]:null,屏外:off,缺键:txt.includes('⟦'),标题:document.querySelector('.eink-topbar__title h1')?.textContent,统计:stats}})())""")
     print(f"  {name}: {info}")
+    try:
+        data = json.loads(info)
+        if data.get('屏外'):
+            problems.append(f'{name} 有屏外按钮：{data["屏外"]}')
+        if data.get('缺键'):
+            problems.append(f'{name} 出现缺键标记 ⟦key⟧')
+    except Exception:
+        problems.append(f'{name} 审计结果无法解析')
+
+
+# ── 汇总与退出码 ───────────────────────────────────────────────
+# 这个脚本此前只打印结果、永远返回 0，于是 verify-device.sh 的最后一步即使
+# 某款游戏越界或出现缺键，整条链仍会「通过」—— 验证链上不该有这样的软环节。
+print()
+if problems:
+    print(f'✗ 发现 {len(problems)} 个问题：')
+    for item in problems:
+        print(f'   - {item}')
+    sys.exit(1)
+print(f'✓ {len(names)} 款游戏全部通过（无屏外按钮、无缺键）')
