@@ -28,3 +28,47 @@
 - **不做零残影承诺**：残影与全刷效果必须真机观察（记录到 [A01](A01-device-baseline.md)）；
 - **不做像素级局部刷新**：网页与 WebView 只能拿到整屏全刷与应用级模式切换；
 - **不把未实现的能力写进界面**：探测不到的能力显示为不可用并给出指引，而不是显示一个点了没反应的开关。
+
+## 布局硬性规则：主操作必须固定在首屏内
+
+**教训（6 寸竖屏实测）**：详情页的「开始新游戏」在 P6Plus（439×847 CSS）上位于 880~940，
+而视口只有 847 —— 用户必须先拖动才能开始游戏。同一份代码在 Note X2（1248×903 横屏）上完全正常，
+**这类问题只有窄屏才暴露**，所以必须在多设备上验收。
+
+### 做法：`eink-screen--sticky-footer`
+
+```html
+<div class="eink-screen eink-screen--sticky-footer">
+  <TopBar/>
+  <div class="eink-screen__content"> …可滚动的内容… </div>
+  <footer class="eink-footer"> …主操作… </footer>
+</div>
+```
+
+```css
+.eink-screen--sticky-footer {
+  /* 必须覆盖 .eink-screen 的 flex:1 —— 在列向 flex 容器里 flex-basis(0) 会压掉 height，
+     只写 height:100vh 不生效（实测计算高度为内容高度 951px 而非视口 847px）。 */
+  flex: 0 0 auto;
+  height: 100vh;
+  overflow: hidden;
+}
+.eink-screen--sticky-footer .eink-screen__content {
+  flex: 1 1 auto;
+  min-height: 0;   /* 不加这行 flex 子项不肯收缩，不会出现滚动 */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.eink-screen--sticky-footer .eink-footer { flex: 0 0 auto; margin-top: 0; }
+```
+
+已应用：游戏详情页、帮助页、诊断页（诊断页的原始转储可达 1884px，原本把按钮顶到屏幕外）。
+
+### 自动审计
+
+用 `tools/scripts/` 下的思路（临时脚本，逻辑见提交说明）逐个页面检查
+「是否有按钮 bottom > innerHeight」，两台设备都应为 0。
+当前结果：Note X2 六页全为 0；P6Plus 首页/设置/帮助/诊断/测试页为 0，
+详情页仅剩关卡选择等**滚动区内的次级控件**（主操作已固定）。

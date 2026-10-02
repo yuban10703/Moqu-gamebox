@@ -53,18 +53,20 @@ export function GameDetailScreen({
   }
 
   return (
-    <div className="eink-screen">
+    <div className="eink-screen eink-screen--sticky-footer">
       <TopBar title={i18n.t(`${entry.game.i18nNamespace}.title`)} onBack={onBack} />
 
-      {corrupt ? (
+      {/* 主操作固定在页脚（永远在首屏内），说明与关卡选择放在这个可滚动区里 */}
+      <div className="eink-screen__content">
+        {corrupt ? (
         <section className="eink-section eink-section--warning" role="alert">
           <h2>{i18n.t('shell.storage.reason.corrupt')}</h2>
           <p className="eink-text">{i18n.t('shell.storage.corruptHint')}</p>
         </section>
       ) : null}
 
-      <section className="eink-section">
-        <h2>{i18n.t('shell.detail.rules')}</h2>
+        <section className="eink-section">
+          <h2>{i18n.t('shell.detail.rules')}</h2>
         {entry.rulesKeys.map((key) => (
           <p key={key} className="eink-text">
             {i18n.t(key)}
@@ -140,6 +142,8 @@ export function GameDetailScreen({
           </>
         )}
       </section>
+
+      </div>
 
       <footer className="eink-footer" style={{ minHeight: layout.buttonHeight + 16 }}>
         {hasSave ? (

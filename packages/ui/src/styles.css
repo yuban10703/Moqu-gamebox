@@ -214,6 +214,36 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * 主操作固定在底部、内容单独滚动。
+ *
+ * 为什么需要：窄屏（6 寸竖屏 439 CSS px）上说明文字换行变多，
+ * 会把「开始新游戏」这类主操作挤出首屏 —— 实测 P6Plus 上按钮位于 880~940，
+ * 而视口只有 847 高，用户必须先拖动才能开始游戏。墨水屏上主操作绝不该需要滚动。
+ */
+.eink-screen--sticky-footer {
+  /* 必须覆盖 .eink-screen 的 flex:1：在列向 flex 容器里 flex-basis（0）会压掉 height，
+     只写 height:100vh 是不生效的 —— 实测计算高度会是内容高度 951px 而不是视口 847px。 */
+  flex: 0 0 auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.eink-screen--sticky-footer .eink-screen__content {
+  flex: 1 1 auto;
+  /* 关键：flex 子项默认 min-height:auto 不肯收缩，不加这行就不会出现滚动 */
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.eink-screen--sticky-footer .eink-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
 .eink-footer {
   display: flex;
   flex-wrap: wrap;

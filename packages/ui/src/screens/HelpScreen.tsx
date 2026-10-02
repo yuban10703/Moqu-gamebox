@@ -22,9 +22,11 @@ export function HelpScreen({ onBack, onDiagnostics }: HelpScreenProps): ReactNod
   const offline = platform.offline.state()
 
   return (
-    <div className="eink-screen">
+    <div className="eink-screen eink-screen--sticky-footer">
       <TopBar title={i18n.t('shell.nav.help')} onBack={onBack} />
 
+      {/* 主操作固定在页脚；说明内容可滚动（窄屏上内容必然超过一屏，但操作不该被推下去） */}
+      <div className="eink-screen__content">
       <section className="eink-section">
         <h2>{i18n.t('shell.diagnostics.help')}</h2>
         <p className="eink-text">{i18n.t('shell.diagnostics.help.body')}</p>
@@ -65,6 +67,8 @@ export function HelpScreen({ onBack, onDiagnostics }: HelpScreenProps): ReactNod
           ))}
         </ul>
       </section>
+
+      </div>
 
       <footer className="eink-footer">
         <button type="button" className="eink-link" onClick={onDiagnostics}>

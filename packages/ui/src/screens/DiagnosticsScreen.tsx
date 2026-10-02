@@ -36,7 +36,7 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
   const major = webViewMajor(baseline?.webViewVersion ?? null)
 
   return (
-    <div className="eink-screen">
+    <div className="eink-screen eink-screen--sticky-footer">
       <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack}>
         {capability.animationMode ? (
           <ActionButton
@@ -47,6 +47,8 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
         ) : null}
       </TopBar>
 
+      {/* 主操作固定在页脚；原始转储很长（实测可达 1884px），绝不能把按钮顶出首屏 */}
+      <div className="eink-screen__content">
       <section className="eink-section">
         <h2>{i18n.t('shell.diagnostics.device')}</h2>
         <dl className="eink-kv">
@@ -130,6 +132,8 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
         <h2>{i18n.t('shell.diagnostics.missingKeys')}</h2>
         <p className="eink-muted">{i18n.missingKeys().join(', ') || '—'}</p>
       </section>
+
+      </div>
 
       <footer className="eink-footer">
         <ActionButton
