@@ -78,6 +78,8 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
     const element = boardAreaRef.current
     if (!element) return
     const measure = (): void => {
+      // 注：曾试过改用 clientWidth/Height（内容盒），但实测反而让被裁的游戏从 4 款变 5 款
+      // （量到的盒子变小 → 棋盘变小 → 但 flex 分配随之变化，收敛结果更差），故保持边框盒。
       const rect = element.getBoundingClientRect()
       if (rect.width > 0 && rect.height > 0) {
         setBoardBox({ width: Math.round(rect.width), height: Math.round(rect.height) })

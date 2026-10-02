@@ -48,10 +48,11 @@ try {
   process.stdout.write('  服务就绪\n')
 
   const suites = [
-    ['探索套件 1/4：界面与交互', 'tools/scripts/explore-ui.mjs'],
-    ['探索套件 2/4：数据完整性', 'tools/scripts/explore-data.mjs'],
-    ['探索套件 3/4：完整流程', 'tools/scripts/explore-flows.mjs'],
-    ['探索套件 4/4：最大字号档位巡检', 'tools/scripts/explore-maxscale.mjs'],
+    ['探索套件 1/5：界面与交互', 'tools/scripts/explore-ui.mjs'],
+    ['探索套件 2/5：数据完整性', 'tools/scripts/explore-data.mjs'],
+    ['探索套件 3/5：完整流程', 'tools/scripts/explore-flows.mjs'],
+    ['探索套件 4/5：最大字号档位巡检', 'tools/scripts/explore-maxscale.mjs'],
+    ['探索套件 5/5：极矮横屏巡检', 'tools/scripts/explore-landscape.mjs'],
   ]
   for (const [title, script] of suites) {
     if (!run(title, 'node', [script])) throw new Error(title)

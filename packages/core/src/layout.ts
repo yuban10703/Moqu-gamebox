@@ -129,7 +129,15 @@ export function computeBoardLayout(
   const innerWidth = Math.max(1, area.width - safeFrame * 2)
   const innerHeight = Math.max(1, area.height - safeFrame * 2)
   const fit = Math.min(innerWidth / safeCols, innerHeight / safeRows)
-  const cell = Math.max(config.minCell, Math.floor(fit))
+  /**
+   * `minCell` 是**偏好下限**，不是硬下限。
+   *
+   * 原先无条件 `Math.max(minCell, floor(fit))`：在极矮横屏（如 879×407）里可用区小于
+   * `minCell × 行数`，棋盘仍按 24px 画，于是超出可用区被容器裁掉上下边框
+   * （真机 + 浏览器均实测到，7 款游戏全中）。
+   * 宁可格子小一点，也不能裁掉内容 —— 裁掉的那部分玩家点不到。
+   */
+  const cell = fit >= config.minCell ? Math.floor(fit) : Math.max(1, Math.floor(fit))
   const boardWidth = cell * safeCols + safeFrame * 2
   const boardHeight = cell * safeRows + safeFrame * 2
   return {
