@@ -31,12 +31,15 @@ import { useSession } from '../session.js'
 export interface GameScreenProps {
   entry: GameRegistryEntry<unknown, unknown>
   difficulty: string
+  /** 返回上一页（游戏详情）：顶栏「返回」用 */
+  onBack: () => void
+  /** 直接回到游戏库：暂停遮罩与结果面板里明确写着「返回游戏库」的按钮用 */
   onExit: () => void
   onCommitted: (envelope: SaveEnvelope) => void
 }
 
 
-export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScreenProps): ReactNode {
+export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig } = useUi()
   const session = useSession({
     game: entry.game,
@@ -178,7 +181,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         {...(subtitleParts.length > 0 ? { subtitle: subtitleParts.join(' · ') } : {})}
         onBack={() => {
           session.pause()
-          onExit()
+          onBack()
         }}
       >
         <ActionButton
@@ -209,7 +212,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
               emphasis="primary"
               onSelect={() => setConfirmDiscard(true)}
             />
-            <ActionButton labelKey="shell.nav.back" onSelect={onExit} />
+            <ActionButton labelKey="shell.nav.back" onSelect={onBack} />
           </div>
         </section>
       ) : (

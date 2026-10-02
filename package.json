@@ -21,7 +21,8 @@
     "build:apk": "bash tools/scripts/build-apk.sh",
     "gen:levels": "DUMP_LEVELS=1 vitest run packages/games/sokoban/test/dump-levels.test.ts",
     "smoke:web": "node tools/scripts/web-smoke.mjs",
-    "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8899"
+    "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8899",
+    "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",

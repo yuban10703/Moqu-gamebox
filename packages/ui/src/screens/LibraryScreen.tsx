@@ -34,7 +34,13 @@ export function LibraryScreen({
 }: LibraryScreenProps): ReactNode {
   const { i18n, platform } = useUi()
   const offline = platform.offline.state()
-  const continued = entries.find((entry) => saves[entry.game.id])
+  /**
+   * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
+   * 原先用 entries.find(...)，于是玩了 2048 之后首页卡片还显示推箱子（探索式测试发现）。
+   */
+  const continued = entries
+    .filter((entry) => saves[entry.game.id])
+    .sort((a, b) => (saves[b.game.id]?.updatedAt ?? 0) - (saves[a.game.id]?.updatedAt ?? 0))[0]
 
   return (
     <div className="eink-screen eink-screen--sticky-footer">

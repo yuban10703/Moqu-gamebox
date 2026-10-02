@@ -115,6 +115,42 @@ describe('存档提交协议', () => {
     expect((await store.load('sokoban'))?.commitId).toBe(1)
   })
 
+  it('recover 上报「已提交但损坏」的存档，且不删除它', async () => {
+    const kv = createMemoryKv()
+    const store = createSaveStore(kv, { now: () => NOW })
+    await store.commit(envelope())
+    // 模拟外部损坏：JSON 合法（结构像样）但校验和不匹配
+    await kv.setMany([
+      ['save:1:committed:sokoban', '{"envelope":{"gameId":"sokoban"},"checksum":"deadbeef"}'],
+    ])
+
+    const report = await store.recover()
+    expect(report.corrupt).toEqual(['sokoban'])
+    // 不能静默丢弃：数据要留着，由界面提供导出/清除
+    expect(report.discarded).toEqual([])
+    expect(await kv.get('save:1:committed:sokoban')).not.toBeNull()
+    expect(await store.loadResult('sokoban')).toEqual({ status: 'corrupt', reason: expect.any(String) })
+  })
+
+  it('已提交的存档被截断成垃圾时，list() 仍用 key 里的 gameId 上报为损坏', async () => {
+    const kv = createMemoryKv()
+    const store = createSaveStore(kv, { now: () => NOW })
+    await store.commit(envelope())
+    await kv.setMany([['save:1:committed:sokoban', '{broken']])
+
+    const metas = await store.list()
+    expect(metas).toHaveLength(1)
+    expect(metas[0]).toMatchObject({ gameId: 'sokoban', corrupt: true })
+  })
+
+  it('健康存档不会被误报为损坏', async () => {
+    const kv = createMemoryKv()
+    const store = createSaveStore(kv, { now: () => NOW })
+    await store.commit(envelope())
+    const report = await store.recover()
+    expect(report.corrupt).toEqual([])
+  })
+
   it('recover 清理陈旧的 pending（提交点已经越过它）', async () => {
     const kv = createMemoryKv()
     const store = createSaveStore(kv, { now: () => NOW })

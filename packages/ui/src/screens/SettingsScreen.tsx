@@ -70,9 +70,15 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
   }
 
   return (
-    <div className="eink-screen">
+    <div className="eink-screen eink-screen--sticky-footer">
       <TopBar title={i18n.t('shell.settings.title')} onBack={onBack} />
 
+      {/*
+       * 内容滚动 + 页脚固定：设置项会随字号变大而变高，
+       * 原先没有这一层，字号切到「大」时页面 930 > 视口 847，
+       * 「清除全部进度」被顶出屏幕（探索式测试发现）。
+       */}
+      <div className="eink-screen__content">
       <section className="eink-section">
         <h2>{i18n.t('shell.settings.language')}</h2>
         <div className="eink-choice-row">
@@ -205,6 +211,7 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
           </p>
         ) : null}
       </section>
+      </div>
 
       <footer className="eink-footer">
         <span className="eink-muted">{`v${APP_VERSION}`}</span>

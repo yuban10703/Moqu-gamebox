@@ -51,6 +51,11 @@ export interface RecoveryReport {
   cleaned: string[]
   /** 损坏或无法校验的 pending 被丢弃的游戏 */
   discarded: string[]
+  /**
+   * **已提交但无法校验**的游戏（数据被外部损坏、写入截断等）。
+   * 这些不会被自动删除 —— 删掉就等于用户无声丢档；界面据它给出「导出/清除」的恢复入口。
+   */
+  corrupt: string[]
 }
 
 export interface SaveStore {
@@ -150,7 +155,17 @@ export function createSaveStore(
         const text = await kv.get(key)
         if (text === null) continue
         const meta = readMeta(text)
-        if (meta) out.push(meta)
+        if (meta) {
+          out.push(meta)
+          continue
+        }
+        // 连 meta 都读不出来（写入被截断、外部损坏等）：**不能静默跳过** ——
+        // 跳过等于用户在首页看不到任何异常，进度无声消失。
+        // key 里就带着 gameId，据此上报为损坏，界面会给「导出/清除」入口。
+        const gameId = key.slice(COMMITTED_PREFIX.length)
+        if (gameId) {
+          out.push({ gameId, commitId: 0, updatedAt: 0, difficulty: '', moves: 0, corrupt: true })
+        }
       }
       return out
     },
@@ -172,7 +187,7 @@ export function createSaveStore(
     },
 
     async recover() {
-      const report: RecoveryReport = { recovered: [], cleaned: [], discarded: [] }
+      const report: RecoveryReport = { recovered: [], cleaned: [], discarded: [], corrupt: [] }
       const pendingKeys = await kv.keys(`${NS}:pending:`)
       for (const key of pendingKeys) {
         const gameId = key.slice(`${NS}:pending:`.length)
@@ -201,6 +216,15 @@ export function createSaveStore(
           await kv.del(key)
           report.cleaned.push(gameId)
         }
+      }
+      // 已提交的存档也要体检：损坏时**不删除**，只上报，由界面提供导出/清除入口。
+      // 原先只扫 pending，于是被外部损坏的已提交存档会被静默忽略 ——
+      // 首页照常显示「进度 0/16」，用户无声无息丢档（探索式测试发现）。
+      const committedKeys = await kv.keys(`${NS}:committed:`)
+      for (const key of committedKeys) {
+        const gameId = key.slice(`${NS}:committed:`.length)
+        const loaded = await readEnvelope(key)
+        if (loaded.status === 'corrupt') report.corrupt.push(gameId)
       }
       return report
     },

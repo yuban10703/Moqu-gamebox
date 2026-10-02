@@ -198,7 +198,10 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
             key={`${screen.gameId}-${screen.nonce}`}
             entry={target}
             difficulty={screen.difficulty}
-            onExit={goBack}
+            onBack={goBack}
+            // 「返回游戏库」字面意思就是回库：原先与顶栏返回共用 goBack，
+            // 点下去其实只到详情页，文案与行为不符（探索式测试发现）
+            onExit={() => navigate({ name: 'library' })}
             onCommitted={() => void refreshSaves()}
           />
         )
