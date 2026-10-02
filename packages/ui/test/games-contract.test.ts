@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { game2048 } from '@eink/2048'
 import { fifteenGame } from '@eink/fifteen'
+import { gomokuGame } from '@eink/gomoku'
 import { minesweeperGame } from '@eink/minesweeper'
 import { reversiGame } from '@eink/reversi'
 import { sokobanGame } from '@eink/sokoban'
@@ -25,6 +26,7 @@ const GAMES: Array<GameDef<any, any>> = [
   game2048 as GameDef<any, any>,
   reversiGame as GameDef<any, any>,
   fifteenGame as GameDef<any, any>,
+  gomokuGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {

@@ -330,19 +330,29 @@ body {
 
 .eink-tile__host {
   grid-area: host;
+  /* 图标原本按正文字号渲染，行高把卡片顶得很高（26px 字号下每张卡 146px）。 */
+  font-size: 1.15em;
+  line-height: 1;
 }
 
 .eink-tile__title {
   grid-area: title;
+  /* 大字号下卡片会被行高撑大：4 行就顶出屏幕（真机 26px 字号实测卡高 146px）。
+     显式收紧行高，并把次要信息缩小一档，卡片回落到 ~95px。 */
+  line-height: 1.2;
 }
 
 .eink-tile__meta {
   grid-area: meta;
+  font-size: 0.85em;
+  line-height: 1.2;
 }
 
 .eink-tile__done {
   grid-area: done;
   justify-self: end;
+  font-size: 0.85em;
+  line-height: 1.2;
 }
 
 .eink-tile__host {

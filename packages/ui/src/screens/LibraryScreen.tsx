@@ -89,8 +89,6 @@ export function LibraryScreen({
           <h2>{i18n.t('shell.library.continue')}</h2>
           {(() => {
             const envelope = saves[continued.game.id]!
-            const done = progressOf(envelope)
-            const summary = continued.progressFor?.(done.completed)
             const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
             const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
             return (
@@ -103,14 +101,8 @@ export function LibraryScreen({
                       { labelKey: 'shell.common.moves', value: String(envelope.moves) },
                     ]}
                   />
-                  {summary ? (
-                    <p className="eink-muted">
-                      {i18n.t('shell.library.progress', {
-                        done: summary.done,
-                        total: summary.total,
-                      })}
-                    </p>
-                  ) : null}
+                  {/* 这里不再显示「进度 x/y」：下方同一款游戏的卡片上已经有它了，
+                      重复信息会白白占掉一行高度（大字号 + 多游戏时直接顶出屏幕） */}
                 </div>
                 <div className="eink-card__actions">
                   <ActionButton
