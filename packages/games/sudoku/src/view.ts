@@ -26,10 +26,16 @@ export function cellGlyph(state: SudokuState, index: number): string {
 export function buildBoard(state: SudokuState): BoardView {
   const cells: CellView[] = []
   for (let index = 0; index < SUDOKU_CELLS; index++) {
+    const kind = cellKindAt(state, index)
     const cell: CellView = {
       index,
-      kind: cellKindAt(state, index),
+      kind,
       glyph: cellGlyph(state, index),
+      // 题目给定 vs 玩家填入：字号 + 字重双重区分（见 styles.css）。
+      // 只靠字重不够明显，字号差异在墨水屏上一眼可辨 —— 这也是纸面数独的通行做法
+      // （印刷体的题目数字大，自己写的数字小）。
+      ...(kind === 'given' ? { textScale: 0.74 } : {}),
+      ...(kind === 'tile' ? { textScale: 0.5 } : {}),
     }
     if (state.selected === index) cell.selected = true
     cells.push(cell)

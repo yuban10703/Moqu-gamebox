@@ -405,34 +405,27 @@ body {
 
 /*
  * 线宽层次（黑白屏上靠线宽建立结构层次，不用灰度）：
- *   格子线 1px（加粗线条时 2px） < 宫线 3px（4px） = 外框 3px（4px）
- * 数独的 3×3 宫线靠 data-sep-* 加粗；外框必须不细于宫线，否则棋盘看起来是散的。
+ *   格子线 1px  <  宫线 5px  =  外框 5px      → 细:粗 = 1:5
+ *
+ * 这些值**不跟随「加粗线条」设置**：该设置只影响字形笔画与界面控件边框（--line）。
+ * 原因：若棋盘线跟着设置走，加粗模式下格子线变 2px、与宫线只剩 2 倍差距，层次就没了。
+ *
+ * 注意：组边界加粗会叠加相邻格自身的 1px，所以视觉宽度比设定值再多 1px。
+ * 外框不细于宫线，否则棋盘看起来是散的。
  */
 .eink-board {
   display: grid;
-  border: 3px solid var(--ink-black);
+  border: 5px solid var(--ink-black);
   touch-action: manipulation;
 }
 
-html[data-bold-lines='on'] .eink-board {
-  border-width: 4px;
-}
-
-/* 组边界（如数独 3×3 宫）：加粗到 3px（叠加相邻格自身的 1px 后视觉约 4px） */
+/* 组边界（如数独 3×3 宫） */
 .eink-board__cell[data-sep-right='yes'] {
-  border-right-width: 3px;
+  border-right-width: 5px;
 }
 
 .eink-board__cell[data-sep-bottom='yes'] {
-  border-bottom-width: 3px;
-}
-
-html[data-bold-lines='on'] .eink-board__cell[data-sep-right='yes'] {
-  border-right-width: 4px;
-}
-
-html[data-bold-lines='on'] .eink-board__cell[data-sep-bottom='yes'] {
-  border-bottom-width: 4px;
+  border-bottom-width: 5px;
 }
 
 .eink-board__cell {
@@ -442,10 +435,6 @@ html[data-bold-lines='on'] .eink-board__cell[data-sep-bottom='yes'] {
   border: 1px solid var(--ink-black);
   font-size: calc(var(--cell, 40px) * 0.66);
   line-height: 1;
-}
-
-html[data-bold-lines='on'] .eink-board__cell {
-  border-width: 2px;
 }
 
 /*
@@ -512,6 +501,8 @@ html[data-bold-lines='on'] .eink-board__cell {
 .eink-board__cell[data-kind='tile'] .eink-board__text {
   font-weight: 400;
 }
+
+/* 玩家填入不额外标记，靠字号/字重即可分辨（避免给大量格子加边框或纹理） */
 
 /* 其余格子铺白，遮住容器的纹理 */
 .eink-board__cell[data-kind='floor'],

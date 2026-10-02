@@ -48,6 +48,12 @@ export interface CellView {
   glyph: string
   /** 当前选中/光标所在格：壳层加重描边（黑白屏上靠线宽区分，不用灰度） */
   selected?: boolean
+  /**
+   * 格内文字的字号系数（相对格子边长，缺省 0.66）。
+   * 用于区分「题目给定」与「玩家填入」这类同格内容 —— 黑白屏上字号比颜色可靠。
+   * 由游戏声明而不是壳层写死，避免同一 kind 在不同玩法里被误改字号。
+   */
+  textScale?: number
 }
 
 export interface BoardView {

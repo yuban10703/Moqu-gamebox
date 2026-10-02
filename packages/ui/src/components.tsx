@@ -296,7 +296,13 @@ export function Board({
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}
         >
           {TEXT_KINDS.has(cellView.kind) && cellView.glyph ? (
-            <span className="eink-board__text" aria-hidden="true">
+            <span
+              className="eink-board__text"
+              aria-hidden="true"
+              {...(cellView.textScale
+                ? { style: { fontSize: `calc(var(--cell, 40px) * ${cellView.textScale})` } }
+                : {})}
+            >
               {cellView.glyph}
             </span>
           ) : null}
