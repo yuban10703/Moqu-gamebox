@@ -12,6 +12,7 @@ import {
 } from '@eink/sokoban'
 import { game2048, game2048En, game2048Zh } from '@eink/2048'
 import { fifteenEn, fifteenGame, fifteenZh } from '@eink/fifteen'
+import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
 import { reversiEn, reversiGame, reversiZh } from '@eink/reversi'
 import { minesweeperEn, minesweeperGame, minesweeperZh } from '@eink/minesweeper'
 import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
@@ -56,6 +57,16 @@ export const library: GameLibrary = {
       }),
     }),
     defineGame({
+      game: gomokuGame,
+      cellLabelKey: (kind) => `gomoku.cell.${kind}`,
+      rulesKeys: ['gomoku.rules.body', 'gomoku.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: gomokuGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: gomokuGame.difficulties.length,
+      }),
+    }),
+    defineGame({
       game: fifteenGame,
       cellLabelKey: (kind) => `fifteen.cell.${kind}`,
       rulesKeys: ['fifteen.rules.body'],
@@ -89,7 +100,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn },
   },
 }

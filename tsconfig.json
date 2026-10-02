@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/gomoku": ["packages/games/gomoku/src/index.ts"],
+      "@eink/gomoku/*": ["packages/games/gomoku/src/*"],
       "@eink/fifteen": ["packages/games/fifteen/src/index.ts"],
       "@eink/fifteen/*": ["packages/games/fifteen/src/*"],
       "@eink/reversi": ["packages/games/reversi/src/index.ts"],

@@ -188,6 +188,7 @@ function hostGlyph(namespace: string): string {
     minesweeper: '☒',
     reversi: '◐',
     fifteen: '▦',
+    gomoku: '⬤',
     '2048': '▩',
   }
   return glyphs[namespace] ?? '◈'

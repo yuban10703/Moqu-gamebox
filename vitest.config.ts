@@ -11,6 +11,7 @@ export default defineConfig({
       '@eink/sudoku': pkg('games/sudoku/src/index.ts'),
       '@eink/reversi': pkg('games/reversi/src/index.ts'),
       '@eink/fifteen': pkg('games/fifteen/src/index.ts'),
+      '@eink/gomoku': pkg('games/gomoku/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
       '@eink/ui': pkg('ui/src/index.ts'),
