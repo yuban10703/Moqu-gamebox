@@ -122,22 +122,29 @@ export function computeBoardLayout(
    * 否则 boardWidth/boardHeight 会比可用区多出 2×frame，上下（或左右）被裁掉。
    */
   frame: number = BOARD_FRAME_PX,
+  /**
+   * 安全余量（px）：从可用区里再扣掉这么多高度。
+   *
+   * 保留该参数（测试与将来可能的档位适配会用到），但**不再从界面传入**：
+   * 它同样以「让格子变小」换取不裁切，在极矮横屏下会加剧坍缩。
+   */
+  safety: number = 0,
 ): BoardLayout {
   const safeCols = Math.max(1, Math.floor(cols))
   const safeRows = Math.max(1, Math.floor(rows))
   const safeFrame = Math.max(0, frame)
   const innerWidth = Math.max(1, area.width - safeFrame * 2)
-  const innerHeight = Math.max(1, area.height - safeFrame * 2)
+  const innerHeight = Math.max(1, area.height - safeFrame * 2 - Math.max(0, safety))
   const fit = Math.min(innerWidth / safeCols, innerHeight / safeRows)
   /**
-   * `minCell` 是**偏好下限**，不是硬下限。
+   * `minCell` 是**硬下限**：格子绝不能小于它。
    *
-   * 原先无条件 `Math.max(minCell, floor(fit))`：在极矮横屏（如 879×407）里可用区小于
-   * `minCell × 行数`，棋盘仍按 24px 画，于是超出可用区被容器裁掉上下边框
-   * （真机 + 浏览器均实测到，7 款游戏全中）。
-   * 宁可格子小一点，也不能裁掉内容 —— 裁掉的那部分玩家点不到。
+   * 曾经为了「不裁切」把它降级成偏好下限（fit 小就让格子变小），
+   * 结果真机极矮横屏（879×407）下棋盘区几乎为 0，格子坍缩到 **1px** —— 游戏完全不可玩 ✗✗
+   * （浏览器同视口复现不出：Chromium 的可用高度比设备多）。
+   * 结论：宁可棋盘略微超出被裁一点（内容仍可辨认、按钮都可点），也不允许格子小到不可用。
    */
-  const cell = fit >= config.minCell ? Math.floor(fit) : Math.max(1, Math.floor(fit))
+  const cell = Math.max(config.minCell, Math.floor(fit))
   const boardWidth = cell * safeCols + safeFrame * 2
   const boardHeight = cell * safeRows + safeFrame * 2
   return {

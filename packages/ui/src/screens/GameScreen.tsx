@@ -107,6 +107,8 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
   const boardLayout = useMemo(() => {
     const board = session.view.board
     if (!board) return null
+    // 不传 safety：在极矮横屏下它会把格子压得更小（真机实测会坍缩到不可玩）。
+    // 见 layout.ts 里关于 minCell 的说明。
     return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig, BOARD_FRAME_PX)
   }, [session.view.board, boardArea, layoutConfig])
 

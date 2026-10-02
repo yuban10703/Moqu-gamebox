@@ -94,23 +94,19 @@ describe('棋盘布局不变量', () => {
     expect(board.boardHeight).toBeLessThanOrEqual(withPanel.boardArea.height)
   })
 
-  it('极矮横屏：棋盘必须放得进可用区（宁可格子小，也不能被裁）', () => {
+  it('极矮可用区：格子仍不得低于 minCell（防坍缩到不可玩）', () => {
     const area = { width: 860, height: 200 }
     for (const [cols, rows] of [[15, 15], [16, 16], [9, 9]] as const) {
       const board = computeBoardLayout(area, cols, rows)
-      expect(board.boardWidth).toBeLessThanOrEqual(area.width)
-      expect(board.boardHeight).toBeLessThanOrEqual(area.height)
-      expect(board.cell).toBeGreaterThan(0)
+      expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
     }
   })
 
   it('极窄视口下不会算出负数或零尺寸', () => {
     const layout = computeRootLayout({ width: 320, height: 480, dpr: 2 })
     const board = computeBoardLayout(layout.boardArea, 11, 9)
-    // minCell 是偏好下限：可用区不够时必须让格子变小，而不是溢出被裁
-    expect(board.cell).toBeGreaterThan(0)
-    expect(board.boardWidth).toBeLessThanOrEqual(layout.boardArea.width)
-    expect(board.boardHeight).toBeLessThanOrEqual(layout.boardArea.height)
+    // minCell 是硬下限：宁可棋盘超出被裁一点，也不能把格子压到不可用（真机曾坍缩到 1px）
+    expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
     expect(board.boardWidth).toBeGreaterThan(0)
   })
 
