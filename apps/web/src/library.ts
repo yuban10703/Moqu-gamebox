@@ -11,6 +11,7 @@ import {
   sokobanZh,
 } from '@eink/sokoban'
 import { game2048, game2048En, game2048Zh } from '@eink/2048'
+import { reversiEn, reversiGame, reversiZh } from '@eink/reversi'
 import { minesweeperEn, minesweeperGame, minesweeperZh } from '@eink/minesweeper'
 import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
 import { defineGame, type GameLibrary } from '@eink/ui'
@@ -54,6 +55,16 @@ export const library: GameLibrary = {
       }),
     }),
     defineGame({
+      game: reversiGame,
+      cellLabelKey: (kind) => `reversi.cell.${kind}`,
+      rulesKeys: ['reversi.rules.body', 'reversi.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: reversiGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: reversiGame.difficulties.length,
+      }),
+    }),
+    defineGame({
       game: game2048,
       cellLabelKey: (kind) => `2048.cell.${kind}`,
       rulesKeys: ['2048.rules.body'],
@@ -67,7 +78,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn },
   },
 }

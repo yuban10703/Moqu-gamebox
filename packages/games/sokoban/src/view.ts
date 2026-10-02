@@ -4,6 +4,7 @@
  * 不依赖灰阶深浅，因此在 1-bit 黑白模式下也能分辨。
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView } from '@eink/core'
+import { nextLevelId } from './pack.js'
 import { isGoal, isWall, ALL_DIRS, type ParsedLevel } from './level.js'
 import { applyMove, derive, type Position, type SokobanState } from './rules.js'
 import {
@@ -73,6 +74,15 @@ export function buildControls(level: ParsedLevel, position: Position): ControlSp
     emphasis: 'normal' as const,
     tone: open.has(dir) ? ('normal' as const) : ('muted' as const),
   }))
+  // 「下一关」：由游戏声明壳层才渲染（无关卡游戏不声明）。最后一关为 enabled:false。
+  controls.push({
+    id: 'next-level',
+    labelKey: 'shell.result.next',
+    role: 'action' as const,
+    enabled: nextLevelId(level.id) !== null,
+    emphasis: 'primary' as const,
+  })
+
   controls.push({
     id: 'undo',
     labelKey: 'shell.game.undo',

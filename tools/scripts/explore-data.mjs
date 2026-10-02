@@ -130,7 +130,7 @@ await play('扫雷', 0)
 await play('2048', 1)
 await gotoLibrary()
 const tiles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile')].map((t) => t.innerText.replace(/\n+/g, ' ')))
-check('四款游戏的进度都能显示', tiles.length === 4 && tiles.every((t) => t.length > 0), tiles.join(' | ').slice(0, 120))
+check('每款游戏的进度都能显示', tiles.length >= 5 && tiles.every((t) => t.length > 0), `${tiles.length} 款：${tiles.join(' | ').slice(0, 110)}`)
 const cont = await page.evaluate(() => document.querySelector('.eink-card--continue')?.innerText.replace(/\n+/g, ' ') ?? '')
 check('继续卡片指向最近玩的游戏', /2048/.test(cont), cont.slice(0, 60))
 

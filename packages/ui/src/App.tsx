@@ -48,6 +48,12 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
   const [corruptGameIds, setCorruptGameIds] = useState<string[]>([])
   const [recovery, setRecovery] = useState<RecoveryReport | null>(null)
   const nonceRef = useRef(1)
+  /**
+   * 本次页面加载的标识。只信任本次加载 push 进去的历史项 ——
+   * 否则「WebView 重载 / 渲染进程崩溃自愈后」按返回会跳回重载前那张旧页面：
+   * 崩溃自愈正是我们主动重载页面的场景，用户会莫名其妙地落回一个旧游戏页（探索式测试发现）。
+   */
+  const loadIdRef = useRef(`load-${Math.random().toString(36).slice(2)}`)
 
   useRootAttributes(ui.locale, ui.settings)
   // 实体翻页键 → 滚动当前可滚动区域（全应用生效，游戏页无滚动内容时自动无操作）
@@ -86,7 +92,9 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
   }, [platform, refreshSaves, ui.settings.refreshProfile])
 
   const navigate = useCallback((next: Screen) => {
-    if (typeof history !== 'undefined') history.pushState({ screen: next }, '')
+    if (typeof history !== 'undefined') {
+      history.pushState({ screen: next, loadId: loadIdRef.current }, '')
+    }
     setScreen(next)
   }, [])
 
@@ -95,10 +103,21 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
     else setScreen({ name: 'library' })
   }, [])
 
+  // 启动时把「当前这一项」规范化成本次加载的首页：重载会带着旧 state 复用同一条历史记录
+  useEffect(() => {
+    if (typeof history === 'undefined') return
+    history.replaceState({ screen: { name: 'library' }, loadId: loadIdRef.current }, '')
+  }, [])
+
   useEffect(() => {
     const onPop = (event: PopStateEvent): void => {
-      const next = (event.state as { screen?: Screen } | null)?.screen
-      setScreen(next ?? { name: 'library' })
+      const state = event.state as { screen?: Screen; loadId?: string } | null
+      // 陈旧历史项（来自上一次页面加载）：一律回首页，绝不跳回旧页面
+      if (!state || state.loadId !== loadIdRef.current) {
+        setScreen({ name: 'library' })
+        return
+      }
+      setScreen(state.screen ?? { name: 'library' })
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)

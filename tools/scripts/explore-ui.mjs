@@ -197,14 +197,59 @@ await page.waitForTimeout(900)
 const solvedText = await page.evaluate(() => document.body.innerText)
 check('通关判定生效', /过关|完成|下一关/.test(solvedText), solvedText.replace(/\n+/g, ' ').slice(0, 60))
 await invariants(page, '结果面板')
-// 结果面板是页面内的 section（不是浮层），直接按文字点
-await clickText('返回游戏库')
+{
+  // 「下一关」由游戏声明（id: next-level）。此处就地验证，避免先离开结果面板
+  const nextBtn = page.getByRole('button', { name: /下一关/ })
+  check('关卡制游戏的结果面板有「下一关」', (await nextBtn.count()) > 0)
+  const dupNext = await page.evaluate(
+    () => [...document.querySelectorAll('.eink-controls button')].filter((b) => /下一关/.test(b.innerText)).length,
+  )
+  check('控制区不重复出现「下一关」', dupNext === 0, `控制区里有 ${dupNext} 个`)
+  if (await nextBtn.count()) {
+    const disabled = await nextBtn.first().isDisabled()
+    check('「下一关」不是永远禁用（曾经的缺陷）', !disabled)
+    if (!disabled) {
+      await nextBtn.first().click()
+      await page.waitForTimeout(1200)
+      const title = await page.evaluate(() => document.querySelector('.eink-topbar__title h1')?.textContent ?? '')
+      check('点下一关确实进入下一关', /第 2\//.test(title), title)
+      await invariants(page, '下一关')
+    }
+  }
+}
+// 点过「下一关」后已经在新的关卡里，结果面板消失了 —— 从暂停遮罩回游戏库
+await clickText('暂停')
+await clickOverlay('返回游戏库')
 await page.waitForTimeout(900)
 const progressText = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
 check('首页进度已更新', /1\/16/.test(progressText), progressText.slice(0, 80))
 
+/* ---------- 4c) 失败也要有终局结果面板 ---------- */
+console.log('\n[4c] 踩雷失败后的终局反馈')
+{
+  await gotoLibrary()
+  await startGame('扫雷')
+  let lost = false
+  for (let i = 0; i < 40 && !lost; i++) {
+    await page.evaluate(() => {
+      const c = [...document.querySelectorAll('.eink-board__cell[data-kind="hidden"]')][0]
+      c?.click()
+    })
+    await page.waitForTimeout(120)
+    lost = (await page.locator('.eink-section--result').count()) > 0
+  }
+  check('踩雷后出现终局结果面板（曾经完全没有）', lost)
+  const resultTitle = await page.evaluate(
+    () => document.querySelector('.eink-section--result h2')?.textContent ?? '',
+  )
+  check('终局结果有标题', resultTitle.length > 0, resultTitle)
+  await invariants(page, '失败结果面板')
+  check('失败后可以再来一次', (await page.getByRole('button', { name: /再来一次/ }).count()) > 0)
+}
+
 /* ---------- 5) 难度切换 ---------- */
 console.log('\n[5] 切换难度后开局')
+await gotoLibrary()
 await clickText('扫雷')
 await page.waitForSelector('text=玩法说明')
 await clickText('挑战')
@@ -219,8 +264,8 @@ await invariants(page, '扫雷挑战')
 
 /* ---------- 6) 设置切换 ---------- */
 console.log('\n[6] 设置项切换后各页仍放得下')
-await clickText('返回'); await page.waitForTimeout(600)
-await clickText('返回'); await page.waitForTimeout(600)
+// 直接用首页进入设置：盲点两次「返回」会依赖当前所在页面，脆弱
+await gotoLibrary()
 await clickText('设置')
 await page.waitForSelector('text=设置', { timeout: 8000 })
 for (const label of ['加粗线条', '显示方向按钮']) {
@@ -234,7 +279,12 @@ for (const size of ['大', '特大']) {
 }
 await clickText('标准')
 await invariants(page, '设置·字号标准')
-await clickText('返回'); await page.waitForTimeout(600)
+await clickText('返回'); await page.waitForTimeout(800)
+const backState = await page.evaluate(() => ({
+  home: /全部游戏/.test(document.body.innerText),
+  text: document.body.innerText.replace(/\n+/g, ' ').slice(0, 60),
+}))
+check('从设置返回确实回到首页', backState.home, backState.text)
 await invariants(page, '设置返回后首页')
 
 /* ---------- 7) 键盘操作 ---------- */
@@ -242,10 +292,14 @@ console.log('\n[7] 键盘方向键')
 await gotoLibrary()
 await startGame('推箱子')
 const before = await page.evaluate(() => document.body.innerText.match(/步数\s*(\d+)/)?.[1])
-await page.keyboard.press('ArrowLeft')
-await page.waitForTimeout(400)
-const after = await page.evaluate(() => document.body.innerText.match(/步数\s*(\d+)/)?.[1])
-check('键盘方向键能操作', Number(after) > Number(before), `${before} → ${after}`)
+let after = before
+for (const key of ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown']) {
+  await page.keyboard.press(key)
+  await page.waitForTimeout(300)
+  after = await page.evaluate(() => document.body.innerText.match(/步数\s*(\d+)/)?.[1])
+  if (Number(after) > Number(before)) break
+}
+check('键盘方向键能操作（四个方向里至少一个可走）', Number(after) > Number(before), `${before} → ${after}`)
 
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 6)) console.log('  ! ' + e)

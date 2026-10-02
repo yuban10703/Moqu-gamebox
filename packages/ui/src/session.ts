@@ -52,6 +52,12 @@ export interface SessionApi<S, A> {
   /** 存档损坏：界面必须提示并可导出，而不是静默重置 */
   corrupt: boolean
   solved: boolean
+  /**
+   * 本局是否已结束（过关 **或失败/平局**）。
+   * 与 solved 区分：solved 只表示「过关」（用于记录进度与最佳成绩），
+   * finished 用于决定结果面板与计时是否停止 —— 否则失败时没有任何终局反馈。
+   */
+  finished: boolean
   progress: GameProgress
   /** 本关已用时（可变引用，由 <Timer> 自己按秒读取，避免整页重渲染） */
   elapsedRef: { current: number }
@@ -364,7 +370,11 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     }
   }, [flush])
 
-  const solved = ready && !corrupt && game.status(state) === 'won'
+  const status = ready && !corrupt ? game.status(state) : 'playing'
+
+  const solved = status === 'won'
+
+  const finished = status !== 'playing'
   const view = useMemo<GameView>(() => {
     if (!ready || corrupt) return { board: null, stats: [], result: null, notice: null }
     const base = game.view(state)
@@ -383,10 +393,11 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     paused,
     corrupt,
     solved,
+    finished,
     progress,
     elapsedRef,
     levelStartRef,
-    clockActive: ready && !paused && !solved && !corrupt,
+    clockActive: ready && !paused && !finished && !corrupt,
     dispatch,
     // 只有声明了 selectAction 的游戏才把点格子接进来，其余游戏点击格子的行为完全不变
     ...(game.selectAction

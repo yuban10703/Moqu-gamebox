@@ -69,10 +69,10 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
         // 玩家得滚动才能点到「下一关」（墨水屏上不该这样）。
         // 这两个只作为**首帧兜底**（实测尺寸出来前用）；真实布局由 flex + 实测反算决定，
         // 因此不再需要 extraBottom 预留结果面板高度 —— 棋盘区会自动收缩。
-        showDpad: settings.dpad && !session.solved,
+        showDpad: settings.dpad && !session.finished,
         showStats: true,
       }),
-    [viewport, layoutConfig, settings.dpad, session.solved],
+    [viewport, layoutConfig, settings.dpad, session.finished],
   )
   useLayoutEffect(() => {
     const element = boardAreaRef.current
@@ -165,7 +165,9 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
    * 游戏自定义按钮：`controls()` 里 role 为 action、且不由壳层代管的那些。
    * 壳层自己渲染 undo / restart / menu（id 固定），因此这里排除它们。
    */
-  const SHELL_CONTROL_IDS = new Set(['undo', 'restart', 'nextLevel'])
+  // 壳层自己渲染这些 id 的控件（撤销/重开/下一关），游戏声明它们只为传达 enabled 之类的状态，
+  // 不能再被当成「游戏自定义按钮」渲染一遍
+  const SHELL_CONTROL_IDS = new Set(['undo', 'restart', 'nextLevel', 'next-level'])
   const gameActions = session.controls.filter(
     (control) => control.role === 'action' && !SHELL_CONTROL_IDS.has(control.id),
   )
@@ -245,7 +247,7 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
             />
           </div>
 
-          {session.solved && session.view.result ? (
+          {session.finished && session.view.result ? (
             <section className="eink-section eink-section--result" role="status">
               <h2>{i18n.t(session.view.result.titleKey)}</h2>
               <ul className="eink-result-details">
@@ -264,13 +266,19 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
                 ) : null}
               </ul>
               <div className="eink-card__actions">
-                <ActionButton
-                  labelKey="shell.result.next"
-                  emphasis="primary"
-                  size="large"
-                  disabled={!session.controls.some((control) => control.id === 'next-level' && control.enabled)}
-                  onSelect={() => session.nextLevel()}
-                />
+                {/* 「下一关」由游戏自己声明（id: next-level）：无关卡的游戏不声明 → 这个按钮不渲染；
+                    关卡制游戏在最后一关声明 enabled:false → 按钮显示为禁用。 */}
+                {session.controls.some((control) => control.id === 'next-level') ? (
+                  <ActionButton
+                    labelKey="shell.result.next"
+                    emphasis="primary"
+                    size="large"
+                    disabled={
+                      !session.controls.some((control) => control.id === 'next-level' && control.enabled)
+                    }
+                    onSelect={() => session.nextLevel()}
+                  />
+                ) : null}
                 <ActionButton labelKey="shell.result.again" onSelect={() => setConfirmRestart(true)} />
                 <ActionButton labelKey="shell.result.library" onSelect={onExit} />
               </div>
@@ -281,7 +289,7 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
               落在首屏内（墨水屏上不该为了看结果去滚动）。
               注意：方向键受「显示方向按钮」设置控制，**游戏自定义按钮与壳层按钮不受它影响** ——
               否则数独、扫雷这类没有方向控件的游戏会连自己的按钮都不显示。 */}
-          {!session.solved ? (
+          {!session.finished ? (
             <div className="eink-controls">
               {settings.dpad ? (
                 <Dpad
