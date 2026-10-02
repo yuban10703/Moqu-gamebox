@@ -218,14 +218,20 @@ function BoardGlyph({
       </svg>
     )
   }
-  // playerOnGoal：目标圆环 + 缩小的人形，语义就是「站在目标点上」
-  return (
-    <svg {...common}>
-      <circle cx="12" cy="12" r="10" fill="none" stroke="#000" strokeWidth={stroke} />
-      <circle cx="12" cy="8.6" r="3.2" fill="#000" />
-      <path d="M6.6 19.4c0-3.2 2.4-5.4 5.4-5.4s5.4 2.2 5.4 5.4z" fill="#000" />
-    </svg>
-  )
+  if (kind === 'playerOnGoal') {
+    // 目标圆环 + 缩小的人形，语义就是「站在目标点上」
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="#000" strokeWidth={stroke} />
+        <circle cx="12" cy="8.6" r="3.2" fill="#000" />
+        <path d="M6.6 19.4c0-3.2 2.4-5.4 5.4-5.4s5.4 2.2 5.4 5.4z" fill="#000" />
+      </svg>
+    )
+  }
+  // 其余 kind（empty / hidden / flag / mine / number / tile / given 等通用格子）不画图形。
+  // 这里**必须显式返回 null**：原先用的是兜底 return，落进「人形+圆环」分支，
+  // 导致数独、扫雷、2048 的空白格都画上了推箱子的人物图标。
+  return null
 }
 
 export interface BoardProps {
