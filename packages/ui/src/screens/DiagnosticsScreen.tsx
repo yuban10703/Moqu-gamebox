@@ -25,6 +25,8 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
   const [baseline, setBaseline] = useState<DeviceBaseline | null>(null)
   const [saves, setSaves] = useState<SaveMeta[]>([])
   const [copied, setCopied] = useState(false)
+  const [pumpResult, setPumpResult] = useState<string | null>(null)
+  const [pumpRunning, setPumpRunning] = useState(false)
 
   useEffect(() => {
     setBaseline(platform.baseline())
@@ -43,6 +45,21 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
             labelKey="shell.diagnostics.refreshTest"
             size="large"
             onSelect={onOpenRefreshTest}
+          />
+        ) : null}
+        {capability.animationMode ? (
+          <ActionButton
+            labelKey="shell.diagnostics.pump"
+            onSelect={() => {
+              if (pumpRunning) {
+                setPumpResult(platform.refresh.stopRefreshPump())
+                setPumpRunning(false)
+                return
+              }
+              const started = platform.refresh.startRefreshPump(500, 15000)
+              setPumpRunning(started)
+              setPumpResult(started ? null : i18n.t('shell.diagnostics.pumpUnavailable'))
+            }}
           />
         ) : null}
       </TopBar>
@@ -93,6 +110,12 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
           <Row label="fullRefresh" value={String(capability.fullRefresh)} />
           <Row label="partialProfiles" value={String(capability.partialProfiles)} />
           <Row label="regionRefresh" value={String(capability.regionRefresh)} />
+          {pumpResult !== null || pumpRunning ? (
+            <Row
+              label={i18n.t('shell.diagnostics.pump')}
+              value={pumpRunning ? i18n.t('shell.diagnostics.pumpRunning') : String(pumpResult)}
+            />
+          ) : null}
 
           <Row label="fastMode" value={String(capability.fastMode)} />
           <Row label={i18n.t('shell.diagnostics.fullRefresh')} value={String(platform.refresh.stats().fullRefreshes)} />

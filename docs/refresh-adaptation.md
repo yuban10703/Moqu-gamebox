@@ -259,3 +259,36 @@ W ActivityManager: Scheduling restart of crashed service
 2. 高频刷新一律走**原生刷新泵**，并带自适应降频与硬超时。
 3. 任何可能长时间占用设备的模式，都必须有**不依赖网页的**原生退出路径
    （看门狗 / 生命周期 / 崩溃回调）。
+
+## 「高频全刷」为什么不是功能，只是对照
+
+用户实测反馈「高频全刷很卡」，并问它有没有实际意义。**没有** —— 它是刻意的对照组：
+
+| | 数值 |
+|---|---|
+| 面板能完成的完整刷新 | 约 **2 次/秒**（每次 16 级灰阶全屏，泵统计 `avgCost=2ms` 只是入队耗时） |
+| 画面内容变化速率 | 约 **45 次/秒**（WebView 侧实测） |
+| 结果 | 约 43/45 的帧被丢掉 → 必然卡 |
+
+它的历史用途（已完成）：证明「卡与闪来自刷新策略本身，而不是 WebView」——
+WebView 一直能产出 45 FPS，卡只可能来自面板侧。
+
+**真正有意义的是「一次性全刷」**（清残影），已提供在暂停菜单 / 设置页的「立即整屏全刷」。
+
+### 如果将来需要「长时间快刷又不积残影」
+
+正确做法**不是**高频全刷，而是 SDK 里专门的「快刷为主、偶尔插一次全刷」：
+
+- `EpdDeviceManager.setGcInterval(n)` / `getGcInterval()`
+- `EpdDeviceManager.applyWithGCInterval(View, boolean)`
+- `EpdDeviceManager.refreshScreenWithGCInterval(View, boolean)`
+- `EpdDeviceManager.refreshScreenWithGCIntervalWithRegal(View)` / `...WithoutRegal(View)`
+
+区别在于：这些是**每 N 次快刷插一次全刷**，而不是**一直整屏全刷**。
+若后续动画/长列表需要，应走这条路径。
+
+### 位置调整
+
+「高频全刷」已从连续运动测试页移到**诊断页**（`高频全刷对照（2 次/秒，15 秒自停）`）：
+留在测试页容易被误当成一种「优化选项」，而它恰恰是最差的一种。
+连续运动测试页现在只保留两条策略：系统默认 / 动画模式。

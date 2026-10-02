@@ -9,7 +9,10 @@
  * 五种策略：
  *   - 系统默认：不动用任何刷新接口，由系统决定怎么刷（基线）
  *   - 动画模式：EpdDeviceManager.enterAnimationUpdate（应用级快刷）
- *   - 高频全刷：原生泵每 0.5 秒强制一次整屏全刷（最差对照，必然闪）
+ *
+ * 「高频全刷」已移到诊断页：它不是功能，只是对照工具。
+ * 面板每秒只能完成约 2 次完整刷新，而内容每秒变 45 次，必然卡 ——
+ * 留着放在这里容易被误当成一种「优化选项」。
  *
  * 已删除「系统快刷」（EpdController.applySystemFastMode）：它是**整机级**开关、会影响其它应用，
  * 本机还开不起来（回读始终 false），且属于擅自改动用户设备全局设置，产品里不应引入。
@@ -20,12 +23,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ActionButton, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
 
-type Strategy = 'dom' | 'animation' | 'pump'
+type Strategy = 'dom' | 'animation'
 
 const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
   { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
   { value: 'animation', labelKey: 'shell.motiontest.strategy.animation' },
-  { value: 'pump', labelKey: 'shell.motiontest.strategy.pump' },
 ]
 
 const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
@@ -36,8 +38,6 @@ const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
 
 const TRACK_WIDTH = 1100
 const DOT_SIZE = 96
-/** 原生刷新泵的间隔：2 次/秒。泵自身还会按实测耗时自适应降频 */
-const PUMP_INTERVAL_MS = 500
 /** 状态栏刷新间隔：绝不能每帧调桥（每帧一次同步调用会把主线程占满） */
 const STATUS_INTERVAL_MS = 1000
 /**
@@ -66,7 +66,6 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
 
   const dotRef = useRef<HTMLDivElement | null>(null)
   const runStartRef = useRef(0)
-  const pumpStatsRef = useRef('')
   const lastStatusRef = useRef(0)
   const positionRef = useRef(0)
   const frameCountRef = useRef(0)
@@ -144,16 +143,6 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   // 进入/退出对应策略的面板状态；任何路径退出都要恢复
   const applyStrategyState = useCallback(
     (next: Strategy, on: boolean): void => {
-      if (next === 'pump') {
-        if (on) {
-          platform.refresh.startRefreshPump(PUMP_INTERVAL_MS, MAX_RUN_MS)
-        } else {
-          const stats = platform.refresh.stopRefreshPump()
-          pumpStatsRef.current = stats
-          setStateText(`${i18n.t('shell.motiontest.pumpStopped', { stats })}`)
-        }
-        return
-      }
       if (next === 'animation') {
         // 必须指定路径：不指定会走优先级链，测的就不是动画模式本身
         const result = platform.refresh.setAnimationMode(on, next)
