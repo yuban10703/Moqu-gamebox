@@ -13,7 +13,7 @@ packages/platform      平台适配：IndexedDB（Web）/ 原生 SQLite（Androi
 packages/ui            React 壳层：屏幕、组件、样式（styles.css 是唯一的样式来源）
 packages/games/*       9 款游戏，每款一个独立包（见下）
 apps/web               网页版入口 + library.ts（**游戏注册表，唯一一处登记**）
-apps/android           BOOX WebView 壳 + Onyx SDK（反射调用，-PonyxBundled 可打进 APK）
+apps/android           BOOX WebView 壳 + Onyx SDK（反射调用；**默认打进 APK**，见下）
 tools/scripts          verify-all / 5 个探索套件 / 静态服务 / i18n 扫描 / 构建与部署脚本
 docs/                  架构、验收、墨水屏规范、刷新适配、真机基线、本交接说明
 ```
@@ -106,6 +106,14 @@ WebView 调试端口名带 pid（必须先取 pid 才能转发）。
 - `shot-games.py <ws文件> <adb序列号>`：逐款开局并截图到 `docs/screens/`
 
 （这些脚本此前只存在于未纳入版本控制的 `.toolchain/` 里，交接时容易丢失，现正式入库。）
+
+## 5b. 构建决策：Onyx SDK 默认内置
+
+`apps/android/app/build.gradle.kts` 里 `onyxBundled` 的默认值已由 `false` 改为 `true`：
+
+- **依据**：本项目在真机上验证过的刷新能力（整屏全刷、动画模式探测、应用级刷新档位）都依赖 SDK 反射调用；
+- **实测体积代价很小**：内置 **3.4MB** / 不内置 **2.5MB**，只差约 **0.9MB**；
+- **如何排除**：`./gradlew -PonyxBundled=false assembleDebug`（若在意体积或不想引入 SDK 传递依赖）。
 
 ## 6. 未结项与已知限制
 

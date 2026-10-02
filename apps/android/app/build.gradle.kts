@@ -5,8 +5,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-/** 是否把 BOOX SDK 一并打进 APK。默认 false（纯反射，零依赖，也不受 SDK 传递依赖影响）。 */
-val onyxBundled: Boolean = (findProperty("onyxBundled") as String?)?.toBoolean() ?: false
+/*
+ * 是否把 BOOX SDK 一并打进 APK。**默认内置**（此前的默认是不内置，现已反转并附实测依据）。
+ *
+ * 理由：本项目在 BOOX 设备上验证过的能力（整屏全刷、动画模式探测、应用级刷新档位）
+ * 都依赖该 SDK 的反射调用；不内置时这些能力在部分设备/固件上不可用。
+ * 实测体积代价很小：内置 3.4MB / 不内置 2.5MB，**只差约 0.9MB**。
+ *
+ * 需要更小体积或不想引入 SDK 传递依赖时显式排除：
+ *   ./gradlew -PonyxBundled=false assembleDebug
+ */
+/*
+ * 是否把 Onyx SDK 打进 APK。**默认内置**（此前的默认是不内置，现已反转）：
+ * 本项目在 BOOX 设备上验证过的能力（整屏全刷、动画模式探测、应用级刷新档位）都依赖该 SDK 的反射调用；
+ * 不内置时这些能力在部分设备/固件上不可用，而 APK 只增加约 3.4MB。
+ * 需要更小的体积时显式排除：`./gradlew -PonyxBundled=false assembleDebug`。
+ */
+val onyxBundled: Boolean = (findProperty("onyxBundled") as String?)?.toBoolean() ?: true
 /** 跳过网页资源构建（IDE 里反复编译时用） */
 val skipWebBuild: Boolean = (findProperty("skipWebBuild") as String?)?.toBoolean() ?: false
 
