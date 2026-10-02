@@ -421,6 +421,19 @@ html[data-bold-lines='on'] .eink-board__cell {
   color: #333;
 }
 
+/* 页脚里放「翻页 + 主操作」：宽屏同行、窄屏自动换行，保证翻页按钮永远无需滚动 */
+.eink-footer--split {
+  justify-content: space-between;
+  row-gap: var(--gap);
+}
+
+.eink-footer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+}
+
 .eink-pager {
   display: flex;
   gap: var(--gap);

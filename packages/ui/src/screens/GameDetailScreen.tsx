@@ -2,7 +2,7 @@
  * 游戏详情：玩法说明、难度、当前进度、关卡列表、开始/继续。
  * 「已有存档时开新局」必须明确询问，绝不静默丢局。
  */
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { SaveEnvelope } from '@eink/core'
 import { computeRootLayout } from '@eink/core'
 import { ActionButton, Dialog, Pager, StatBar, TopBar } from '../components.js'
@@ -10,7 +10,8 @@ import { useUi } from '../contexts.js'
 import type { GameRegistryEntry } from '../registry.js'
 import { levelIdOf, progressOf } from './LibraryScreen.js'
 
-const LEVELS_PER_PAGE = 12
+/** 测量失败时的兜底每页数量 */
+const LEVELS_PER_PAGE_FALLBACK = 12
 
 export interface GameDetailScreenProps {
   entry: GameRegistryEntry<unknown, unknown>
@@ -40,10 +41,60 @@ export function GameDetailScreen({
   )
   const [confirmReplace, setConfirmReplace] = useState(false)
   const [page, setPage] = useState(0)
+  /**
+   * 每页关卡数：**按可用空间实测得出**，而不是写死。
+   * 装得下就全部显示、不出现分页；装不下才分页（分页器的位置也一并预留）。
+   */
+  const [perPage, setPerPage] = useState(LEVELS_PER_PAGE_FALLBACK)
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLUListElement | null>(null)
 
   const levels = entry.levels ?? []
-  const pageCount = Math.max(1, Math.ceil(levels.length / LEVELS_PER_PAGE))
-  const pageLevels = levels.slice(page * LEVELS_PER_PAGE, (page + 1) * LEVELS_PER_PAGE)
+  const [pagerNeeded, setPagerNeeded] = useState(false)
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    const list = listRef.current
+    if (!content || !list) return
+    const firstItem = list.querySelector('li')
+    if (!firstItem) return
+
+    const itemHeight = firstItem.getBoundingClientRect().height
+    if (itemHeight <= 0) return
+    const listStyle = getComputedStyle(list)
+    const rowGap = Number.parseFloat(listStyle.rowGap || listStyle.gap || '0') || 0
+    const columns = listStyle.gridTemplateColumns.split(/\s+/).filter(Boolean).length || 1
+
+    // 可见高度 = 内容区底边 - 列表顶边（内容区是滚动容器，底边固定）
+    const available = content.getBoundingClientRect().bottom - list.getBoundingClientRect().top
+    const rowPitch = itemHeight + rowGap
+    const rowsWithoutPager = Math.max(0, Math.floor((available + rowGap) / rowPitch))
+    const capacityWithoutPager = rowsWithoutPager * columns
+
+    if (levels.length <= capacityWithoutPager) {
+      // 一屏能装下：全列出来，不显示分页
+      setPerPage(Math.max(1, levels.length))
+      setPagerNeeded(false)
+      return
+    }
+    // 装不下：分页。分页器在固定页脚里（不在滚动区），
+    // 它出现后内容区会变矮，content.bottom 自动上移，于是这里再算一次即可收敛。
+    const rowsWithPager = Math.max(1, Math.floor((available + rowGap) / rowPitch))
+    setPerPage(Math.max(columns, rowsWithPager * columns))
+    setPagerNeeded(true)
+  }, [
+    levels.length,
+    pagerNeeded,
+    viewport.width,
+    viewport.height,
+    settings.fontScale,
+    settings.boldLines,
+  ])
+
+  const pageCount = Math.max(1, Math.ceil(levels.length / perPage))
+  // 容量变化后页码可能越界，这里夹紧（例如从第 2 页切回单页）
+  const safePage = Math.min(page, pageCount - 1)
+  const pageLevels = levels.slice(safePage * perPage, (safePage + 1) * perPage)
   const summary = entry.progressFor(progress.completed)
   const currentLevelId = levelIdOf(envelope)
 
@@ -57,7 +108,7 @@ export function GameDetailScreen({
       <TopBar title={i18n.t(`${entry.game.i18nNamespace}.title`)} onBack={onBack} />
 
       {/* 主操作固定在页脚（永远在首屏内），说明与关卡选择放在这个可滚动区里 */}
-      <div className="eink-screen__content">
+      <div className="eink-screen__content" ref={contentRef}>
         {corrupt ? (
         <section className="eink-section eink-section--warning" role="alert">
           <h2>{i18n.t('shell.storage.reason.corrupt')}</h2>
@@ -102,9 +153,9 @@ export function GameDetailScreen({
           <p className="eink-muted">{i18n.t('shell.detail.none')}</p>
         ) : (
           <>
-            <ul className="eink-levels">
+            <ul className="eink-levels" ref={listRef}>
               {pageLevels.map((level, offset) => {
-                const index = page * LEVELS_PER_PAGE + offset
+                const index = safePage * perPage + offset
                 const done = progress.completed.includes(level.id)
                 const isCurrent = level.id === currentLevelId
                 const best = progress.bestMoves[level.id]
@@ -131,21 +182,26 @@ export function GameDetailScreen({
                 )
               })}
             </ul>
-            {pageCount > 1 ? (
-              <Pager
-                page={page}
-                pageCount={pageCount}
-                onPrev={() => setPage((value) => Math.max(0, value - 1))}
-                onNext={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
-              />
-            ) : null}
           </>
         )}
       </section>
 
       </div>
 
-      <footer className="eink-footer" style={{ minHeight: layout.buttonHeight + 16 }}>
+      <footer
+        className="eink-footer eink-footer--split"
+        style={{ minHeight: layout.buttonHeight + 16 }}
+      >
+        {/* 翻页按钮固定在页脚，不需要滚动就能看见（窄屏会自动换行到第二行） */}
+        {pageCount > 1 ? (
+          <Pager
+            page={safePage}
+            pageCount={pageCount}
+            onPrev={() => setPage((value) => Math.max(0, value - 1))}
+            onNext={() => setPage((value) => Math.min(pageCount - 1, value + 1))}
+          />
+        ) : null}
+        <div className="eink-footer__actions">
         {hasSave ? (
           <ActionButton labelKey="shell.detail.resume" emphasis="primary" size="large" onSelect={onResume} />
         ) : null}
@@ -155,6 +211,7 @@ export function GameDetailScreen({
           size="large"
           onSelect={() => (hasSave ? setConfirmReplace(true) : start())}
         />
+        </div>
       </footer>
 
       {confirmReplace ? (
