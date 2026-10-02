@@ -7,13 +7,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import {
-  createMemoryKv,
-  coreDictEn,
-  coreDictZh,
-  newEnvelope,
-  type KvBackend,
-} from '@eink/core'
+import { coreDictEn, coreDictZh, createMemoryKv, newEnvelope, reseal, type KvBackend } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import {
   LEVEL_WITNESSES,
@@ -210,6 +204,36 @@ describe('保存失败与损坏存档', () => {
       timeout: 3000,
     })
     expect(screen.getByText('Retry')).toBeTruthy()
+  })
+
+  it('规则版本落后的存档提示「版本不受支持」，而不是笼统的「存档已损坏」', async () => {
+    const kv = createMemoryKv()
+    // 校验和正确、但 rulesVersion 与当前游戏不一致：这是「旧版本存档」，不是坏数据
+    const stale = reseal({
+      // moves > 0 才会出现「继续」入口；规则版本比当前新，用于模拟旧客户端写下的存档
+      ...newEnvelope(
+        {
+          gameId: 'sokoban',
+          rulesVersion: sokobanGame.rulesVersion + 1,
+          contentVersion: sokobanGame.contentVersion,
+          difficulty: 'starter',
+          seed: 0,
+          state: { levelId: 'L01', log: [] },
+        },
+        1000,
+      ),
+      moves: 3,
+    })
+    await kv.setMany([['save:1:committed:sokoban', JSON.stringify(stale)]])
+
+    await mount(kv)
+    // 校验和与 schema 都有效，所以它不会进「存档自检」；只有加载时比对规则版本才发现落后
+    fireEvent.click(screen.getAllByText('Sokoban').at(-1)!)
+    await waitFor(() => expect(screen.getByText(/How to play/)).toBeTruthy())
+    fireEvent.click(screen.getByText('Continue'))
+    // 关键：文案必须区分「旧版本」与「数据损坏」
+    await waitFor(() => expect(screen.getByText(/version is not supported/i)).toBeTruthy())
+    expect(screen.queryByText(/save is corrupted/i)).toBeNull()
   })
 
   it('损坏的存档会在首页暴露，打开后提示且原档不被覆盖', async () => {

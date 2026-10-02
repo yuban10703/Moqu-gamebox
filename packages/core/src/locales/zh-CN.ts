@@ -104,6 +104,7 @@ export const zhCN: Dict = {
   'shell.storage.reason.io': '存储写入失败',
   'shell.storage.reason.quota': '存储空间不足',
   'shell.storage.reason.conflict': '进度已被另一个窗口更新',
+  'shell.storage.unsupportedHint': '这份存档来自旧版本的规则，当前版本无法继续。原文件会原样保留，建议先导出备份。',
   'shell.storage.reason.corrupt': '存档已损坏',
   'shell.storage.reason.unsupported-version': '存档版本不受支持',
   'shell.storage.corruptHint':

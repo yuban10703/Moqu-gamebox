@@ -104,6 +104,7 @@ export const enUS: Dict = {
   'shell.storage.reason.io': 'storage write failed',
   'shell.storage.reason.quota': 'not enough storage space',
   'shell.storage.reason.conflict': 'progress was updated in another window',
+  'shell.storage.unsupportedHint': 'This save comes from an older rule version and cannot be continued. The original file is kept — export a backup first.',
   'shell.storage.reason.corrupt': 'save data is corrupted',
   'shell.storage.reason.unsupported-version': 'save version is not supported',
   'shell.storage.corruptHint':

@@ -213,8 +213,20 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
 
       {session.corrupt ? (
         <section className="eink-section eink-section--warning" role="alert">
-          <h2>{i18n.t('shell.storage.reason.corrupt')}</h2>
-          <p>{i18n.t('shell.storage.notPersistent')}</p>
+          <h2>
+            {i18n.t(
+              session.corruptReason === 'unsupported-version'
+                ? 'shell.storage.reason.unsupported-version'
+                : 'shell.storage.reason.corrupt',
+            )}
+          </h2>
+          <p>
+            {i18n.t(
+              session.corruptReason === 'unsupported-version'
+                ? 'shell.storage.unsupportedHint'
+                : 'shell.storage.notPersistent',
+            )}
+          </p>
           <div className="eink-card__actions">
             <ActionButton labelKey="shell.storage.export" onSelect={() => void exportBackup()} />
             <ActionButton

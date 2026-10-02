@@ -58,6 +58,11 @@ export interface SessionApi<S, A> {
    * finished 用于决定结果面板与计时是否停止 —— 否则失败时没有任何终局反馈。
    */
   finished: boolean
+  /**
+   * 只读状态的原因：`corrupt`（数据坏了）还是 `unsupported-version`（来自旧规则版本）。
+   * 两者对用户的意义完全不同 —— 前者是坏了，后者是需要新版本/导出备份，文案不能混用。
+   */
+  corruptReason?: 'corrupt' | 'unsupported-version' | undefined
   progress: GameProgress
   /** 本关已用时（可变引用，由 <Timer> 自己按秒读取，避免整页重渲染） */
   elapsedRef: { current: number }
@@ -103,6 +108,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const [noticeKey, setNoticeKey] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
   const [corrupt, setCorrupt] = useState(false)
+  const [corruptReason, setCorruptReason] = useState<'corrupt' | 'unsupported-version' | undefined>(undefined)
   const [progress, setProgress] = useState<GameProgress>({})
 
   const envelopeRef = useRef<SaveEnvelope | null>(null)
@@ -226,9 +232,11 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         return
       }
       if (result.status === 'corrupt') {
-        // 保留原档、只读可导出；由用户显式决定是否重新开始
+        // 保留原档、只读可导出；由用户显式决定是否重新开始。
+        // status 都是 corrupt，但 reason 可能是「不支持的数据版本」——文案要区分开
         corruptRef.current = true
         setCorrupt(true)
+        if (result.reason === 'unsupported-version') setCorruptReason('unsupported-version')
         setReady(true)
         return
       }
@@ -244,8 +252,10 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
        */
       levelStartRef.current = 0
       if (existing.rulesVersion !== game.rulesVersion) {
+        // 规则版本变了：这不是「数据损坏」，而是旧存档需要被明确说明（并保留原档可导出）
         corruptRef.current = true
         setCorrupt(true)
+        setCorruptReason('unsupported-version')
         setReady(true)
         return
       }
@@ -432,6 +442,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     noticeKey,
     paused,
     corrupt,
+    corruptReason,
     solved,
     finished,
     progress,
