@@ -131,11 +131,22 @@ const startGame = async (title) => {
   await clickText(title)
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await clickText('继续', { optional: true })
+  // 「继续」是异步读存档（IndexedDB），必须等棋盘真的挂载出来再决定是否新开一局，
+  // 否则会误判成「没有存档」而点掉「开始新游戏」，把已有进度替换掉（测试里踩过）
+  await page.waitForSelector('.eink-board', { timeout: 4000 }).catch(() => {})
   if (!(await page.locator('.eink-board').count())) await clickText('开始新游戏')
   await page.waitForTimeout(300)
   if (await page.getByRole('button', { name: /替换并开始/ }).count()) await clickText('替换并开始')
   await page.waitForSelector('.eink-board', { timeout: 8000 })
 }
+
+// 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
+// 若不清空，下一次运行会读到上一次留下的坏档（曾因此误判成「进度丢失」）
+await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
+await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll() })
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
 
 /* ---------- 1) 横竖屏中途切换 ---------- */
 console.log('\n[1] 游玩中切换横竖屏')

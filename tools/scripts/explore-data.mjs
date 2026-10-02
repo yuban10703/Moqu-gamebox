@@ -64,6 +64,14 @@ const play = async (title, moves = 1) => {
   await page.waitForTimeout(600)
 }
 
+// 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
+// 若不清空，下一次运行会读到上一次留下的坏档（曾因此误判成「进度丢失」）
+await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
+await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll() })
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+
 /* ---------- 1) 备份导出 ---------- */
 console.log('\n[1] 备份导出')
 await play('推箱子', 2)

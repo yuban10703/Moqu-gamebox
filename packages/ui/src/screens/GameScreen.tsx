@@ -117,9 +117,18 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
    * 需要清残影时用户可以在暂停菜单里手动「立即整屏全刷」。
    */
 
+  /**
+   * 方向键动作名由**游戏**决定：优先走 controlAction（游戏自己把 `move-<dir>` 控件映射成动作），
+   * 例如数字华容道的规范动作是 `{ type:'slide', dir }` 而不是 `{ type:'move', dir }`。
+   * 没有实现 controlAction 的游戏沿用既有约定 `{ type:'move', dir }`，行为完全不变。
+   */
   const onMove = (dir: MoveDir): void => {
     session.clearNotice()
-    session.dispatch({ type: 'move', dir } as never)
+    // 游戏可以用 controlAction 自定义方向键的动作名（如数字华容道的 {type:'slide',dir}）；
+    // 没映射时回落到既有约定 {type:'move',dir}，因此老游戏一行都不用改
+    if (!session.runControl?.(`move-${dir}`)) {
+      session.dispatch({ type: 'move', dir } as never)
+    }
   }
 
   useKeyboardControls({

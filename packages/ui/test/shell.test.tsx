@@ -158,9 +158,14 @@ describe('游戏库 → 详情 → 游戏', () => {
     // 棋盘仍然可见，便于复盘（查看过程不改变结果）
     expect(screen.getByRole('grid')).toBeTruthy()
 
-    // 过关是「关键节点」：必须已经立即落盘（不依赖 500ms 合并窗口），并记录完成进度
-    const stored = await kv.get('save:1:committed:sokoban')
-    expect(stored).toContain('"ended":"won"')
+    // 过关是「关键节点」：必须已经立即落盘（不依赖防抖窗口），并记录完成进度。
+    // 提交是串行队列（避免并发提交被 CAS 判成冲突），因此这里等待它落盘而不是立刻断言 ——
+    // 断言的是「最终一定会写入」，而不是「某个微任务时刻已经写入」。
+    let stored = ''
+    await waitFor(async () => {
+      stored = (await kv.get('save:1:committed:sokoban')) ?? ''
+      expect(stored).toContain('"ended":"won"')
+    })
     expect(stored).toContain('L01')
     // 过关只提交一次，不允许出现「界面过关但存档冲突」的假失败
     expect(screen.queryByRole('alert')).toBeNull()

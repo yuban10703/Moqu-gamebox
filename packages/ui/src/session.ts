@@ -68,8 +68,11 @@ export interface SessionApi<S, A> {
   dispatch(action: A): boolean
   /** 点格子：交给游戏自己映射成动作（数独/扫雷等格子玩法用）；不可点时为 undefined */
   selectCell?: (index: number) => void
-  /** 点游戏自定义按钮（数独数字键、扫雷标记模式等）：同样交给游戏映射成动作 */
-  runControl?: (controlId: string) => void
+  /**
+   * 点游戏自定义按钮（数独数字键、扫雷标记模式、方向键等）：交给游戏映射成动作。
+   * 返回是否真的派发了动作 —— 壳层据此回退到默认约定（如方向键的 `{type:'move',dir}`）。
+   */
+  runControl?: (controlId: string) => boolean
   undo(): void
   restart(): void
   nextLevel(): void
@@ -81,7 +84,6 @@ export interface SessionApi<S, A> {
   discardAndRestart(): Promise<void>
 }
 
-const COMMIT_DEBOUNCE_MS = 500
 
 export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A> {
   const { game, storage, difficulty, onCommitted } = options
@@ -104,7 +106,6 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const [progress, setProgress] = useState<GameProgress>({})
 
   const envelopeRef = useRef<SaveEnvelope | null>(null)
-  const timerRef = useRef<number | null>(null)
   const elapsedRef = useRef(0)
   const levelStartRef = useRef(0)
   const pausedRef = useRef(false)
@@ -113,19 +114,39 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const stateRef = useRef(state)
   stateRef.current = state
 
-  const commitNow = useCallback(
+  /**
+   * 串行 + 最新覆盖的提交队列。
+   *
+   * 为什么不是防抖：「最后一次操作」与「页面被重载/崩溃」之间存在窗口，
+   * 窗口内最后一步会丢（WebView 崩溃自愈正是主动重载）。改为每一步立即提交，
+   * 用队列保证不会并发提交（并发会让 CAS 判成 conflict 而显示保存失败），
+   * 且队列只保留最新一份状态 —— 中间态没必要写盘。
+   */
+  const queueRef = useRef<SaveEnvelope | null>(null)
+  const runningRef = useRef(false)
+
+  const commitOnce = useCallback(
     async (envelope: SaveEnvelope) => {
       // 存档处于损坏/不兼容状态时不得自动写回：否则会把损坏内容「修好校验和」后覆盖掉原档
       if (corruptRef.current) return
+      /**
+       * 提交前用「最后成功提交的 commitId」重新盖章。
+       *
+       * 连续快速操作（连按方向键、测试里的见证解法）会基于同一份已提交状态派生出多份存档，
+       * 它们的 commitId 都等于当时已提交的那个值；若原样提交，第二份起就会被 CAS 判成
+       * conflict（期望 N、实存 M>N），于是「界面在前进、存档却停在旧状态」。
+       */
+      const lastCommittedId = envelopeRef.current?.commitId ?? 0
+      const stamped = envelope.commitId === lastCommittedId ? envelope : reseal({ ...envelope, commitId: lastCommittedId })
       setSaveStatus('saving')
-      const result = await storage.saves.commit(envelope)
+      const result = await storage.saves.commit(stamped)
       if (result.ok) {
         const current = envelopeRef.current
-        if (current && current.checksum !== envelope.checksum) {
+        if (current && current.checksum !== stamped.checksum) {
           // 提交期间状态又前进了：把新的提交编号传递到最新状态，避免下一笔提交被误判为冲突
           envelopeRef.current = reseal({ ...current, commitId: result.commitId })
         } else {
-          envelopeRef.current = { ...envelope, commitId: result.commitId }
+          envelopeRef.current = { ...stamped, commitId: result.commitId }
         }
         dirtyRef.current = false
         setFailureReason(null)
@@ -139,21 +160,34 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     [storage, onCommitted],
   )
 
-  const scheduleCommit = useCallback(() => {
-    dirtyRef.current = true
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => {
-      timerRef.current = null
-      const envelope = envelopeRef.current
-      if (envelope) void commitNow(envelope)
-    }, COMMIT_DEBOUNCE_MS)
-  }, [commitNow])
+  const commitNow = useCallback(
+    async (envelope: SaveEnvelope) => {
+      queueRef.current = envelope
+      if (runningRef.current) return
+      runningRef.current = true
+      try {
+        while (queueRef.current) {
+          const target = queueRef.current
+          queueRef.current = null
+          await commitOnce(target)
+        }
+      } finally {
+        runningRef.current = false
+      }
+    },
+    [commitOnce],
+  )
+
+  const scheduleCommit = useCallback(
+    (envelope: SaveEnvelope) => {
+      dirtyRef.current = true
+      // 立即提交：不再有防抖窗口，最后一步不会因重载/崩溃而丢
+      void commitNow(envelope)
+    },
+    [commitNow],
+  )
 
   const flush = useCallback(async () => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
     const envelope = envelopeRef.current
     if (envelope) await commitNow(envelope)
   }, [commitNow])
@@ -202,7 +236,13 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       envelopeRef.current = existing
       setProgress((existing.progress ?? {}) as GameProgress)
       elapsedRef.current = existing.session.elapsedMs
-      levelStartRef.current = existing.session.elapsedMs
+      /**
+       * 界面上显示的是 `elapsed - levelStart`（本关用时）。恢复存档时若把两者都设成已保存值，
+       * 差值恒为 0 —— 用户重开应用后会发现「用时」被清零（探索式测试发现）。
+       * 这里把本关起点归零，让计时从已保存的总用时继续；进入下一关时再按当时用时重置
+       * （见 nextLevel 分支），语义仍然正确。
+       */
+      levelStartRef.current = 0
       if (existing.rulesVersion !== game.rulesVersion) {
         corruptRef.current = true
         setCorrupt(true)
@@ -237,7 +277,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       envelopeRef.current = updated
       setState(next)
       if (options.force) void commitNow(updated)
-      else scheduleCommit()
+      else scheduleCommit(updated)
     },
     [game, now, commitNow, scheduleCommit],
   )
@@ -412,7 +452,8 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       ? {
           runControl: (controlId: string) => {
             const action = game.controlAction?.(state, controlId)
-            if (action) dispatch(action)
+            if (!action) return false
+            return dispatch(action)
           },
         }
       : {}),

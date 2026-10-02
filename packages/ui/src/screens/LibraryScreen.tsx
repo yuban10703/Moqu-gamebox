@@ -187,6 +187,7 @@ function hostGlyph(namespace: string): string {
     sudoku: '▤',
     minesweeper: '☒',
     reversi: '◐',
+    fifteen: '▦',
     '2048': '▩',
   }
   return glyphs[namespace] ?? '◈'
