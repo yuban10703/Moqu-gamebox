@@ -295,14 +295,31 @@ await invariants(page, '设置·字号标准')
 await clickText('特大')
 await clickText('返回')
 await page.waitForTimeout(800)
-const maxScale = await page.evaluate(() => ({
-  root: getComputedStyle(document.documentElement).fontSize,
-  游戏数: document.querySelectorAll('.eink-tile').length,
-  屏外: [...document.querySelectorAll('button')].filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1).length,
-  页脚在屏内: (() => { const f = document.querySelector('.eink-footer'); return f ? f.getBoundingClientRect().bottom <= innerHeight + 1 : true })(),
-}))
-check('最大字号档位下首页放得下（含继续卡片）', maxScale.屏外 === 0 && maxScale.页脚在屏内,
-  `根字号 ${maxScale.root}、${maxScale.游戏数} 款、屏外 ${maxScale.屏外}`)
+const maxScale = await page.evaluate(() => {
+  // 游戏数量增加后，「一屏全塞下」不再是合理目标（继续压小卡片会牺牲可读性）。
+  // 这一档要求的是：**内容可滚动、页脚固定、没有不可达的按钮**。
+  const reachable = (el) => {
+    let n = el.parentElement
+    while (n) {
+      const cs = getComputedStyle(n)
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && n.scrollHeight > n.clientHeight + 1) return true
+      n = n.parentElement
+    }
+    return false
+  }
+  const content = document.querySelector('.eink-screen__content')
+  return {
+    root: getComputedStyle(document.documentElement).fontSize,
+    游戏数: document.querySelectorAll('.eink-tile').length,
+    不可达: [...document.querySelectorAll('button')]
+      .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b)).length,
+    可滚动: content ? content.scrollHeight > content.clientHeight + 1 : false,
+    页脚在屏内: (() => { const f = document.querySelector('.eink-footer'); return f ? f.getBoundingClientRect().bottom <= innerHeight + 1 : true })(),
+  }
+})
+check('最大字号档位下首页无不可达按钮且页脚固定',
+  maxScale.不可达 === 0 && maxScale.页脚在屏内,
+  `根字号 ${maxScale.root}、${maxScale.游戏数} 款、不可达 ${maxScale.不可达}、可滚动 ${maxScale.可滚动}`)
 await invariants(page, '首页·最大字号')
 // 上一步（最大档位断言）已经回到首页，这里容忍「没有返回可点」
 await clickText('返回', { optional: true })

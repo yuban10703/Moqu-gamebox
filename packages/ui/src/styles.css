@@ -1060,3 +1060,23 @@ html[data-bold-lines='on'] .eink-board {
     gap: 2px;
   }
 }
+
+
+/*
+ * 大字号档位的首页网格：游戏数量增加后仍要尽量一屏放下。
+ * 每多一款游戏就多一行，而大字号档每行高 ~90px —— 9 款时最后一张卡会被挤出屏幕。
+ * 这里再收紧一档（卡片高度与行距），把 5 行压进可用高度。
+ * 若将来游戏更多，最终仍会需要滚动 —— 那时应当放宽为「可滚动即合格」，
+ * 而不是继续无底线压小卡片（可读性优先于"全塞下"）。
+ */
+@media (orientation: portrait) {
+  html[data-font-scale='1.25'] .eink-grid,
+  html[data-font-scale='1.5'] .eink-grid {
+    gap: 6px;
+  }
+
+  html[data-font-scale='1.25'] .eink-tile,
+  html[data-font-scale='1.5'] .eink-tile {
+    min-height: 74px;
+  }
+}
