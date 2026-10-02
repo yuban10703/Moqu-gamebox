@@ -24,6 +24,8 @@ import { ActionButton, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
 
 type Strategy = 'dom' | 'animation'
+/** 运动物体的内容：纯黑白 vs 含灰阶（灰阶是快刷的软肋，用作加压） */
+type ObjectStyle = 'bw' | 'gray'
 
 const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
   { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
@@ -38,6 +40,10 @@ const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
 
 const TRACK_WIDTH = 1100
 const DOT_SIZE = 96
+const CARD_WIDTH = 260
+const CARD_HEIGHT = 96
+/** 8 级离散灰阶（0% → 100%），避免用渐变近似 */
+const GRAY_STEPS = [0, 36, 73, 109, 146, 182, 219, 255]
 /** 状态栏刷新间隔：绝不能每帧调桥（每帧一次同步调用会把主线程占满） */
 const STATUS_INTERVAL_MS = 1000
 /**
@@ -56,6 +62,7 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   const { i18n, platform } = useUi()
   const [strategy, setStrategy] = useState<Strategy>('dom')
   const [speed, setSpeed] = useState(300)
+  const [objectStyle, setObjectStyle] = useState<ObjectStyle>('gray')
   const [running, setRunning] = useState(false)
   const [position] = useState(0)
   const [fps, setFps] = useState(0)
@@ -105,7 +112,9 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
 
       // 圆点位置**直接改 DOM**，不走 React state：
       // 每帧 setState 会触发整屏重渲染，正是之前把界面卡住的做法。
-      positionRef.current = (positionRef.current + (speed * delta) / 1000) % (TRACK_WIDTH - DOT_SIZE)
+      // 行程按物体实际宽度算，否则带灰阶的卡片会滑出轨道右边界
+      const travel = TRACK_WIDTH - (objectStyle === 'gray' ? CARD_WIDTH : DOT_SIZE)
+      positionRef.current = (positionRef.current + (speed * delta) / 1000) % travel
       const dot = dotRef.current
       if (dot) dot.style.transform = `translateX(${Math.round(positionRef.current)}px)`
 
@@ -138,7 +147,7 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [running, speed, platform])
+  }, [running, speed, objectStyle, platform])
 
   // 进入/退出对应策略的面板状态；任何路径退出都要恢复
   const applyStrategyState = useCallback(
@@ -289,6 +298,18 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
           ))}
         </div>
         <div className="eink-choice-row">
+          <ActionButton
+            labelKey="shell.motiontest.object.bw"
+            emphasis={objectStyle === 'bw' ? 'primary' : 'normal'}
+            onSelect={() => setObjectStyle('bw')}
+          />
+          <ActionButton
+            labelKey="shell.motiontest.object.gray"
+            emphasis={objectStyle === 'gray' ? 'primary' : 'normal'}
+            onSelect={() => setObjectStyle('gray')}
+          />
+        </div>
+        <div className="eink-choice-row">
           {SPEEDS.map((option) => (
             <ActionButton
               key={option.px}
@@ -347,13 +368,30 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
           <div className="eink-motion-rail" aria-hidden="true" />
           <div
             className="eink-motion-dot"
+            data-style={objectStyle}
             ref={dotRef}
             style={{
-              width: DOT_SIZE,
-              height: DOT_SIZE,
+              width: objectStyle === 'gray' ? CARD_WIDTH : DOT_SIZE,
+              height: CARD_HEIGHT,
               transform: `translateX(${Math.round(position)}px)`,
             }}
-          />
+          >
+            {objectStyle === 'gray' ? (
+              <>
+                {/* 连续灰度渐变：测试中间灰能否在快刷下保住 */}
+                <div className="eink-motion-gradient" />
+                {/* 8 级离散灰阶：测试灰阶是否被抖动/压平成一团 */}
+                <div className="eink-motion-steps">
+                  {GRAY_STEPS.map((value) => (
+                    <span
+                      key={value}
+                      style={{ background: `rgb(${value}, ${value}, ${value})` }}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
       </section>
 
@@ -366,6 +404,11 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
           ))}
         </div>
         <div className="eink-refresh-solid" aria-hidden="true" />
+        <div className="eink-gray-wedge" aria-hidden="true">
+          {GRAY_STEPS.map((value) => (
+            <span key={value} style={{ background: `rgb(${value}, ${value}, ${value})` }} />
+          ))}
+        </div>
         <p className="eink-text">{i18n.t('shell.motiontest.watch')}</p>
       </section>
     </div>

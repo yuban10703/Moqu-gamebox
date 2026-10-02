@@ -604,7 +604,50 @@ html[data-bold-lines='on'] .eink-board__cell {
   position: absolute;
   top: 8px;
   left: 0;
-  border-radius: 50%;
   background: #000;
   will-change: transform;
+}
+
+/* 圆形仅用于纯黑白模式；含灰阶时改为带边框的卡片，灰阶内容才看得清 */
+.eink-motion-dot[data-style='bw'] {
+  border-radius: 50%;
+}
+
+.eink-motion-dot[data-style='gray'] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 6px solid #000;
+  background: #fff;
+}
+
+/* 连续灰度渐变：中间灰最容易被快刷压平或抖动 */
+.eink-motion-gradient {
+  flex: 1 1 auto;
+  border: 2px solid #000;
+  background: linear-gradient(90deg, #000 0%, #fff 100%);
+}
+
+/* 8 级离散灰阶 */
+.eink-motion-steps {
+  display: flex;
+  height: 26px;
+  border: 2px solid #000;
+}
+
+.eink-motion-steps > span {
+  flex: 1 1 auto;
+}
+
+/* 参照灰阶条：静止不动。变淡、跳变、纹理化都说明灰阶被刷新过程破坏了 */
+.eink-gray-wedge {
+  display: flex;
+  height: 34px;
+  margin-top: 8px;
+  border: 2px solid #000;
+}
+
+.eink-gray-wedge > span {
+  flex: 1 1 auto;
 }
