@@ -60,6 +60,8 @@ export const enUS: Dict = {
   'shell.settings.refresh.balanced': 'Balanced',
   'shell.settings.refresh.speed': 'Favor speed',
   'shell.settings.refresh.unsupported': 'This device does not expose refresh control',
+  'shell.settings.refresh.notEffective': 'This device does not accept app-level refresh profiles (verified by read-back on device). Use the system "App optimization / refresh mode" instead.',
+  'shell.settings.fullRefreshNow': 'Full refresh now',
   'shell.settings.timer': 'Show timer',
   'shell.settings.dpad': 'Show direction buttons',
   'shell.settings.boldLines': 'Thicker lines',

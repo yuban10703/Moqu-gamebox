@@ -20,16 +20,20 @@ class JsBridge(
     private val store: NativeStore,
     private val backend: EinkBackend,
 ) {
-    private val capability: RefreshCapability by lazy { backend.capability() }
+    /**
+     * 不做缓存：全刷能力会在「启动时那次验证失败」之后改变结论（从可用改为不可用），
+     * 缓存住会让界面一直显示一个点了没用的按钮。
+     */
+    private fun capability(): RefreshCapability = backend.capability()
 
     @JavascriptInterface
     fun version(): String = BRIDGE_VERSION
 
     @JavascriptInterface
-    fun deviceBaseline(): String = DeviceBaseline.collect(host, capability).toString()
+    fun deviceBaseline(): String = DeviceBaseline.collect(host, capability()).toString()
 
     @JavascriptInterface
-    fun getRefreshCapability(): String = capabilityJson(capability).toString()
+    fun getRefreshCapability(): String = capabilityJson(capability()).toString()
 
     // ---------- 存储 ----------
     @JavascriptInterface
@@ -134,5 +138,6 @@ class JsBridge(
             .put("modes", JSONArray(capability.modes))
             .put("fullRefresh", capability.fullRefresh)
             .put("fastMode", capability.fastMode)
+            .put("partialProfiles", capability.partialProfiles)
     }
 }

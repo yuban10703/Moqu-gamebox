@@ -48,3 +48,62 @@
 3. 触发一次整屏全刷，记录闪烁是否可接受；
 4. 退出应用后再次进入，确认没有残留的临时快刷状态（`applyApplicationFastMode` 成对调用）；
 5. 把结论填进 [A01](A01-device-baseline.md) 的「实测观察记录」。
+
+## 补充：残影不能被截图测量（实测证据）
+
+**结论：`screencap` 拍不到残影。** 不要用截图评估残影，也不要拿它当「全刷有效」的证据。
+
+三条实测证据（BOOX Note X2）：
+
+1. 同一屏内容，在做完整屏全刷（日志确认 `full refresh applied via refreshScreen mode=GC`）前后各截一张，
+   **棋盘区与空白区的像素统计完全一致**：
+   棋盘 `纯黑 57.11% / 纯白 42.63% / 中间灰 0.26%`，
+   空白区 `纯黑 1.31% / 纯白 98.51% / 中间灰 0.17%`；
+   两张图唯一的差异来自状态栏时钟。
+2. 原因在原理层：`screencap` 取的是 SurfaceFlinger 合成出的 framebuffer（系统「认为」该显示什么），
+   而残影是面板颜料未完成翻转的物理残留，只存在于面板层，从未进入 framebuffer。
+3. 全刷调用本身在 ~2ms 内返回（与一次普通存储读取同量级），
+   说明它只是**标记/排队**一次刷新，真正的波形驱动发生在 EPD 控制器里、异步完成 ——
+   所以也无法靠「抓闪光瞬间」来间接拍到。
+
+### 那还能测什么
+
+| 想知道的 | 能测吗 | 手段 |
+|---|---|---|
+| 全刷调用是否执行、用了哪个模式 | 能 | 原生日志 `full refresh applied via refreshScreen mode=GC` |
+| 波形是否真的驱动了面板 | 只能间接 | 调用耗时（本机 ~2ms，说明是排队而非同步等待）|
+| 渲染内容里有没有不该出现的灰（误用灰阶、抗锯齿过重）| 能 | `tools/scripts/png-stats.py` |
+| **残影本身** | 不能 | 人眼观察，或**相机拍面板**（截图无效） |
+
+### 建议的残影评估流程（需要你本人操作）
+
+1. 连续走 100 步以上（让局部刷新累积）；
+2. 关掉所有对话框，用手机相机拍一张面板照片（正对、避免反光）；
+3. 在暂停菜单里点「立即整屏全刷」；
+4. 再拍一张同样角度的照片；
+5. 对比两张照片里空白区域的干净程度 —— 这才是残影结论的有效依据。
+
+## 补充：开启 `-PonyxBundled` 后的真机结论（Note X2 + onyxsdk-device 1.3.6）
+
+把 SDK 打进 APK（`./gradlew -PonyxBundled=true assembleDebug`）后的实测结果：
+
+| 项目 | 结论 |
+|---|---|
+| 体积 | 1.4MB → **3.4MB**（Onyx SDK + fastjson2；batik 未被拉入） |
+| 权限 | SDK 清单里的 ACCESS_WIFI_STATE / CHANGE_WIFI_STATE / BLUETOOTH / DUMP **已被 `tools:node="remove"` 剥掉**，最终 APK 零权限（`aapt2 dump badging` 可验证） |
+| 类加载 | `EpdController` / `UpdateMode` / `FrontLightController` / `EpdDeviceManager` 均在 dex 中，反射可用 |
+| `onyxSdkFound` | true（类存在 **且** 厂商为 ONYX 才判真；只有类存在会在普通安卓设备上谎报支持） |
+| 设备实际模式名 | 18 个：`None, DU, DU4, GU, GU_FAST, GC, GCC, DEEP_GC, ANIMATION, ANIMATION_QUALITY, ANIMATION_MONO, ANIMATION_X, GC4, REGAL, REGAL_D, REGAL_PLUS, DU_QUALITY, HAND_WRITING_REPAINT_MODE` |
+| **整屏全刷** | **可用**，走 `refreshScreen(view, GC)`；`invalidate(view, GC)` 会抛 `AssertionError`（SDK 内部 SDMDevice 断言失败，它没识别出这台机型）。调用按候选顺序尝试：`refreshScreen → repaintEveryThing → applyTransientUpdate → invalidate` |
+| **刷新档位（局部模式）** | **不可用**：`setViewDefaultUpdateMode` 返回 true（接受调用），但写入 REGAL/GU 后回读仍是 DU —— 也就是调用被接受但没生效。如实报告为不支持，界面改为提示用系统「应用优化/刷新模式」 |
+| 临时快刷 | 不可用：3 参数的 `applyApplicationFastMode` 在 1.3.6 不存在；5 参数版本语义未知，不猜测调用 |
+| 全刷调用耗时 | ~2ms（与一次存储读取同量级）→ 它只是标记/排队，真正波形由 EPD 控制器异步完成 |
+
+### 验证方式（值得复用）
+
+- **全刷**：按候选顺序逐个尝试，谁不抛异常并且在候选里就采用谁，全失败才改口说不支持；
+  并把成功的那条记进 `features`（如 `fullRefreshWorks:refreshScreen`），诊断页可见。
+- **档位**：不能只看「写入后回读是否等于请求值」——请求值恰好等于当前值时也会成立（假阳性）。
+  也不能只看「读回是否变化」——全刷刚结束时读回是 GC，写任何值都会"变化"（也是假阳性，我第一版就被骗过）。
+  正确判据：**写入一个与当前不同的值，且读回确实变成了请求的值**。
+- 验证必须发生在网页读取能力清单**之前**，否则 JS 会在「尚未验证」的窗口里读到乐观结论。

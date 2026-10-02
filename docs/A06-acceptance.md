@@ -101,6 +101,13 @@
 | 5 | 过关面板把操作按钮挤出首屏 | 墨水屏上要滚动才能点「下一关」 | 过关后隐藏方向盘 + 为结果面板预留高度（`computeRootLayout` 新增 `extraBottom`） |
 | 6 | APK 里残留旧哈希的网页资源 | 体积浪费、易误判版本 | Gradle `copyWebAssets` 改用 `Sync` |
 
+## 关于残影：截图无效（已实测）
+
+`screencap` 取的是 framebuffer，而残影在面板层 —— 实测全刷前后同一区域的像素统计完全一致。
+因此「残影」一项**不能由我这边截图判定**，需要人眼观察或相机拍面板；
+方法与证据见 [refresh-adaptation.md](refresh-adaptation.md#补充残影不能被截图测量实测证据)。
+`screencap` 能测的是渲染内容本身的灰度分布（误用灰阶、抗锯齿过重），工具为 `tools/scripts/png-stats.py`。
+
 ## 尚未执行（需人工或后续轮次）
 
 - 备份导出/导入（需要走系统文件选择器，人工确认）；

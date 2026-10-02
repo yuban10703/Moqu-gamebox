@@ -134,6 +134,7 @@ export function createWebRefresh(): RefreshController {
     modes: [],
     fullRefresh: false,
     fastMode: false,
+    partialProfiles: false,
   }
   return {
     capability: () => capability,
@@ -156,25 +157,35 @@ export function createAndroidRefresh(bridge: {
   getRefreshCapability(): string
 }): RefreshController {
   const stats: RefreshStats = { fullRefreshes: 0, profileChanges: 0 }
-  let capability: RefreshCapability = {
-    onyxSdkFound: false,
-    features: [],
-    modes: [],
-    fullRefresh: false,
-    fastMode: false,
-  }
-  try {
-    const parsed = JSON.parse(bridge.getRefreshCapability()) as RefreshCapability
-    capability = {
-      onyxSdkFound: parsed?.onyxSdkFound === true,
-      features: Array.isArray(parsed?.features) ? parsed.features : [],
-      modes: Array.isArray(parsed?.modes) ? parsed.modes : [],
-      fullRefresh: parsed?.fullRefresh === true,
-      fastMode: parsed?.fastMode === true,
+
+  const readCapability = (): RefreshCapability => {
+    try {
+      const parsed = JSON.parse(bridge.getRefreshCapability()) as RefreshCapability
+      return {
+        onyxSdkFound: parsed?.onyxSdkFound === true,
+        features: Array.isArray(parsed?.features) ? parsed.features : [],
+        modes: Array.isArray(parsed?.modes) ? parsed.modes : [],
+        fullRefresh: parsed?.fullRefresh === true,
+        fastMode: parsed?.fastMode === true,
+        partialProfiles: parsed?.partialProfiles === true,
+      }
+    } catch {
+      // 探测失败就按「不支持」处理，界面给出系统指引
+      return {
+        onyxSdkFound: false,
+        features: [],
+        modes: [],
+        fullRefresh: false,
+        fastMode: false,
+        partialProfiles: false,
+      }
     }
-  } catch {
-    // 探测失败就按「不支持」处理，界面给出系统指引
   }
+
+  // 缓存能力清单，但在会改变结论的调用之后重新读取：
+  // 「档位是否真的生效」「全刷是否真的可用」都要调用过才知道；
+  // 一直返回旧结论会让界面留下点了没用的按钮。这样也避免每次渲染都过一次同步桥。
+  let capability = readCapability()
   let fastModeOn = false
   return {
     capability: () => capability,
@@ -185,6 +196,7 @@ export function createAndroidRefresh(bridge: {
       } catch {
         // 桥调用失败不应影响游玩
       }
+      capability = readCapability()
     },
     fullRefresh: () => {
       stats.fullRefreshes++
@@ -193,6 +205,7 @@ export function createAndroidRefresh(bridge: {
       } catch {
         // 同上
       }
+      capability = readCapability()
     },
     setFastMode: (on) => {
       if (on === fastModeOn) return

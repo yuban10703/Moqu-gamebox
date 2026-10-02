@@ -82,6 +82,7 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
           <Row label="features" value={capability.features.join(',') || '-'} />
           <Row label="modes" value={capability.modes.join(',') || '-'} />
           <Row label="fullRefresh" value={String(capability.fullRefresh)} />
+          <Row label="partialProfiles" value={String(capability.partialProfiles)} />
           <Row label="fastMode" value={String(capability.fastMode)} />
           <Row label={i18n.t('shell.diagnostics.fullRefresh')} value={String(platform.refresh.stats().fullRefreshes)} />
         </dl>

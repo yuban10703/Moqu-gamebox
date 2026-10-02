@@ -81,5 +81,6 @@ function mergeCapability(
     modes: fromNative.modes ?? fromController.modes,
     fullRefresh: fromNative.fullRefresh || fromController.fullRefresh,
     fastMode: fromNative.fastMode || fromController.fastMode,
+    partialProfiles: fromNative.partialProfiles || fromController.partialProfiles,
   }
 }

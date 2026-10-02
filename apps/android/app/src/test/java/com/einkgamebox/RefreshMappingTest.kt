@@ -12,7 +12,10 @@ class RefreshMappingTest {
 
     @Test
     fun `quality prefers regal then gu`() {
-        assertEquals(listOf("REGAL", "GU", "DU_QUALITY"), RefreshMapping.partialCandidates("quality"))
+        assertEquals(
+            listOf("REGAL", "REGAL_PLUS", "GU", "DU_QUALITY"),
+            RefreshMapping.partialCandidates("quality"),
+        )
     }
 
     @Test
@@ -41,8 +44,8 @@ class RefreshMappingTest {
     }
 
     @Test
-    fun `full refresh never falls back to a black and white fast mode first`() {
-        // 全刷优先 16 级灰阶全屏，避免用快刷模式清残影反而加重残影
-        assertEquals(listOf("GC", "GC16", "GU", "DU"), RefreshMapping.fullRefreshCandidates())
+    fun `full refresh prefers 16-gray full screen modes`() {
+        // 全刷优先 16 级灰阶全屏（GC 是文档记载的标准全刷），避免用快刷模式清残影反而加重残影
+        assertEquals(listOf("GC", "DEEP_GC", "GCC", "GC4", "GU", "DU"), RefreshMapping.fullRefreshCandidates())
     }
 }

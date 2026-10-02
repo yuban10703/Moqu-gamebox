@@ -103,7 +103,7 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
 
       <section className="eink-section">
         <h2>{i18n.t('shell.settings.refreshProfile')}</h2>
-        {capability.onyxSdkFound ? (
+        {capability.partialProfiles ? (
           <div className="eink-choice-row">
             {REFRESH_PROFILES.map((option) => (
               <ActionButton
@@ -115,11 +115,19 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
             ))}
           </div>
         ) : (
-          <p className="eink-muted">{i18n.t('shell.settings.refresh.unsupported')}</p>
+          <>
+            <p className="eink-muted">
+              {i18n.t(
+                capability.onyxSdkFound
+                  ? 'shell.settings.refresh.notEffective'
+                  : 'shell.settings.refresh.unsupported',
+              )}
+            </p>
+          </>
         )}
         <div className="eink-card__actions">
           {capability.fullRefresh ? (
-            <ActionButton labelKey="shell.diagnostics.fullRefresh" onSelect={fullRefresh} />
+            <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={fullRefresh} />
           ) : null}
           <ActionButton labelKey="shell.nav.help" onSelect={onOpenHelp} />
         </div>

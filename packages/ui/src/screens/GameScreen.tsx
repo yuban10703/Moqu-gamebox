@@ -221,7 +221,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
               <ActionButton labelKey="shell.game.resume" emphasis="primary" size="large" onSelect={session.resume} />
               <ActionButton labelKey="shell.game.restart" onSelect={() => setConfirmRestart(true)} />
               {platform.refresh.capability().fullRefresh ? (
-                <ActionButton labelKey="shell.diagnostics.fullRefresh" onSelect={() => platform.refresh.fullRefresh()} />
+                <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
               ) : null}
               <ActionButton labelKey="shell.result.library" onSelect={onExit} />
             </div>
@@ -235,7 +235,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
             <h2>{i18n.t('shell.game.menu')}</h2>
             <div className="eink-dialog__actions">
               {platform.refresh.capability().fullRefresh ? (
-                <ActionButton labelKey="shell.diagnostics.fullRefresh" onSelect={() => platform.refresh.fullRefresh()} />
+                <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
               ) : null}
               <ActionButton labelKey="shell.storage.export" onSelect={() => void exportBackup()} />
               <ActionButton labelKey="shell.common.close" emphasis="primary" onSelect={() => setMenuOpen(false)} />

@@ -9,19 +9,28 @@ package com.einkgamebox
  */
 object RefreshMapping {
 
-    /** 局部更新模式候选（清晰优先 → 速度优先） */
+    /**
+     * 局部更新模式候选（清晰优先 → 速度优先）。
+     * 候选项来自 1.3.6 在 Note X2 上实测暴露的真实模式名；
+     * 实际用哪个仍取决于设备报告的模式清单，不硬编码机型。
+     */
     fun partialCandidates(profile: String): List<String> = when (profile) {
-        "quality" -> listOf("REGAL", "GU", "DU_QUALITY")
+        "quality" -> listOf("REGAL", "REGAL_PLUS", "GU", "DU_QUALITY")
         "balanced" -> listOf("GU", "REGAL", "DU_QUALITY")
         "speed" -> listOf("DU", "ANIMATION", "GU")
         else -> listOf("REGAL", "GU")
     }
 
-    /** 整屏全刷候选：优先 16 级灰阶全屏，其次黑白全屏 */
-    fun fullRefreshCandidates(): List<String> = listOf("GC", "GC16", "GU", "DU")
+    /**
+     * 整屏全刷候选：优先 16 级灰阶全屏（GC 是官方文档记载的标准全刷），
+     * 再退到更新的 DEEP_GC / GCC / GC4，最后才是 4 级与黑白模式。
+     */
+    fun fullRefreshCandidates(): List<String> =
+        listOf("GC", "DEEP_GC", "GCC", "GC4", "GU", "DU")
 
     /** 临时快刷候选（用于点击后的即时反馈） */
-    fun fastCandidates(): List<String> = listOf("ANIMATION", "DU", "A2", "FAST")
+    fun fastCandidates(): List<String> =
+        listOf("ANIMATION", "ANIMATION_QUALITY", "ANIMATION_MONO", "DU", "DU4", "GU_FAST")
 
     /** 从候选里挑出设备实际提供的第一个模式名；都没有则返回 null */
     fun pick(candidates: List<String>, available: Collection<String>): String? =

@@ -1,7 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 完全离线：不申请任何网络权限，避免误采集 -->
+    <!--
+      完全离线：本应用不申请任何权限。
+
+      BOOX 官方 SDK（onyxsdk-device）自己的清单里声明了 ACCESS_WIFI_STATE / CHANGE_WIFI_STATE /
+      BLUETOOTH / DUMP 四项权限。我们只用它的屏幕刷新相关方法（EpdController / UpdateMode /
+      FrontLightController），不需要这些权限，因此在这里显式剥掉（tools:node="remove"）。
+
+      这一步是可验证的：`aapt2 dump badging` 或诊断页都能确认最终 APK 里没有 uses-permission。
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH" tools:node="remove" />
+    <uses-permission android:name="android.permission.DUMP" tools:node="remove" />
+
     <application
         android:allowBackup="true"
         android:fullBackupContent="true"

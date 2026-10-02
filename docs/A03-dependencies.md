@@ -40,6 +40,16 @@
    把 `onyxsdk-device` 打进来（已配置对 batik 相关组的 exclusions）。
 4. 详细适配说明见 [refresh-adaptation.md](refresh-adaptation.md)。
 
+### `-PonyxBundled` 变体（已实测）
+
+需要应用内控制刷新时可用 `./gradlew -PonyxBundled=true assembleDebug` 把 SDK 打进 APK：
+
+- 体积 1.4MB → 3.4MB（batik 相关组未被拉入）；
+- SDK 清单声明的 4 个权限（ACCESS_WIFI_STATE / CHANGE_WIFI_STATE / BLUETOOTH / DUMP）
+  已在本项目清单里用 `tools:node="remove"` 剥掉，最终 APK 仍然是**零权限**；
+- 真机结论：整屏全刷可用（`refreshScreen(GC)`），刷新档位不可用（写入被接受但不生效）。
+  详见 [refresh-adaptation.md](refresh-adaptation.md)。
+
 ## 内容来源（无第三方题库）
 
 | 内容 | 来源 | 校验方式 |

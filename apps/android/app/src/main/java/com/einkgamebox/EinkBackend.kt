@@ -12,6 +12,8 @@ data class RefreshCapability(
     val modes: List<String>,
     val fullRefresh: Boolean,
     val fastMode: Boolean,
+    /** 刷新档位（局部模式）是否**验证过**确实生效，而不是「方法存在」 */
+    val partialProfiles: Boolean = false,
 )
 
 /**
@@ -20,6 +22,11 @@ data class RefreshCapability(
 interface EinkBackend {
     val backendName: String
     fun capability(): RefreshCapability
+    /**
+     * 绑定承载网页的视图。局部刷新模式是按「视图」设置的，
+     * 不绑定就会出现「能力探测说支持、调用却静默返回」的假象。
+     */
+    fun bindView(view: View)
     fun setProfile(profile: String)
     fun fullRefresh(target: View?)
     fun setFastMode(on: Boolean)
@@ -72,8 +79,10 @@ class NoopEinkBackend(context: Context) : BaseEinkBackend(context) {
         modes = emptyList(),
         fullRefresh = false,
         fastMode = false,
+        partialProfiles = false,
     )
 
+    override fun bindView(view: View) = Unit
     override fun setProfile(profile: String) = Unit
     override fun fullRefresh(target: View?) = Unit
     override fun setFastMode(on: Boolean) = Unit

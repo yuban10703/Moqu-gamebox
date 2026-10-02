@@ -101,6 +101,8 @@ class MainActivity : Activity() {
 
         webView.addJavascriptInterface(JsBridge(this, store, backend), "EinkNative")
         setContentView(webView)
+        // 局部刷新模式是按视图设置的：必须先绑定承载网页的视图，否则调用会静默无效
+        backend.bindView(webView)
         webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
     }
 

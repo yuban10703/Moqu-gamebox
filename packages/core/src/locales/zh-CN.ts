@@ -60,6 +60,8 @@ export const zhCN: Dict = {
   'shell.settings.refresh.balanced': '均衡',
   'shell.settings.refresh.speed': '速度优先',
   'shell.settings.refresh.unsupported': '当前设备不支持直接控制刷新',
+  'shell.settings.refresh.notEffective': '这台设备不接受应用设置的刷新档位（已在真机回读确认），请用系统的「应用优化 / 刷新模式」调整',
+  'shell.settings.fullRefreshNow': '立即整屏全刷',
   'shell.settings.timer': '显示用时',
   'shell.settings.dpad': '显示方向按钮',
   'shell.settings.boldLines': '加粗线条',

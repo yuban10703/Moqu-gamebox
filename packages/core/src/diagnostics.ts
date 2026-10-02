@@ -19,6 +19,11 @@ export interface RefreshCapability {
   fullRefresh: boolean
   /** 临时快刷模式是否可用（必须成对进出） */
   fastMode: boolean
+  /**
+   * 刷新档位（局部模式）是否**验证过**确实生效。
+   * 只在真机上回读确认过才算 true —— 「方法存在」不等于「设置生效」。
+   */
+  partialProfiles: boolean
 }
 
 export interface DeviceBaseline {
@@ -61,6 +66,7 @@ export function emptyCapability(): RefreshCapability {
     modes: [],
     fullRefresh: false,
     fastMode: false,
+    partialProfiles: false,
   }
 }
 
