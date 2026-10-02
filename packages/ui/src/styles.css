@@ -994,3 +994,35 @@ html[data-bold-lines='on'] .eink-board {
     width: 100%;
   }
 }
+
+
+/*
+ * 极矮横屏（BOOX P6Plus 横屏实测 879×407）。
+ *
+ * 实测构成：顶栏 101px + 统计栏 48 + 状态条 48 + 方向盘 214（每键 66×3 行）= 423 > 视口 407，
+ * 棋盘区被压成 0，方向盘最后一行「下」溢出 64px —— 用户无法向下移动。
+ *
+ * 处理：这一档高度下收紧顶栏与方向盘按钮，把空间让给棋盘与最后一行按钮。
+ * 状态条必须保留（它承载「走不通」的文字反馈），只压缩它的高度。
+ */
+@media (orientation: landscape) and (max-height: 520px) {
+  .eink-screen--game .eink-topbar {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .eink-screen--game .eink-dpad__button {
+    /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
+    max-height: 44px;
+  }
+
+  .eink-screen--game .eink-statusstrip {
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+  }
+
+  .eink-screen--game .eink-controls__actions .eink-button {
+    max-height: 48px;
+  }
+}
