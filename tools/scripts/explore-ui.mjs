@@ -304,7 +304,9 @@ const maxScale = await page.evaluate(() => ({
 check('最大字号档位下首页放得下（含继续卡片）', maxScale.屏外 === 0 && maxScale.页脚在屏内,
   `根字号 ${maxScale.root}、${maxScale.游戏数} 款、屏外 ${maxScale.屏外}`)
 await invariants(page, '首页·最大字号')
-await clickText('返回'); await page.waitForTimeout(800)
+// 上一步（最大档位断言）已经回到首页，这里容忍「没有返回可点」
+await clickText('返回', { optional: true })
+await page.waitForTimeout(800)
 const backState = await page.evaluate(() => ({
   home: /全部游戏/.test(document.body.innerText),
   text: document.body.innerText.replace(/\n+/g, ' ').slice(0, 60),

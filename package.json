@@ -22,7 +22,8 @@
     "gen:levels": "DUMP_LEVELS=1 vitest run packages/games/sokoban/test/dump-levels.test.ts",
     "smoke:web": "node tools/scripts/web-smoke.mjs",
     "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8899",
-    "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs && node tools/scripts/explore-flows.mjs && node tools/scripts/explore-maxscale.mjs"
+    "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs && node tools/scripts/explore-flows.mjs && node tools/scripts/explore-maxscale.mjs",
+    "verify": "node tools/scripts/verify-all.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
