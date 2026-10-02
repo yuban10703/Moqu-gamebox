@@ -106,18 +106,32 @@ export function computeRootLayout(
   }
 }
 
+/**
+ * 棋盘外框宽度（px）。**单一来源**：布局计算与 CSS 都用它 ——
+ * 两处若不一致，棋盘就会比可用区大出一圈而被 overflow:hidden 裁掉上下边框。
+ */
+export const BOARD_FRAME_PX = 5
+
 export function computeBoardLayout(
   area: { width: number; height: number },
   cols: number,
   rows: number,
   config: LayoutConfig = DEFAULT_LAYOUT,
+  /**
+   * 棋盘外框宽度（单边）。必须在算格子前**先从可用区里扣掉两侧外框**，
+   * 否则 boardWidth/boardHeight 会比可用区多出 2×frame，上下（或左右）被裁掉。
+   */
+  frame: number = BOARD_FRAME_PX,
 ): BoardLayout {
   const safeCols = Math.max(1, Math.floor(cols))
   const safeRows = Math.max(1, Math.floor(rows))
-  const fit = Math.min(area.width / safeCols, area.height / safeRows)
+  const safeFrame = Math.max(0, frame)
+  const innerWidth = Math.max(1, area.width - safeFrame * 2)
+  const innerHeight = Math.max(1, area.height - safeFrame * 2)
+  const fit = Math.min(innerWidth / safeCols, innerHeight / safeRows)
   const cell = Math.max(config.minCell, Math.floor(fit))
-  const boardWidth = cell * safeCols
-  const boardHeight = cell * safeRows
+  const boardWidth = cell * safeCols + safeFrame * 2
+  const boardHeight = cell * safeRows + safeFrame * 2
   return {
     cols: safeCols,
     rows: safeRows,

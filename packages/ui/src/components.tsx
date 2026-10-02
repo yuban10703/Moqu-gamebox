@@ -6,7 +6,7 @@
  * - 计时等每秒变化的内容隔离在小组件里，不驱动整页重绘。
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import type { BoardView, CellKind, ControlSpec, MoveDir } from '@eink/core'
+import { BOARD_FRAME_PX, type BoardView, type CellKind, type ControlSpec, type MoveDir } from '@eink/core'
 import { useUi } from './contexts.js'
 
 export interface ActionButtonProps {
@@ -259,6 +259,8 @@ export function Board({
   const style = {
     gridTemplateColumns: `repeat(${board.cols}, ${cell}px)`,
     gridTemplateRows: `repeat(${board.rows}, ${cell}px)`,
+    // 外框宽度与 computeBoardLayout 用同一个常量，避免「布局按 3px 算、实际画 5px」而裁掉边框
+    borderWidth: `${BOARD_FRAME_PX}px`,
     // 供 CSS 计算格子内符号的字号
     ['--cell' as string]: `${cell}px`,
   } as CSSProperties

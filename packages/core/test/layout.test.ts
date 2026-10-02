@@ -100,4 +100,35 @@ describe('棋盘布局不变量', () => {
     expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
     expect(board.boardWidth).toBeGreaterThan(0)
   })
+
+  it('棋盘含外框也必须放得进可用区（否则上下或左右边框会被 overflow:hidden 裁掉）', () => {
+    // 真机实测的游戏页棋盘区尺寸（P6Plus 竖屏 / Note X2 横屏）
+    const areas = [
+      { width: 403, height: 420 },
+      { width: 1100, height: 600 },
+    ]
+    const shapes: Array<[number, number]> = [
+      [4, 4],
+      [9, 9],
+      [12, 12],
+      [16, 16],
+      [11, 9],
+    ]
+    for (const area of areas) {
+      for (const [cols, rows] of shapes) {
+        const board = computeBoardLayout(area, cols, rows)
+        expect(board.boardWidth).toBeLessThanOrEqual(area.width)
+        expect(board.boardHeight).toBeLessThanOrEqual(area.height)
+      }
+    }
+  })
+
+  it('外框宽度计入棋盘总尺寸：同样的可用区，外框越粗格子越小', () => {
+    const area = { width: 403, height: 403 }
+    const thin = computeBoardLayout(area, 9, 9, DEFAULT_LAYOUT, 1)
+    const thick = computeBoardLayout(area, 9, 9, DEFAULT_LAYOUT, 5)
+    expect(thick.cell).toBeLessThan(thin.cell)
+    expect(thick.boardWidth).toBe(thick.cell * 9 + 10)
+    expect(thick.boardWidth).toBeLessThanOrEqual(area.width)
+  })
 })

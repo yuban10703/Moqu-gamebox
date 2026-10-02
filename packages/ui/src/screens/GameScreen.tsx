@@ -4,7 +4,14 @@
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { computeBoardLayout, computeRootLayout, type CellKind, type MoveDir, type SaveEnvelope } from '@eink/core'
+import {
+  BOARD_FRAME_PX,
+  computeBoardLayout,
+  computeRootLayout,
+  type CellKind,
+  type MoveDir,
+  type SaveEnvelope,
+} from '@eink/core'
 import {
   ActionButton,
   Board,
@@ -84,12 +91,18 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
   const statCount = session.view.stats.length + (settings.timer ? 1 : 0)
   const statColumns = viewport.width > viewport.height ? statCount : Math.min(3, statCount)
 
-  const boardArea = boardBox ?? root.boardArea
+  /**
+   * 实测尺寸明显不合理（例如首帧测到 0 或几像素）时忽略它，回退到推算值。
+   * 否则「格子由实测反算」会与真实布局形成反馈环，把棋盘永久锁在 minCell 最小尺寸。
+   */
+  const measuredUsable =
+    boardBox !== null && boardBox.width >= 120 && boardBox.height >= 120 ? boardBox : null
+  const boardArea = measuredUsable ?? root.boardArea
 
   const boardLayout = useMemo(() => {
     const board = session.view.board
     if (!board) return null
-    return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig)
+    return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig, BOARD_FRAME_PX)
   }, [session.view.board, boardArea, layoutConfig])
 
   /**

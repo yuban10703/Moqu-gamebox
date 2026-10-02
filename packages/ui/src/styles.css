@@ -376,6 +376,15 @@ body {
   flex: 0 0 auto;
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /*
+   * 显式 stretch，不能依赖默认的 align-items: normal。
+   * 棋盘区是「按实测盒子反算格子」的，如果它的宽度由棋盘内容决定，就会形成反馈环：
+   * 首帧测到 0 → 格子取 minCell 24 → 棋盘 178px → 区域跟着变 178px → 永远锁死在最小尺寸。
+   * Android WebView 上实测就是这样（Note X2：区域 177px，而容器有 1200px）。
+   */
+  align-items: stretch;
 }
 
 .eink-screen--game > * {
@@ -396,11 +405,18 @@ body {
   overflow-y: auto;
 }
 
+/*
+ * 棋盘区必须**撑满容器宽度**，居中交给内部 flex 的 justify-content。
+ *
+ * 这里曾经写着 `margin: 0 auto` —— 在 column flex 容器里，auto 外边距会让该项
+ * **不再被 stretch**，宽度退化成内容宽度；而内容（棋盘）又是「按实测宽度反算格子」的，
+ * 于是形成反馈环：首帧测到小值 → 格子取 minCell 24 → 棋盘 178px → 区域跟着 178px → 永久锁死。
+ * Android WebView 上实测：容器 1200px，区域只有 177px，格子卡在下限。
+ */
 .eink-board-area {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
 }
 
 /*
