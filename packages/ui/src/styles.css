@@ -1027,3 +1027,36 @@ html[data-bold-lines='on'] .eink-board {
   }
 
 }
+
+/*
+ * 极矮横屏：继续为棋盘腾高度（实测 879×407）。
+ *
+ * 构成：顶栏 101 + 统计 48 + 状态条 48 + 方向盘 214 ≈ 423 > 视口 407 → 棋盘区几乎为 0。
+ * 方向盘按钮 48px 是触摸下限不能再压，所以从辅助信息与控制区间距里省：
+ * 隐藏副标题（「难度 · 已过关」这类辅助信息）、压缩统计项内边距、状态条 36 → 32px、
+ * 收紧控制区与方向盘间距。全部只作用于这一档高度，其它档位零影响。
+ */
+@media (orientation: landscape) and (max-height: 520px) {
+  .eink-screen--game .eink-topbar__subtitle {
+    display: none;
+  }
+
+  .eink-screen--game .eink-stats__item {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .eink-screen--game .eink-statusstrip {
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+  }
+
+  .eink-screen--game .eink-controls {
+    gap: 4px;
+  }
+
+  .eink-screen--game .eink-dpad {
+    gap: 2px;
+  }
+}
