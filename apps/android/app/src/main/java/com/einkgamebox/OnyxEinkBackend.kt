@@ -112,6 +112,14 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     override fun bindView(view: View, onVerified: Runnable) {
         currentView = view
         view.post {
+            // 启动第一件事：清掉上一次可能遗留的动画/快刷状态。
+            // 实测隐患：应用在动画模式中被强杀（用户点不动停止只能杀进程）时，
+            // 退出逻辑根本没机会跑，于是设备可能留在快刷状态。
+            if (exitAnimationMethod != null) {
+                Log.i(TAG, "startup cleanup: exitAnimationUpdate to clear any leftover animation state")
+                invokeOrNull(exitAnimationMethod, true)
+            }
+            activeAnimationPath = null
             // 顺序很重要：先验证局部模式，再做全刷。
             // 因为刚做完全刷时 getViewDefaultUpdateMode 会短暂返回全刷用的模式（GC），
             // 那时再验证会被这个瞬态骗成「写入生效了」。

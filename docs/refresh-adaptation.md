@@ -181,3 +181,34 @@
 - 退出动画模式时**只撤销本应用自己开的开关**：绝不无条件调用 `applySystemFastMode(false)`，
   否则会把用户在系统设置里自己打开的快刷关掉。
 - 停止、离开页面、组件卸载三条路径都会退出动画模式。
+
+## 事故与修复：测试页把界面卡到「点不动停止」
+
+**现象**：连续运动测试页在动画模式下，用户点不动「停止」，只能强杀进程。
+
+**根因（自己写的 bug，与设备无关）**：主循环里每帧都做了一次**同步的原生桥调用**
+（`animationState()` → `getAnimationState()`），约 46 次/秒，同时每帧还 `setState` 触发整屏重渲染。
+两者叠加把 WebView 主线程占满，触摸事件处理不过来。
+这与本项目早先那次「真机冻结」是同一类问题（主线程饱和），当时的教训没有被贯彻到新页面。
+
+**修复**：
+
+1. 圆点位置**直接改 DOM**（`ref.style.transform`），不再每帧 `setState`；
+2. 状态栏最多**每秒**读一次桥，且只在内容变化时更新；
+3. 每帧刷新类策略的桥调用限速由 20 次/秒降到 **10 次/秒**；
+4. 新增 **90 秒硬性自动停止**：即使界面再次卡住，也会自己退出动画模式；
+5. 退出动画模式的触发点补齐：停止 / 返回 / 组件卸载 / `visibilitychange` / `pagehide`；
+6. **启动时先执行一次 `exitAnimationUpdate(true)`**：被强杀留下的快刷状态会在下次启动被清掉
+   （日志 `startup cleanup: exitAnimationUpdate to clear any leftover animation state`）。
+
+**验证**（真机，动画运行中）：
+
+```
+运行中: 43 FPS · 共 260 帧 · animation=true(enterAnimationUpdate)
+触摸「停止」→ 0 FPS · animation=false(-)，按钮恢复为「开始运动」
+日志: animation mode ON via enterAnimationUpdate (preferred)
+      animation mode OFF via enterAnimationUpdate
+```
+
+**给后续页面的硬性要求**：任何逐帧循环里**不得**出现同步桥调用或 `setState`；
+需要显示状态就按秒节流，需要动的东西就改 DOM。

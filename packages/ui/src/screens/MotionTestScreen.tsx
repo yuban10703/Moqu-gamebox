@@ -37,8 +37,19 @@ const SPEEDS: ReadonlyArray<{ px: number; labelKey: string }> = [
 
 const TRACK_WIDTH = 1100
 const DOT_SIZE = 96
-/** 每帧刷新类的策略限速：桥调用同步 ~2ms，避免把桥线程刷满 */
-const BRIDGE_CALL_INTERVAL_MS = 50
+/**
+ * 每帧刷新类的策略限速。
+ * 同步桥调用会占用 WebView 主线程，太密会让触摸事件处理不及时 ——
+ * 实测 20 次/秒（50ms）就已经把「停止」按钮按不动了，因此降到 10 次/秒。
+ */
+const BRIDGE_CALL_INTERVAL_MS = 100
+/** 状态栏刷新间隔：绝不能每帧调桥（每帧一次同步调用会把主线程占满） */
+const STATUS_INTERVAL_MS = 1000
+/**
+ * 硬性自动停止：万一界面卡到点不动「停止」，也必须能自己停下来，
+ * 不能把设备留在动画模式里（真机上已经踩过一次，只能杀进程）。
+ */
+const MAX_RUN_MS = 90000
 /** 自动对比时每种策略的时长 */
 const AUTO_PHASE_MS = 9000
 
@@ -51,7 +62,7 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   const [strategy, setStrategy] = useState<Strategy>('dom')
   const [speed, setSpeed] = useState(300)
   const [running, setRunning] = useState(false)
-  const [position, setPosition] = useState(0)
+  const [position] = useState(0)
   const [fps, setFps] = useState(0)
   const [frames, setFrames] = useState(0)
   const [stateText, setStateText] = useState('—')
@@ -59,6 +70,8 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   const [autoIndex, setAutoIndex] = useState(-1)
 
   const dotRef = useRef<HTMLDivElement | null>(null)
+  const runStartRef = useRef(0)
+  const lastStatusRef = useRef(0)
   const positionRef = useRef(0)
   const frameCountRef = useRef(0)
   const lastCallRef = useRef(0)
@@ -107,13 +120,19 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
     let raf = 0
     let last = performance.now()
     fpsWindowRef.current = { start: performance.now(), frames: 0 }
+    runStartRef.current = performance.now()
 
     const loop = (now: number): void => {
       const delta = Math.min(now - last, 100)
       last = now
       frameCountRef.current += 1
+
+      // 圆点位置**直接改 DOM**，不走 React state：
+      // 每帧 setState 会触发整屏重渲染，正是之前把界面卡住的做法。
       positionRef.current = (positionRef.current + (speed * delta) / 1000) % (TRACK_WIDTH - DOT_SIZE)
-      setPosition(positionRef.current)
+      const dot = dotRef.current
+      if (dot) dot.style.transform = `translateX(${Math.round(positionRef.current)}px)`
+
       drivePanel(now)
 
       const window = fpsWindowRef.current
@@ -126,7 +145,21 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
         window.start = now
         window.frames = 0
       }
-      setStateText(platform.refresh.animationState())
+
+      // 状态栏最多每秒读一次，且只在内容变化时更新（原来每帧都调桥，是卡顿的主因）
+      if (now - lastStatusRef.current >= STATUS_INTERVAL_MS) {
+        lastStatusRef.current = now
+        const next = platform.refresh.animationState()
+        setStateText((previous) => (previous === next ? previous : next))
+      }
+
+      // 硬性自动停止：界面万一卡住，也必须能自己退出动画模式
+      if (now - runStartRef.current >= MAX_RUN_MS) {
+        setRunning(false)
+        platform.refresh.setAnimationMode(false, 'auto')
+        return
+      }
+
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
@@ -170,10 +203,21 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
     [applyStrategyState],
   )
 
-  // 离开页面/卸载时一定要把动画模式关掉
+  // 离开页面/卸载/页面被隐藏时都要退出动画模式：
+  // 仅仅依赖「点停止」是不够的，真机上出现过界面卡住点不动的情况。
   useEffect(() => {
-    return () => {
+    const restore = (): void => {
       platform.refresh.setAnimationMode(false, 'auto')
+    }
+    const onHide = (): void => {
+      if (document.visibilityState === 'hidden') restore()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', restore)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', restore)
+      restore()
     }
   }, [platform])
 
@@ -225,6 +269,12 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
   }, [i18n, platform, start])
 
   const dots = useMemo(() => Array.from({ length: 40 }, (_, index) => index), [])
+
+  // 非运行态时把圆点位置同步到 DOM（运行态由主循环直接写，避免每帧 setState）
+  useEffect(() => {
+    const dot = dotRef.current
+    if (dot && !running) dot.style.transform = `translateX(${Math.round(position)}px)`
+  }, [position, running])
 
   return (
     <div className="eink-screen eink-screen--motion-test">
