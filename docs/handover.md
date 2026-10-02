@@ -89,7 +89,18 @@ npm run verify     上面全部串起来，自带静态服务，结束打印汇�
 `pm enable` 两次（侧载后可能被禁用）→ `am start` → `adb forward tcp:<port> localabstract:webview_devtools_remote_<pid>` →
 用 `tools/scripts/devtools-eval.py` 在页面里取值/点击。
 
-**真机审计脚本（已入库，`tools/device/`）**：
+**真机一键验收（推荐入口）**：
+
+```bash
+tools/device/verify-device.sh 10.1.1.69:5555 9333
+```
+
+依次完成：连接 → 构建 APK → 安装 → 授权 → 启动 → 端口转发 → **逐款游戏审计**。
+脚本里固化了四个踩过的坑：侧载后要 `pm enable` **两次**；WiFi ADB 掉线要先
+`forward --remove-all` 再重建（否则指向失效进程）；设备息屏会让取值变成陈旧数据（每步前先唤醒）；
+WebView 调试端口名带 pid（必须先取 pid 才能转发）。
+
+**另外三个审计脚本（`tools/device/`）**：
 - `audit-games.py <ws文件> [难度|-] <adb序列号>`：逐款开局并输出棋盘尺寸、格子大小、屏外按钮、缺键
 - `measure-board.py <ws文件> <adb序列号> <游戏名>`：测量单个游戏的区域/棋盘几何与四边裁切量
 - `shot-games.py <ws文件> <adb序列号>`：逐款开局并截图到 `docs/screens/`
