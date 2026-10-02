@@ -323,3 +323,38 @@ TS 控制器方法、诊断页入口、相关文案）**全部删除**。
 
 注意：截图取的是 framebuffer，所以截图里灰阶永远是平滑的 **12 级灰阶渲染**，
 **它不能证明面板真的显示了这些灰**。灰阶是否被破坏只能靠眼睛看面板。
+
+
+## 「动画模式」为何与「系统默认」看不出区别（已查到根因）
+
+用户反馈「肉眼看不出系统默认和动画模式的区别」。查 SDK 字节码得到答案：
+
+```java
+// EpdDeviceManager.enterAnimationUpdate(boolean clear) —— 全部实现只有这几行
+if (!inFastUpdateMode) {
+    EpdController.applyTransientUpdate(UpdateMode.ANIMATION_QUALITY);  // 真正干活的只有这一句
+    inFastUpdateMode = true;
+    // 注意：上面那句的 boolean 返回值被 pop 丢掉了
+}
+```
+
+1. **「动画模式」不是独立机制**，它只是 `applyTransientUpdate(ANIMATION_QUALITY)` 的一层包装；
+   参数名是 `clear`，而且在进入时**完全没被使用**（退出时才传给 `clearTransientUpdate`）。
+2. `EpdController.applyTransientUpdate(mode)` 的真实实现是
+   `return Device.currentDevice().applyTransientUpdate(mode);`
+3. **改直接调用底层 API 并读取返回值**后，真机给出明确答案：
+
+```
+W OnyxEinkBackend: animation mode REJECTED: applyTransientUpdate(ANIMATION_QUALITY) returned false
+```
+
+**设备拒绝了这个模式。** 因此「系统默认」与「动画模式」在本机上是同一个行为，
+看不出区别是必然而非观感问题。原因大概率与本项目早先测到的两件事同源：
+SDK 没能识别这台机型（`Device.detectDevice` 反射报错），退化成了 `SDMDevice`，
+而 `SDMDevice.invalidate` 也会抛 `AssertionError` —— 即该机型在 SDK 里走的是兜底实现。
+
+### 教训
+
+之前用 `enterAnimationUpdate` 时**完全无法验证是否生效**：SDK 把返回值丢掉了。
+凡是 SDK 提供布尔返回值的接口，就应当直接调用底层 API 并读取返回值，
+而不是调用便利包装（这次是靠读字节码才发现包装层丢了返回值）。

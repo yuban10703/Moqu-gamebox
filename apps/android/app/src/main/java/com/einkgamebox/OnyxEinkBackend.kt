@@ -98,6 +98,15 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
     private var fastModeOn = false
     /** 已进入的动画/快刷路径，退出时必须按原路退出 */
     private var activeAnimationPath: String? = null
+    /**
+     * 瞬时快刷模式是否被设备**接受**（applyTransientUpdate 的返回值）。
+     *
+     * 为什么特别在意这个值：SDK 的 EpdDeviceManager.enterAnimationUpdate() 只是
+     * `applyTransientUpdate(ANIMATION_QUALITY)` 的一层包装，而且**把返回值丢掉了**
+     * （字节码里是 pop）。所以从 enterAnimationUpdate 根本看不出设备有没有接受。
+     * 直接调底层 API 才能拿到这个 true/false —— 这是判断「动画模式到底有没有生效」的唯一硬信号。
+     */
+    private var transientAccepted: Boolean? = null
 
     /** 实际验证成功的全刷实现名；一旦全部失败就置为空并改口为「不支持」 */
     private var workingFullRefresh: String? = null
@@ -292,10 +301,14 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
             // 只撤销「我们自己开的那一个」。
             // 特别注意：绝不能无条件调用 applySystemFastMode(false) ——
             // 那会把用户在系统设置里自己打开的快刷关掉，属于擅自改动整机设置。
-            when (path) {
-                "enterAnimationUpdate" -> invokeOrNull(exitAnimationMethod, true)
-                "applyTransientUpdate" -> invokeOrNull(clearTransientMethod, true)
+            when {
+                path.startsWith("applyTransientUpdate") -> {
+                    val cleared = invokeOrNull(clearTransientMethod, true) as? Boolean
+                    Log.i(TAG, "animation mode OFF: clearTransientUpdate returned $cleared")
+                }
+                path == "enterAnimationUpdate" -> invokeOrNull(exitAnimationMethod, true)
             }
+            transientAccepted = null
             activeAnimationPath = null
             cancelAnimationWatchdog()
             Log.i(TAG, "animation mode OFF via $path, state=${animationState()}")
@@ -304,19 +317,19 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
 
         // preferred 指定了就走哪条路：不指定会走下面的优先级链，测出来的可能不是你想测的那个
-        if (preferred == "animation" && enterAnimationMethod != null) {
-            val accepted = try {
-                enterAnimationMethod.invoke(null, true)
-                true
-            } catch (error: Throwable) {
-                false
-            }
-            if (accepted) {
-                activeAnimationPath = "enterAnimationUpdate"
+        if (preferred == "animation") {
+            // 直接调底层 API，拿到设备是否接受的布尔值（enterAnimationUpdate 会把这个值丢掉）
+            val transient = modeValue(listOf("ANIMATION_QUALITY", "ANIMATION", "ANIMATION_MONO", "DU"))
+            if (applyTransientMethod == null || transient == null) return null
+            val accepted = invokeOrNull(applyTransientMethod, transient) as? Boolean
+            transientAccepted = accepted
+            if (accepted == true) {
+                activeAnimationPath = "applyTransientUpdate(${modeName(transient)})"
                 armAnimationWatchdog()
-                Log.i(TAG, "animation mode ON via enterAnimationUpdate (preferred)")
+                Log.i(TAG, "animation mode ON: applyTransientUpdate(${modeName(transient)}) returned true")
                 return activeAnimationPath
             }
+            Log.w(TAG, "animation mode REJECTED: applyTransientUpdate(${modeName(transient)}) returned $accepted")
             return null
         }
 
@@ -343,8 +356,9 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
         val animationMode = modeValue(listOf("ANIMATION", "ANIMATION_QUALITY", "ANIMATION_MONO", "DU"))
         if (applyTransientMethod != null && animationMode != null) {
             val ok = invokeOrNull(applyTransientMethod, animationMode)
+            transientAccepted = ok as? Boolean
             if (ok != false) {
-                activeAnimationPath = "applyTransientUpdate"
+                activeAnimationPath = "applyTransientUpdate(${modeName(animationMode)})"
                 armAnimationWatchdog()
                 Log.i(TAG, "animation mode ON via applyTransientUpdate(${modeName(animationMode)})")
                 return activeAnimationPath
@@ -358,9 +372,10 @@ class OnyxEinkBackend(context: Context) : BaseEinkBackend(context) {
 
     override fun animationState(): String {
         val animationOn = activeAnimationPath != null
+        val accepted = transientAccepted?.let { if (it) "accepted" else "REJECTED" } ?: "-"
         val systemFast = readBool(inSystemFastModeMethod)
         val fastMode = readBool(isInFastModeMethod)
-        return "animation=$animationOn(${activeAnimationPath ?: "-"})" +
+        return "animation=$animationOn(${activeAnimationPath ?: "-"}) accepted=$accepted" +
             " systemFast=${systemFast ?: "n/a"} fastMode=${fastMode ?: "n/a"}"
     }
 
