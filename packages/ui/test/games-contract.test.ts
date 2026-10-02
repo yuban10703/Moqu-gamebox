@@ -18,7 +18,14 @@ import { minesweeperGame } from '@eink/minesweeper'
 import { reversiGame } from '@eink/reversi'
 import { sokobanGame } from '@eink/sokoban'
 import { sudokuGame } from '@eink/sudoku'
-import { createRng, type GameDef } from '@eink/core'
+import {
+  BOARD_FRAME_PX,
+  DEFAULT_LAYOUT,
+  computeBoardLayout,
+  createRng,
+  type GameDef,
+  type LayoutConfig,
+} from '@eink/core'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const GAMES: Array<GameDef<any, any>> = [
@@ -65,4 +72,49 @@ describe('所有游戏的存档契约', () => {
       }
     })
   }
+
+  /*
+   * 可玩性下限：任何游戏在**最小设备**上都必须还能玩。
+   *
+   * 由来：这一项此前靠人肉在真机上量（九款游戏一张表，记在 docs/handover.md）。
+   * 但新游戏随时可能引入更密的网格（例如 19×19），一旦低于 24px 下限就不可点，
+   * 而那时往往已经写完代码才发现。这里把它变成提交即拦的门槛。
+   *
+   * 参照两台真机的实测可用区：P6Plus 竖屏（439×847）与 Note X2 横屏（1248×903）。
+   */
+  it('每款游戏的棋盘在常用视口下都放得进可用区（守住"可玩"的下限）', () => {
+    const config: LayoutConfig = { ...DEFAULT_LAYOUT }
+    /*
+     * 注意判据：**不能**断言 computeBoardLayout 返回的 cell >= minCell ——
+     * 它内部本来就把格子钳在 minCell 上，那样断言恒真、等于没测（初版就犯了这个错 ✗）。
+     * 真正有意义的是：按 minCell 算出来的棋盘**能不能放得进可用区**。
+     * 放不下就意味着格子会被压到下限以下或被裁切 —— 即"这个网格在这台设备上不可玩"。
+     *
+     * 只覆盖两种**常用**视口：竖屏与正常横屏。
+     * 极矮横屏（P6Plus 强制横屏 879×407，棋盘区仅剩 ~216px）是已记录的已知限制，
+     * 不在本断言范围内（见 docs/handover.md）。
+     */
+    const areas = [
+      { name: 'P6Plus 竖屏', width: 415, height: 420 },
+      { name: 'Note X2 横屏', width: 1176, height: 513 },
+    ]
+    for (const game of GAMES) {
+      for (const difficulty of game.difficulties.map((item) => item.id)) {
+        const view = game.view(game.create(1, difficulty))
+        if (!view.board) continue
+        const { cols, rows } = view.board
+        const needed = {
+          width: cols * config.minCell + BOARD_FRAME_PX * 2,
+          height: rows * config.minCell + BOARD_FRAME_PX * 2,
+        }
+        for (const area of areas) {
+          expect(
+            needed.width <= area.width && needed.height <= area.height,
+            `${game.id}/${difficulty}（${cols}×${rows}）在 ${area.name}（可用 ${area.width}×${area.height}）上放不下：` +
+              `按 ${config.minCell}px 下限需要 ${needed.width}×${needed.height} —— 该网格在这台设备上不可玩`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
 })
