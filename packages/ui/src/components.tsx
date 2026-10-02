@@ -133,17 +133,87 @@ export function Timer({
   )
 }
 
-const CELL_GLYPH: Record<CellKind, string> = {
-  floor: '',
-  wall: '',
-  goal: '○',
-  box: '□',
-  boxOnGoal: '◼',
-  player: '▲',
-  playerOnGoal: '△',
+/**
+ * 棋盘格子的图形。
+ *
+ * 从文本符号（○ □ ◼ ▲ △）改成内联 SVG 的原因：文本字形随系统字体变化、无法加纹理、
+ * 也无法保证在任意格子尺寸下形状稳定。
+ *
+ * 状态区分靠形状与填充（不靠灰度，墨水屏快刷是 1-bit）：
+ *   箱子      = 空心板条箱（对角线交叉）   箱子在目标点 = 实心板条箱 + 白斜线
+ *   角色      = 人形剪影                   角色在目标点 = 目标圆环 + 缩小的剪影
+ *   目标点    = 圆环
+ *
+ * 箱子会**占满整个格子**（见 Board 里的 glyphSize）：推箱子的箱体本来就是格子的内容，
+ * 留白反而让箱子和地板混淆；占满后「箱体/通道」一眼可分。
+ */
+function BoardGlyph({
+  kind,
+  size,
+  bold,
+}: {
+  kind: CellKind
+  size: number
+  bold: boolean
+}): ReactNode {
+  if (kind === 'floor' || kind === 'wall') return null
+  const stroke = bold ? 2.6 : 1.6
+  const thin = bold ? 2 : 1.1
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    'aria-hidden': true,
+    focusable: false,
+  } as const
+
+  if (kind === 'goal') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="6.5" fill="none" stroke="#000" strokeWidth={stroke} />
+      </svg>
+    )
+  }
+  if (kind === 'box') {
+    return (
+      <svg {...common}>
+        {/* 板条箱：外框 + 对角线，外框贴着格子边（占满） */}
+        <rect x="1" y="1" width="22" height="22" fill="none" stroke="#000" strokeWidth={stroke} />
+        <path d="M1 1 L23 23 M23 1 L1 23" stroke="#000" strokeWidth={thin} />
+      </svg>
+    )
+  }
+  if (kind === 'boxOnGoal') {
+    return (
+      <svg {...common}>
+        {/* 已就位：实心箱体 + 白斜线，与空心箱子一眼可分 */}
+        <rect x="1" y="1" width="22" height="22" fill="#000" />
+        <path d="M1 1 L23 23 M23 1 L1 23" stroke="#fff" strokeWidth={thin} />
+      </svg>
+    )
+  }
+  if (kind === 'player') {
+    return (
+      <svg {...common}>
+        {/* 人形剪影：头 + 肩 */}
+        <circle cx="12" cy="7.4" r="4" fill="#000" />
+        <path d="M4.6 21c0-4.1 3.3-7 7.4-7s7.4 2.9 7.4 7z" fill="#000" />
+      </svg>
+    )
+  }
+  // playerOnGoal：目标圆环 + 缩小的人形，语义就是「站在目标点上」
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="10" fill="none" stroke="#000" strokeWidth={stroke} />
+      <circle cx="12" cy="8.6" r="3.2" fill="#000" />
+      <path d="M6.6 19.4c0-3.2 2.4-5.4 5.4-5.4s5.4 2.2 5.4 5.4z" fill="#000" />
+    </svg>
+  )
 }
 
 export interface BoardProps {
+  /** 「加粗线条」设置：加粗 SVG 线宽，方便墨水屏上辨认 */
+  bold?: boolean
   board: BoardView
   cell: number
   labelFor: (kind: CellKind, index: number) => string
@@ -155,7 +225,13 @@ export interface BoardProps {
  * 选择 DOM 而不是 Canvas 的原因：网页侧无法承诺像素级局部刷新，
  * 而 DOM 让系统自己做最小重绘；文字用系统字体，中文不会缺字。
  */
-export function Board({ board, cell, labelFor, onCellSelect }: BoardProps): ReactNode {
+export function Board({
+  board,
+  cell,
+  labelFor,
+  onCellSelect,
+  bold = false,
+}: BoardProps): ReactNode {
   const style = {
     gridTemplateColumns: `repeat(${board.cols}, ${cell}px)`,
     gridTemplateRows: `repeat(${board.rows}, ${cell}px)`,
@@ -179,7 +255,17 @@ export function Board({ board, cell, labelFor, onCellSelect }: BoardProps): Reac
           aria-label={labelFor(cellView.kind, cellView.index)}
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}
         >
-          <span aria-hidden="true">{CELL_GLYPH[cellView.kind]}</span>
+          <BoardGlyph
+            kind={cellView.kind}
+            size={
+              // 箱子占满整个格子（内容盒 = 格子 - 两侧边框）；
+              // 其余图形留白，避免与格子边框糊成一片
+              cellView.kind === 'box' || cellView.kind === 'boxOnGoal'
+                ? Math.max(8, cell - 2)
+                : Math.round(cell * 0.78)
+            }
+            bold={bold}
+          />
         </div>
       ))}
     </div>

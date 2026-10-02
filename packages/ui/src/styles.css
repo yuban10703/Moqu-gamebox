@@ -378,8 +378,52 @@ html[data-bold-lines='on'] .eink-board__cell {
   border-width: 2px;
 }
 
+/*
+ * 墙壁纹理：45° 斜纹。
+ *
+ * 关键在于**把纹理画在棋盘容器上、格子留空**（而不是每个墙格各画一份）：
+ * 渐变在每个元素里都从头开始，逐格绘制会在格子交界处出现错位的接缝；
+ * 画在容器上则是连续的一片，同一堵墙看不出格子边界。
+ *
+ * 只用纯黑白：墨水屏快刷是 1-bit，灰阶要靠抖动，运动中会被压平或起噪点。
+ */
+/*
+ * 墙壁纹理：45° 斜纹。
+ *
+ * 关键在于**把纹理画在棋盘容器上、格子留空**（而不是每个墙格各画一份）：
+ * 渐变在每个元素里都从头开始，逐格绘制会在格子交界处出现错位的接缝；
+ * 画在容器上则是连续的一片，同一堵墙看不出格子边界。
+ */
+.eink-board {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #000 0 2px,
+    #fff 2px 6px
+  );
+}
+
+/* 墙格透出容器的斜纹 */
 .eink-board__cell[data-kind='wall'] {
-  background: var(--ink-black);
+  background: transparent;
+}
+
+/* 其余格子铺白，遮住容器的纹理 */
+.eink-board__cell[data-kind='floor'],
+.eink-board__cell[data-kind='goal'],
+.eink-board__cell[data-kind='box'],
+.eink-board__cell[data-kind='boxOnGoal'],
+.eink-board__cell[data-kind='player'],
+.eink-board__cell[data-kind='playerOnGoal'] {
+  background: var(--ink-white);
+}
+
+/* 「加粗线条」设置下让斜纹更实，远看更像一堵墙 */
+html[data-bold-lines='on'] .eink-board {
+  background-image: repeating-linear-gradient(
+    45deg,
+    #000 0 3px,
+    #fff 3px 7px
+  );
 }
 
 /* ---------- 控制区 ---------- */

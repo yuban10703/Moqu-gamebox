@@ -171,6 +171,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
                 board={session.view.board}
                 cell={boardLayout.cell}
                 labelFor={cellLabel}
+                bold={settings.boldLines}
               />
             ) : null}
           </div>
