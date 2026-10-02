@@ -7,11 +7,12 @@
  * 并且把「每秒帧数」直接显示出来 —— 流畅度是可量化的，不必只靠感觉。
  *
  * 五种策略：
- *   - 只改画面：不动用任何刷新接口（基线）
+ *   - 系统默认：不动用任何刷新接口，由系统决定怎么刷（基线）
  *   - 动画模式：EpdDeviceManager.enterAnimationUpdate（应用级快刷）
- *   - 系统快刷：EpdController.applySystemFastMode（整机级，退出即恢复；会临时影响其它应用）
- *   - 每帧区域刷新：对圆点矩形调用 refreshScreenRegion（用于确认它是否真的只刷那块）
- *   - 每帧整屏全刷：最差对照，必然闪
+ *   - 高频全刷：原生泵每 0.5 秒强制一次整屏全刷（最差对照，必然闪）
+ *
+ * 已删除「系统快刷」（EpdController.applySystemFastMode）：它是**整机级**开关、会影响其它应用，
+ * 本机还开不起来（回读始终 false），且属于擅自改动用户设备全局设置，产品里不应引入。
  *
  * 安全性：动画模式在停止、离开页面、组件卸载时都会退出，且只撤销本应用自己开的开关。
  */
@@ -19,12 +20,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ActionButton, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
 
-type Strategy = 'dom' | 'animation' | 'systemFast' | 'pump'
+type Strategy = 'dom' | 'animation' | 'pump'
 
 const STRATEGIES: ReadonlyArray<{ value: Strategy; labelKey: string }> = [
   { value: 'dom', labelKey: 'shell.motiontest.strategy.dom' },
   { value: 'animation', labelKey: 'shell.motiontest.strategy.animation' },
-  { value: 'systemFast', labelKey: 'shell.motiontest.strategy.systemFast' },
   { value: 'pump', labelKey: 'shell.motiontest.strategy.pump' },
 ]
 
@@ -154,8 +154,8 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
         }
         return
       }
-      if (next === 'animation' || next === 'systemFast') {
-        // 必须指定路径：否则「系统快刷」会被 enterAnimationUpdate 接走，测的就不是系统快刷
+      if (next === 'animation') {
+        // 必须指定路径：不指定会走优先级链，测的就不是动画模式本身
         const result = platform.refresh.setAnimationMode(on, next)
         setStateText(result.state)
         if (on && !result.ok) {
@@ -215,7 +215,7 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
 
   /** 自动依次对比：每种策略跑一段时间，记录稳定后的帧数 */
   const runAuto = useCallback((): void => {
-    const sequence: Strategy[] = ['dom', 'animation', 'systemFast']
+    const sequence: Strategy[] = ['dom', 'animation']
     autoRef.current = { active: true, index: 0, phaseStart: performance.now(), fps: [] }
     setSummary([])
     setAutoIndex(0)
@@ -246,11 +246,11 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
           : 0
         setSummary((previous) => [
           ...previous,
-          `${i18n.t(sequence[index] === 'dom'
-            ? 'shell.motiontest.strategy.dom'
-            : sequence[index] === 'animation'
-              ? 'shell.motiontest.strategy.animation'
-              : 'shell.motiontest.strategy.systemFast')}: ${average} FPS`,
+          `${i18n.t(
+            sequence[index] === 'dom'
+              ? 'shell.motiontest.strategy.dom'
+              : 'shell.motiontest.strategy.animation',
+          )}: ${average} FPS`,
         ])
         setRunning(false)
         platform.refresh.setAnimationMode(false, 'auto')
@@ -332,9 +332,6 @@ export function MotionTestScreen({ onBack }: MotionTestScreenProps): ReactNode {
             onSelect={() => platform.refresh.fullRefresh()}
           />
         </div>
-        {strategy === 'systemFast' ? (
-          <p className="eink-notice">{i18n.t('shell.motiontest.systemFastWarning')}</p>
-        ) : null}
         {platform.refresh.capability().animationMode ? null : (
           <p className="eink-muted">{i18n.t('shell.motiontest.animationUnavailable')}</p>
         )}

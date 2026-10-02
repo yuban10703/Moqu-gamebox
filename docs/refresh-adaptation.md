@@ -156,11 +156,13 @@
 
 | 策略 | 实际调用 |
 |---|---|
-| 只改画面 | 不调用任何刷新接口（基线） |
+| 系统默认 | 不调用任何刷新接口，由系统决定怎么刷（基线；原名「只改画面」，已改名以免误解） |
 | 动画模式 | `EpdDeviceManager.enterAnimationUpdate(true)` / `exitAnimationUpdate(true)` |
-| 系统快刷 | `EpdController.applySystemFastMode(true/false)`，可回读 `inSystemFastMode()` |
-| 每帧区域刷新 | 对圆点矩形调用 `refreshScreenRegion`（用于复验上一条结论） |
-| 每帧整屏全刷 | `refreshScreen(View, GC)`，最差对照 |
+| 高频全刷 | 原生泵每 0.5 秒 `refreshScreen(View, GC)`，20 秒自动停（最差对照） |
+
+已删除「系统快刷」：`applySystemFastMode` 是**整机级**开关（等同系统里的快刷模式，会影响其它应用），
+本机启用不了（调用被接受但回读 `inSystemFastMode()` 始终 false，疑似不在 Onyx 白名单），
+且属于擅自改动用户设备全局设置，故连同后端实现一并移除，只保留只读查询用于诊断展示。
 
 ### 实测数据（Note X2）
 
