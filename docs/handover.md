@@ -80,6 +80,13 @@ npm run verify     上面全部串起来，自带静态服务，结束打印汇�
 `pm enable` 两次（侧载后可能被禁用）→ `am start` → `adb forward tcp:<port> localabstract:webview_devtools_remote_<pid>` →
 用 `tools/scripts/devtools-eval.py` 在页面里取值/点击。
 
+**真机审计脚本（已入库，`tools/device/`）**：
+- `audit-games.py <ws文件> [难度|-] <adb序列号>`：逐款开局并输出棋盘尺寸、格子大小、屏外按钮、缺键
+- `measure-board.py <ws文件> <adb序列号> <游戏名>`：测量单个游戏的区域/棋盘几何与四边裁切量
+- `shot-games.py <ws文件> <adb序列号>`：逐款开局并截图到 `docs/screens/`
+
+（这些脚本此前只存在于未纳入版本控制的 `.toolchain/` 里，交接时容易丢失，现正式入库。）
+
 ## 6. 未结项与已知限制
 
 | 项 | 状态 |
