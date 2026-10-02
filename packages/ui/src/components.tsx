@@ -72,14 +72,28 @@ export function TopBar({ title, subtitle, onBack, children }: TopBarProps): Reac
 }
 
 export interface StatBarProps {
+  /**
+   * 固定列数。用于游戏页：统计栏若用 flex-wrap，数值从 0:00 涨到 0:07 就可能多出一行，
+   * 高度一变棋盘就被顶动（实测竖屏下「用时」会换行导致画面移动）。
+   */
+  columns?: number
   stats: ReadonlyArray<{ labelKey: string; value: string; text?: string }>
   children?: ReactNode
 }
 
-export function StatBar({ stats, children }: StatBarProps): ReactNode {
+export function StatBar({ stats, children, columns }: StatBarProps): ReactNode {
   const { i18n } = useUi()
+  // 指定列数时用固定网格：行数不再随数值宽度变化，高度因此恒定。
+  // 不指定则沿用 flex-wrap（普通信息页可以接受换行）。
+  const fixed = columns !== undefined && columns > 0
+  const style = fixed
+    ? ({ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } as CSSProperties)
+    : undefined
   return (
-    <dl className="eink-stats">
+    <dl
+      className={fixed ? 'eink-stats eink-stats--fixed' : 'eink-stats'}
+      {...(style ? { style } : {})}
+    >
       {stats.map((stat) => (
         <div className="eink-stats__item" key={stat.labelKey}>
           <dt>{stat.text ?? i18n.t(stat.labelKey)}</dt>

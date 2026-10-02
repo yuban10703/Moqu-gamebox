@@ -196,6 +196,17 @@ body {
   margin: 0;
 }
 
+/* 固定列数模式：行数恒定，高度不随数值宽度变化 */
+.eink-stats--fixed {
+  display: grid;
+  flex-wrap: nowrap;
+}
+
+.eink-stats--fixed .eink-stats__item {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .eink-stats__item {
   border: 1px solid var(--ink-black);
   padding: 4px 10px;

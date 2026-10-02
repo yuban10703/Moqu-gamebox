@@ -80,6 +80,10 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
     return () => observer.disconnect()
   }, [])
 
+  // 统计栏列数：横屏一行放得下就一行；竖屏固定两列（行数恒定，不会因数值变宽而多出一行）
+  const statCount = session.view.stats.length + (settings.timer ? 1 : 0)
+  const statColumns = viewport.width > viewport.height ? statCount : Math.min(2, statCount)
+
   const boardArea = boardBox ?? root.boardArea
 
   const boardLayout = useMemo(() => {
@@ -137,7 +141,7 @@ export function GameScreen({ entry, difficulty, onExit, onCommitted }: GameScree
         />
       </TopBar>
 
-      <StatBar stats={session.view.stats}>
+      <StatBar stats={session.view.stats} columns={statColumns}>
         {settings.timer ? (
           <Timer
             elapsedRef={session.elapsedRef}
