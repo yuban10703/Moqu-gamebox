@@ -83,7 +83,8 @@ export function LibraryScreen({
             const envelope = saves[continued.game.id]!
             const done = progressOf(envelope)
             const summary = continued.progressFor(done.completed)
-            const index = continued.indexOfLevel?.(levelIdOf(envelope), envelope.state) ?? 0
+            const contentId = continued.contentIdOf?.(envelope.state) ?? levelIdOf(envelope)
+            const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
             return (
               <div className="eink-card eink-card--continue">
                 <div className="eink-card__main">
@@ -165,6 +166,12 @@ export function levelIdOf(envelope: SaveEnvelope | undefined): string {
 
 /** 1-bit 友好的矢量字母标记，不使用位图封面 */
 function hostGlyph(namespace: string): string {
-  if (namespace === 'sokoban') return '▣'
-  return '◈'
+  // 1-bit 友好（纯几何、无灰度）：每款游戏一个可辨认的字形
+  const glyphs: Record<string, string> = {
+    sokoban: '▣',
+    sudoku: '▤',
+    minesweeper: '☒',
+    '2048': '▩',
+  }
+  return glyphs[namespace] ?? '◈'
 }

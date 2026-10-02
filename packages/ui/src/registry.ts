@@ -20,6 +20,12 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
    * 壳层不应硬编码任何具体玩法的文案 key（原先写死了 sokoban.cell.*）。
    */
   cellLabelKey?(kind: CellKind): string | undefined
+  /**
+   * 从存档状态里取出「内容 id」，用于「继续」定位与通关进度。
+   * 关卡制游戏（推箱子）就是关卡 id；无关卡制的游戏（2048）可用难度 id 等。
+   * 缺省时壳层回退到读取 state.levelId。
+   */
+  contentIdOf?(state: unknown): string
 }
 
 export type AnyRegistryEntry = GameRegistryEntry<never, never> | GameRegistryEntry<unknown, unknown>

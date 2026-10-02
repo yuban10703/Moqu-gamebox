@@ -308,6 +308,9 @@ export function Dpad({ controls, onMove, size, labelKey }: DpadProps): ReactNode
   const { i18n } = useUi()
   const buttonStyle: CSSProperties = { width: size, height: size }
   const find = (dir: MoveDir): ControlSpec | undefined => controls.find((control) => control.dir === dir)
+  // 没有方向控件（例如数独、扫雷）时整块不渲染，避免在窄屏上白占一块高度
+  if (!controls.some((control) => control.role === 'dpad')) return null
+
   const render = (dir: MoveDir, className: string): ReactNode => {
     const control = find(dir)
     if (!control) return <span className="eink-dpad__empty" />

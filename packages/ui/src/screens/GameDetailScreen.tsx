@@ -96,7 +96,7 @@ export function GameDetailScreen({
   const safePage = Math.min(page, pageCount - 1)
   const pageLevels = levels.slice(safePage * perPage, (safePage + 1) * perPage)
   const summary = entry.progressFor(progress.completed)
-  const currentLevelId = levelIdOf(envelope)
+  const currentLevelId = entry.contentIdOf?.(envelope?.state) ?? levelIdOf(envelope)
 
   const start = (): void => {
     void updateGameSettings(entry.game.id, { difficulty })
@@ -175,7 +175,7 @@ export function GameDetailScreen({
                         ? i18n.t('shell.library.completed')
                         : isCurrent
                           ? i18n.t('shell.detail.progress')
-                          : i18n.t('sokoban.progress.notSolved')}
+                          : i18n.t(`${entry.game.i18nNamespace}.progress.notSolved`)}
                       {best !== undefined ? ` · ${i18n.t('shell.common.moves')} ${best}` : ''}
                     </span>
                   </li>
