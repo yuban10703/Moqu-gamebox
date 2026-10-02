@@ -16,10 +16,11 @@ import { useUi } from '../contexts.js'
 
 export interface DiagnosticsScreenProps {
   onBack: () => void
+  onOpenRefreshTest: () => void
   recovery: RecoveryReport | null
 }
 
-export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps): ReactNode {
+export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: DiagnosticsScreenProps): ReactNode {
   const { i18n, platform, storage, locale } = useUi()
   const [baseline, setBaseline] = useState<DeviceBaseline | null>(null)
   const [saves, setSaves] = useState<SaveMeta[]>([])
@@ -36,7 +37,15 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
 
   return (
     <div className="eink-screen">
-      <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack} />
+      <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack}>
+        {capability.regionRefresh ? (
+          <ActionButton
+            labelKey="shell.diagnostics.refreshTest"
+            size="large"
+            onSelect={onOpenRefreshTest}
+          />
+        ) : null}
+      </TopBar>
 
       <section className="eink-section">
         <h2>{i18n.t('shell.diagnostics.device')}</h2>
@@ -84,6 +93,7 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
           <Row label="fullRefresh" value={String(capability.fullRefresh)} />
           <Row label="partialProfiles" value={String(capability.partialProfiles)} />
           <Row label="regionRefresh" value={String(capability.regionRefresh)} />
+
           <Row label="fastMode" value={String(capability.fastMode)} />
           <Row label={i18n.t('shell.diagnostics.fullRefresh')} value={String(platform.refresh.stats().fullRefreshes)} />
         </dl>

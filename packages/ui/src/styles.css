@@ -513,3 +513,71 @@ html[data-bold-lines='on'] .eink-board__cell {
   margin: 0;
   padding-left: 1.2em;
 }
+
+
+/* ---------- 刷新测试页 ---------- */
+/* 运动区域：我们请求刷新的那个矩形。给它一圈粗边框，方便肉眼确认边界在哪。 */
+.eink-refresh-region {
+  /* align-self/width 必须显式写：父级是 flex 列，否则这个框会被拉伸到整屏宽，
+     而测试的意义正是「框内动、框外不动」——框太大就分不出来了。 */
+  align-self: flex-start;
+  width: fit-content;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 6px solid #000;
+  background: #fff;
+}
+
+.eink-refresh-grid {
+  display: grid;
+  gap: 0;
+  border: 2px solid #000;
+}
+
+.eink-refresh-cell {
+  border: 1px solid #000;
+  background: #fff;
+}
+
+/* 用纯黑填充表示当前所在格：位置每步都变，是「有没有刷新」最直观的指示 */
+.eink-refresh-cell[data-on='yes'] {
+  background: #000;
+}
+
+.eink-refresh-status {
+  margin: 0;
+  font-size: 1.05em;
+  font-weight: 700;
+}
+
+/* 参照区：内容完全静止。变淡/发灰就说明整屏被反复驱动过。 */
+.eink-refresh-stripes {
+  display: flex;
+  height: 40px;
+  border: 2px solid #000;
+  overflow: hidden;
+}
+
+.eink-refresh-stripes > span {
+  flex: 1 1 auto;
+  background: #000;
+  margin-right: 3px;
+}
+
+.eink-refresh-solid {
+  height: 44px;
+  margin-top: 8px;
+  background: #000;
+}
+
+/* 测试页要紧凑：区域与参照区必须同屏可见，否则没法对照 */
+.eink-screen--refresh-test .eink-section {
+  margin: 6px 0;
+  padding: 4px 0;
+}
+
+.eink-screen--refresh-test .eink-section h2 {
+  margin: 2px 0 4px;
+}
