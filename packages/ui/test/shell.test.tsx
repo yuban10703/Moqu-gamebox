@@ -1,0 +1,243 @@
+// @vitest-environment jsdom
+/**
+ * 壳层集成测试（jsdom）。
+ *
+ * 覆盖 M2 的验收点：游戏库 → 详情 → 游戏 → 存档；设置切换即时生效；
+ * 保存失败可见可重试；损坏存档被保留并提示（不被静默覆盖）；返回键钩子行为正确。
+ */
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  createMemoryKv,
+  coreDictEn,
+  coreDictZh,
+  newEnvelope,
+  type KvBackend,
+} from '@eink/core'
+import { createPlatform } from '@eink/platform'
+import {
+  LEVEL_WITNESSES,
+  PACK,
+  progressSummary,
+  sokobanEn,
+  sokobanGame,
+  sokobanZh,
+} from '@eink/sokoban'
+import { App } from '../src/App.js'
+import { defineGame, type GameLibrary } from '../src/registry.js'
+
+afterEach(() => {
+  cleanup()
+  delete window.__einkHandleBack
+})
+
+const library: GameLibrary = {
+  entries: [
+    defineGame({
+      game: sokobanGame,
+      rulesKeys: ['sokoban.rules.body', 'sokoban.rules.body2'],
+      defaultDifficulty: 'starter',
+      levels: PACK.map((level) => ({ id: level.def.id })),
+      progressFor: (completed) => {
+        const summary = progressSummary(completed)
+        return { done: summary.done, total: summary.total }
+      },
+      indexOfLevel: (levelId) => Math.max(0, PACK.findIndex((level) => level.def.id === levelId)),
+    }),
+  ],
+  dicts: {
+    'zh-CN': { ...coreDictZh, ...sokobanZh },
+    'en-US': { ...coreDictEn, ...sokobanEn },
+  },
+}
+
+async function mount(kv: KvBackend = createMemoryKv()) {
+  const platform = await createPlatform({ kv, now: () => 1_700_000_000_000 })
+  const utils = render(<App platform={platform} library={library} />)
+  await waitFor(() => expect(screen.getByText(/All games|全部游戏/)).toBeTruthy())
+  return { platform, kv, ...utils }
+}
+
+/** 进入推箱子详情并开始新游戏 */
+async function enterGame(): Promise<void> {
+  fireEvent.click(screen.getByText('Sokoban'))
+  await waitFor(() => expect(screen.getByText(/How to play/)).toBeTruthy())
+  fireEvent.click(screen.getByText('New game'))
+  await waitFor(() => expect(screen.getByRole('grid')).toBeTruthy())
+}
+
+/** 读取某个统计项的值（dt 与 dd 是同一容器内的兄弟节点） */
+function statValue(label: string): string {
+  const dt = screen.getAllByText(label).find((node) => node.tagName === 'DT')
+  if (!dt) throw new Error(`stat not found: ${label}`)
+  return dt.parentElement?.querySelector('dd')?.textContent ?? ''
+}
+
+const DIR_LABEL: Record<string, string> = { up: 'Up', down: 'Down', left: 'Left', right: 'Right' }
+
+describe('游戏库 → 详情 → 游戏', () => {
+  it('首页显示游戏与进度，无法持久化时有明确提示', async () => {
+    await mount()
+    expect(screen.getByText('Sokoban')).toBeTruthy()
+    expect(screen.getAllByText(/0\/16/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/cannot be persisted/)).toBeTruthy()
+  })
+
+  it('开始新游戏后棋盘渲染出全部格子，有效方向产生状态变化', async () => {
+    await mount()
+    await enterGame()
+    const level = PACK[0]!.parsed
+    expect(screen.getAllByRole('gridcell')).toHaveLength(level.cols * level.rows)
+    expect(statValue('Moves')).toBe('0')
+
+    fireEvent.click(screen.getByLabelText('Up'))
+    await waitFor(() => expect(statValue('Moves')).toBe('1'))
+  })
+
+  it('走不通的方向给出明确文字提示，而不是静默无响应', async () => {
+    await mount()
+    await enterGame()
+    // 一路向上，直到撞到顶墙
+    for (let i = 0; i < 6; i++) fireEvent.click(screen.getByLabelText('Up'))
+    await waitFor(() => expect(screen.getByTestId('notice').textContent).toMatch(/blocked/))
+    // 被拒绝的输入不改变局面计数
+    const moves = statValue('Moves')
+    fireEvent.click(screen.getByLabelText('Up'))
+    expect(statValue('Moves')).toBe(moves)
+  })
+
+  it('有效动作会写盘并显示已保存', async () => {
+    await mount()
+    await enterGame()
+    fireEvent.click(screen.getByLabelText('Up'))
+    await waitFor(() => expect(screen.getByTestId('save-badge').textContent).toMatch(/Saved/), {
+      timeout: 3000,
+    })
+  })
+
+  it('按见证解法走完首关会显示过关面板与下一关入口', async () => {
+    const { kv } = await mount()
+    await enterGame()
+    const witness = LEVEL_WITNESSES['L01']!
+    expect(witness.length).toBeGreaterThan(0)
+    for (const dir of witness) {
+      fireEvent.click(screen.getByLabelText(DIR_LABEL[dir]!))
+    }
+    await waitFor(() => expect(screen.getByText(/Level solved/)).toBeTruthy())
+    expect(screen.getByText('Next level')).toBeTruthy()
+
+    // 过关是「关键节点」：必须已经立即落盘（不依赖 500ms 合并窗口），并记录完成进度
+    const stored = await kv.get('save:1:committed:sokoban')
+    expect(stored).toContain('"ended":"won"')
+    expect(stored).toContain('L01')
+    // 过关只提交一次，不允许出现「界面过关但存档冲突」的假失败
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('设置与语言', () => {
+  it('切换到中文后界面文案立即变化，字号写入根节点', async () => {
+    await mount()
+    fireEvent.click(screen.getByText('Settings'))
+    await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
+
+    fireEvent.click(screen.getByText('简体中文'))
+    await waitFor(() => expect(screen.getByText('字号')).toBeTruthy())
+    expect(document.documentElement.lang).toBe('zh-CN')
+
+    fireEvent.click(screen.getByText('特大'))
+    await waitFor(() => expect(document.documentElement.dataset.fontScale).toBe('1.5'))
+  })
+
+  it('不支持直接控制刷新时，不把档位显示为可用', async () => {
+    await mount()
+    fireEvent.click(screen.getByText('Settings'))
+    await waitFor(() => expect(screen.getByText(/Refresh profile/)).toBeTruthy())
+    expect(screen.getByText(/does not expose refresh control/)).toBeTruthy()
+  })
+})
+
+describe('保存失败与损坏存档', () => {
+  it('写入失败时显示失败原因与重试入口', async () => {
+    const base = createMemoryKv()
+    const failing: KvBackend = {
+      ...base,
+      commitCas: async () => {
+        throw new Error('QuotaExceededError: storage full')
+      },
+    }
+    await mount(failing)
+    await enterGame()
+    fireEvent.click(screen.getByLabelText('Up'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/Save failed/), {
+      timeout: 3000,
+    })
+    expect(screen.getByText('Retry')).toBeTruthy()
+  })
+
+  it('损坏的存档会在首页暴露，打开后提示且原档不被覆盖', async () => {
+    const kv = createMemoryKv()
+    const broken = newEnvelope(
+      {
+        gameId: 'sokoban',
+        rulesVersion: sokobanGame.rulesVersion,
+        contentVersion: sokobanGame.contentVersion,
+        difficulty: 'starter',
+        seed: 0,
+        state: { levelId: 'L01', log: [] },
+      },
+      1000,
+    )
+    await kv.setMany([
+      ['save:1:committed:sokoban', JSON.stringify({ ...broken, checksum: '00000000' })],
+    ])
+
+    await mount(kv)
+    // 首页必须提示存在损坏存档
+    const warning = await screen.findByText(/cannot be read/)
+    expect(warning).toBeTruthy()
+
+    fireEvent.click(screen.getByText(/Save check/))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/corrupted/i), {
+      timeout: 3000,
+    })
+    expect(await kv.get('save:1:committed:sokoban')).toContain('"checksum":"00000000"')
+  })
+
+  it('损坏存档时详情页开新局需要确认', async () => {
+    const kv = createMemoryKv()
+    const broken = newEnvelope(
+      {
+        gameId: 'sokoban',
+        rulesVersion: sokobanGame.rulesVersion,
+        contentVersion: sokobanGame.contentVersion,
+        difficulty: 'starter',
+        seed: 0,
+        state: { levelId: 'L01', log: [] },
+      },
+      1000,
+    )
+    await kv.setMany([
+      ['save:1:committed:sokoban', JSON.stringify({ ...broken, checksum: '00000000' })],
+    ])
+    await mount(kv)
+    fireEvent.click(screen.getByText('Sokoban'))
+    await waitFor(() => expect(screen.getByText(/How to play/)).toBeTruthy())
+    expect(screen.getAllByText(/cannot be read/).length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByText('New game'))
+    // 不是直接开始，而是先弹出替换确认
+    await waitFor(() => expect(screen.getByText(/A game is in progress/)).toBeTruthy())
+  })
+})
+
+describe('系统返回键', () => {
+  it('首页返回 false（允许退出应用），进入子页面后返回 true', async () => {
+    await mount()
+    expect(window.__einkHandleBack?.()).toBe(false)
+
+    fireEvent.click(screen.getByText('Settings'))
+    await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
+    expect(window.__einkHandleBack?.()).toBe(true)
+  })
+})

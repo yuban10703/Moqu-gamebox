@@ -1,0 +1,76 @@
+/** 帮助页：墨水屏使用说明、离线说明、存档说明、键盘与硬件键。 */
+import type { ReactNode } from 'react'
+import { TopBar } from '../components.js'
+import { useUi } from '../contexts.js'
+
+export interface HelpScreenProps {
+  onBack: () => void
+  onDiagnostics: () => void
+}
+
+const CONTROL_KEYS = [
+  'shell.help.controls.move',
+  'shell.help.controls.undo',
+  'shell.help.controls.restart',
+  'shell.help.controls.pause',
+  'shell.help.controls.paging',
+]
+
+export function HelpScreen({ onBack, onDiagnostics }: HelpScreenProps): ReactNode {
+  const { i18n, platform } = useUi()
+  const capability = platform.refresh.capability()
+  const offline = platform.offline.state()
+
+  return (
+    <div className="eink-screen">
+      <TopBar title={i18n.t('shell.nav.help')} onBack={onBack} />
+
+      <section className="eink-section">
+        <h2>{i18n.t('shell.diagnostics.help')}</h2>
+        <p className="eink-text">{i18n.t('shell.diagnostics.help.body')}</p>
+        {capability.fullRefresh ? <p className="eink-notice">{i18n.t('shell.diagnostics.sdk.found')}</p> : null}
+      </section>
+
+      <section className="eink-section">
+        <h2>{i18n.t('shell.help.offline.title')}</h2>
+        <p className="eink-notice">
+          {i18n.t(
+            offline === 'ready'
+              ? 'shell.offline.ready'
+              : offline === 'preparing'
+                ? 'shell.offline.preparing'
+                : 'shell.offline.unavailable',
+          )}
+        </p>
+        <p className="eink-text">{i18n.t('shell.help.offline.body')}</p>
+      </section>
+
+      <section className="eink-section">
+        <h2>{i18n.t('shell.help.saves.title')}</h2>
+        <p className="eink-text">{i18n.t('shell.help.saves.body')}</p>
+        {platform.storage.persistent ? null : (
+          <p className="eink-notice" role="alert">
+            {i18n.t('shell.help.storage.warning')}
+          </p>
+        )}
+      </section>
+
+      <section className="eink-section">
+        <h2>{i18n.t('shell.help.controls.title')}</h2>
+        <ul className="eink-list">
+          {CONTROL_KEYS.map((key) => (
+            <li className="eink-list__item" key={key}>
+              {i18n.t(key)}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <footer className="eink-footer">
+        <button type="button" className="eink-link" onClick={onDiagnostics}>
+          {i18n.t('shell.nav.diagnostics')}
+        </button>
+      </footer>
+    </div>
+  )
+}

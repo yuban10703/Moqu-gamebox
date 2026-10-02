@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">墨水屏游戏盒子</string>
+    <string name="backup_file_name">eink-gamebox-backup.json</string>
+</resources>

@@ -1,0 +1,505 @@
+/**
+ * 墨水屏样式基线。
+ *
+ * 硬性约定（与 docs/eink-guidelines.md 一致）：
+ * - 没有任何 transition / animation；
+ * - 不使用半透明遮罩、阴影渐变做状态表达；
+ * - 状态区分靠符号（○ □ ◼ ▲ △）、线型（实线/虚线/点线）与文字；
+ * - 触摸目标不小于 48px；正文不小于 18px；
+ * - 文字使用系统字体（含中文回退链），不依赖打包字体。
+ */
+:root {
+  --ink-black: #000;
+  --ink-white: #fff;
+  --line: 2px;
+  --gap: 12px;
+  --font-base: 18px;
+}
+
+html[data-font-scale='1.25'] {
+  --font-base: 22px;
+}
+
+html[data-font-scale='1.5'] {
+  --font-base: 26px;
+}
+
+html[data-bold-lines='off'] {
+  --line: 1px;
+}
+
+* {
+  box-sizing: border-box;
+  /* 墨水屏上不使用任何动画与过渡 */
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font-family: system-ui, -apple-system, 'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  font-size: var(--font-base);
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  /* 防止双指缩放与双击缩放带来的误操作 */
+  touch-action: manipulation;
+}
+
+.eink-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.eink-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap);
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex: 1;
+}
+
+.eink-screen__header h1,
+.eink-topbar h1 {
+  font-size: 1.35em;
+  margin: 0;
+}
+
+.eink-section {
+  border-top: var(--line) solid var(--ink-black);
+  padding-top: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eink-section h2 {
+  font-size: 1.1em;
+  margin: 0;
+}
+
+.eink-section--warning {
+  border: var(--line) dashed var(--ink-black);
+  padding: var(--gap);
+}
+
+.eink-section--result {
+  border: var(--line) solid var(--ink-black);
+  padding: var(--gap);
+}
+
+.eink-text,
+.eink-muted {
+  margin: 0;
+}
+
+.eink-muted {
+  color: #333;
+}
+
+.eink-notice {
+  margin: 0;
+  padding: 8px 12px;
+  border: var(--line) solid var(--ink-black);
+  font-weight: 600;
+}
+
+/* ---------- 按钮 ---------- */
+.eink-button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 10px 16px;
+  border: var(--line) solid var(--ink-black);
+  border-radius: 2px;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.eink-button[data-size='large'] {
+  min-height: 60px;
+  font-size: 1.05em;
+  padding: 12px 20px;
+}
+
+.eink-button[data-emphasis='primary'] {
+  background: var(--ink-black);
+  color: var(--ink-white);
+  font-weight: 600;
+}
+
+/* 走不通的方向：虚线边框，仍然可点，点了会给文字反馈 */
+.eink-button[data-tone='muted'] {
+  border-style: dashed;
+}
+
+.eink-button:disabled {
+  border-style: dotted;
+  color: #444;
+  cursor: not-allowed;
+}
+
+.eink-link {
+  border: none;
+  background: none;
+  color: var(--ink-black);
+  text-decoration: underline;
+  font: inherit;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+/* ---------- 顶栏 / 统计 / 页脚 ---------- */
+.eink-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  border-bottom: var(--line) solid var(--ink-black);
+  padding-bottom: 8px;
+}
+
+.eink-topbar__title {
+  flex: 1;
+}
+
+.eink-topbar__subtitle {
+  margin: 0;
+  color: #333;
+}
+
+.eink-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin: 0;
+}
+
+.eink-stats__item {
+  border: 1px solid var(--ink-black);
+  padding: 4px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.eink-stats__item dt {
+  font-size: 0.85em;
+}
+
+.eink-stats__item dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.eink-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+  border-top: var(--line) solid var(--ink-black);
+  padding-top: 8px;
+  margin-top: auto;
+}
+
+/* ---------- 卡片 / 网格 ---------- */
+.eink-card {
+  border: var(--line) solid var(--ink-black);
+  padding: var(--gap);
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.eink-card__main h3 {
+  margin: 0 0 6px;
+  font-size: 1.1em;
+}
+
+.eink-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eink-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--gap);
+  padding: 0;
+  margin: 0;
+}
+
+.eink-tile {
+  width: 100%;
+  min-height: 140px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--gap);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eink-tile__host {
+  font-size: 2em;
+  line-height: 1;
+}
+
+.eink-tile__title {
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+.eink-tile__meta,
+.eink-tile__done {
+  font-size: 0.9em;
+}
+
+.eink-tile__done {
+  border: 1px solid var(--ink-black);
+  padding: 0 6px;
+}
+
+/* ---------- 棋盘 ---------- */
+.eink-board-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.eink-board {
+  display: grid;
+  border: var(--line) solid var(--ink-black);
+  touch-action: manipulation;
+}
+
+.eink-board__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ink-black);
+  font-size: calc(var(--cell, 40px) * 0.62);
+  line-height: 1;
+}
+
+html[data-bold-lines='on'] .eink-board__cell {
+  border-width: 2px;
+}
+
+.eink-board__cell[data-kind='wall'] {
+  background: var(--ink-black);
+}
+
+/* ---------- 控制区 ---------- */
+.eink-controls {
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.eink-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 8px;
+  align-items: center;
+  justify-items: center;
+}
+
+.eink-dpad__empty {
+  width: 0;
+  height: 0;
+}
+
+.eink-dpad__center {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--ink-black);
+}
+
+.eink-controls__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- 列表 / 关卡 ---------- */
+.eink-levels,
+.eink-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+}
+
+.eink-levels__item,
+.eink-list__item {
+  border: 1px solid var(--ink-black);
+  padding: 6px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.eink-levels__item[data-done='yes'] {
+  border-width: 2px;
+}
+
+.eink-levels__index {
+  font-weight: 700;
+  min-width: 2ch;
+}
+
+.eink-levels__meta {
+  font-size: 0.85em;
+  color: #333;
+}
+
+.eink-pager {
+  display: flex;
+  gap: var(--gap);
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ---------- 对话框 / 暂停层 ---------- */
+.eink-dialog,
+.eink-overlay {
+  position: fixed;
+  inset: 0;
+  /* 墨水屏不做半透明遮罩：整屏不透明白底 + 明显边框 */
+  background: var(--ink-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  overflow: auto;
+}
+
+.eink-dialog__panel,
+.eink-overlay__panel {
+  border: 4px solid var(--ink-black);
+  padding: calc(var(--gap) * 1.5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  max-width: 720px;
+  width: 100%;
+}
+
+.eink-dialog__actions {
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+/* ---------- 其它 ---------- */
+.eink-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.eink-badge {
+  border: 1px solid var(--ink-black);
+  padding: 2px 8px;
+  font-size: 0.85em;
+}
+
+.eink-badge[data-state='unavailable'],
+.eink-badge--warning {
+  border-style: dashed;
+}
+
+.eink-choice-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eink-save {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.eink-save--failed {
+  border: var(--line) dashed var(--ink-black);
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.eink-kv {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eink-kv__row {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px dotted var(--ink-black);
+  padding: 2px 0;
+}
+
+.eink-kv__row dt {
+  min-width: 12ch;
+  color: #333;
+}
+
+.eink-kv__row dd {
+  margin: 0;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.eink-diagnostics__raw pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--ink-black);
+  padding: 8px;
+  font-size: 0.85em;
+  margin: 0;
+}
+
+.eink-result-details {
+  margin: 0;
+  padding-left: 1.2em;
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 不依赖 appcompat：墨水屏只需要一个无标题栏的浅色主题，减少依赖与启动开销 -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:colorBackground">@android:color/white</item>
+        <!-- 墨水屏上不使用窗口动画 -->
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

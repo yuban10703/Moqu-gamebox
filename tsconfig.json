@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["vitest/globals", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@eink/core": ["packages/core/src/index.ts"],
+      "@eink/core/*": ["packages/core/src/*"],
+      "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
+      "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/ui": ["packages/ui/src/index.ts"],
+      "@eink/ui/*": ["packages/ui/src/*"],
+      "@eink/platform": ["packages/platform/src/index.ts"],
+      "@eink/platform/*": ["packages/platform/src/*"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "packages/*/test/**/*",
+    "packages/games/*/src/**/*",
+    "packages/games/*/test/**/*",
+    "packages/games/*/tools/**/*",
+    "apps/web/src/**/*"
+  ]
+}

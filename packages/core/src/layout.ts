@@ -1,0 +1,130 @@
+/**
+ * 布局纯函数。抽出成纯函数的目的：在没有浏览器、没有真机的环境里，
+ * 依然可以用测试守住「触摸目标不小于 48px」「棋盘不溢出」「字号放大后仍可用」这些不变量。
+ *
+ * 注意：BOOX 的系统 density 常被改写，**不要假设 1 CSS px = 1 物理 px**，
+ * 一切以运行时实测的 CSS 视口为准（诊断页会记录）。
+ */
+
+export type FontScale = 1 | 1.25 | 1.5
+
+export interface Viewport {
+  width: number
+  height: number
+  dpr: number
+}
+
+export interface LayoutConfig {
+  fontScale: FontScale
+  /** 最小触摸目标（对齐 Android 48dp 触控尺度） */
+  minTouchTarget: number
+  /** 棋盘格最小边长 */
+  minCell: number
+  margin: number
+  gap: number
+}
+
+export const DEFAULT_LAYOUT: LayoutConfig = {
+  fontScale: 1,
+  minTouchTarget: 48,
+  minCell: 24,
+  margin: 16,
+  gap: 12,
+}
+
+export interface RootLayout {
+  baseFont: number
+  buttonMin: number
+  buttonHeight: number
+  margin: number
+  gap: number
+  contentWidth: number
+  topBarHeight: number
+  /** 控制区（方向盘 + 操作按钮）占用的高度 */
+  controlsHeight: number
+  /** 留给棋盘的区域 */
+  boardArea: { width: number; height: number }
+}
+
+export interface BoardLayout {
+  cols: number
+  rows: number
+  cell: number
+  boardWidth: number
+  boardHeight: number
+  /** 棋盘在区域内的居中偏移 */
+  offsetX: number
+  offsetY: number
+}
+
+function baseFontFor(width: number): number {
+  if (width >= 1200) return 22
+  if (width >= 800) return 20
+  return 18
+}
+
+export function computeRootLayout(
+  viewport: Viewport,
+  config: LayoutConfig = DEFAULT_LAYOUT,
+  options: { showDpad?: boolean; showStats?: boolean } = {},
+): RootLayout {
+  const showDpad = options.showDpad ?? true
+  const showStats = options.showStats ?? true
+  const margin = Math.max(config.margin, Math.round(viewport.width * 0.015))
+  const gap = Math.max(config.gap, Math.round(margin * 0.75))
+  const baseFont = Math.round(baseFontFor(viewport.width) * config.fontScale)
+  const buttonHeight = Math.max(config.minTouchTarget, Math.round(baseFont * 2.2))
+  const buttonMin = Math.max(config.minTouchTarget, buttonHeight)
+  const contentWidth = Math.max(1, Math.round(viewport.width - margin * 2))
+  const topBarHeight = buttonHeight + gap
+  const statsHeight = showStats ? Math.round(baseFont * 2.6) : 0
+  const dpadHeight = showDpad ? buttonHeight * 2 + gap * 2 : buttonHeight
+  const controlsHeight = dpadHeight + (showDpad ? buttonHeight : 0) + gap * 2 + statsHeight
+  const boardArea = {
+    width: contentWidth,
+    height: Math.max(1, Math.round(viewport.height - topBarHeight - controlsHeight - margin * 2)),
+  }
+  return {
+    baseFont,
+    buttonMin,
+    buttonHeight,
+    margin,
+    gap,
+    contentWidth,
+    topBarHeight,
+    controlsHeight,
+    boardArea,
+  }
+}
+
+export function computeBoardLayout(
+  area: { width: number; height: number },
+  cols: number,
+  rows: number,
+  config: LayoutConfig = DEFAULT_LAYOUT,
+): BoardLayout {
+  const safeCols = Math.max(1, Math.floor(cols))
+  const safeRows = Math.max(1, Math.floor(rows))
+  const fit = Math.min(area.width / safeCols, area.height / safeRows)
+  const cell = Math.max(config.minCell, Math.floor(fit))
+  const boardWidth = cell * safeCols
+  const boardHeight = cell * safeRows
+  return {
+    cols: safeCols,
+    rows: safeRows,
+    cell,
+    boardWidth,
+    boardHeight,
+    offsetX: Math.max(0, Math.round((area.width - boardWidth) / 2)),
+    offsetY: Math.max(0, Math.round((area.height - boardHeight) / 2)),
+  }
+}
+
+/** 目标设备视口的参考值（真机实测前的设计基线；真机实测后回填 A01） */
+export const REFERENCE_VIEWPORTS: ReadonlyArray<{ name: string; viewport: Viewport }> = [
+  { name: 'BOOX Note Air 10.3\" portrait (design baseline)', viewport: { width: 1123, height: 1498, dpr: 1.25 } },
+  { name: 'BOOX Note Air 10.3\" landscape', viewport: { width: 1498, height: 1123, dpr: 1.25 } },
+  { name: 'BOOX Poke 6\" portrait', viewport: { width: 718, height: 970, dpr: 1.5 } },
+  { name: 'BOOX Nova 7.8\" portrait', viewport: { width: 938, height: 1250, dpr: 1.5 } },
+  { name: 'BOOX Max 13.3\" portrait', viewport: { width: 1100, height: 1467, dpr: 1.5 } },
+]

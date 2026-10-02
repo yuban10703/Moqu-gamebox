@@ -1,0 +1,23 @@
+# 依赖与构建产物
+node_modules/
+dist/
+*.tsbuildinfo
+
+# 本地工具链（见 tools/scripts/setup-android-toolchain.sh）
+.toolchain/
+.npm-cache/
+
+# Android
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+local.properties
+*.apk
+*.aab
+*.keystore
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+*.log

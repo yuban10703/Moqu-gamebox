@@ -1,0 +1,20 @@
+{
+  "name": "墨水屏游戏盒子",
+  "short_name": "游戏盒子",
+  "description": "为 BOOX 等墨水屏设备准备的离线游戏合集",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

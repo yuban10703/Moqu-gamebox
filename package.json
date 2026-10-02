@@ -1,0 +1,35 @@
+{
+  "name": "eink-gamebox",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "墨水屏游戏盒子：Web(PWA) 与 Android(BOOX) 双端的离线游戏合集",
+  "workspaces": [
+    "packages/*",
+    "packages/games/*",
+    "apps/web"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:i18n": "vitest run packages/games/sokoban/test/dicts.test.ts && node tools/scripts/check-i18n.mjs",
+    "build:web": "npm --workspace @eink/web run build && node tools/scripts/generate-sw.mjs apps/web/dist",
+    "check": "npm run typecheck && npm run test && npm run check:i18n && npm run build:web",
+    "dev:web": "npm --workspace @eink/web run dev",
+    "setup:android": "bash tools/scripts/setup-android-toolchain.sh",
+    "build:apk": "bash tools/scripts/build-apk.sh",
+    "gen:levels": "DUMP_LEVELS=1 vitest run packages/games/sokoban/test/dump-levels.test.ts"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "fake-indexeddb": "^6.2.2",
+    "jsdom": "^30.1.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

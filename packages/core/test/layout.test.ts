@@ -1,0 +1,92 @@
+/**
+ * 布局不变量测试。
+ *
+ * 这些断言是「没有真机也能守住设计红线」的关键：触摸目标不小于 48px、字号不小于 18px、
+ * 棋盘不溢出可用区域、字号放大后仍然可用。
+ * 各设备的具体手感仍需真机确认（F04），这里只保证不会被代码改坏。
+ */
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_LAYOUT,
+  REFERENCE_VIEWPORTS,
+  computeBoardLayout,
+  computeRootLayout,
+  type FontScale,
+} from '../src/layout.js'
+
+const FONT_SCALES: FontScale[] = [1, 1.25, 1.5]
+const BOARD_SHAPES: Array<[number, number]> = [
+  [7, 7],
+  [11, 9],
+  [9, 11],
+]
+
+describe('根布局不变量', () => {
+  for (const { name, viewport } of REFERENCE_VIEWPORTS) {
+    for (const fontScale of FONT_SCALES) {
+      it(`${name} / 字号 ${fontScale}：触摸目标与字号达标`, () => {
+        const layout = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale })
+        expect(layout.buttonMin).toBeGreaterThanOrEqual(48)
+        expect(layout.buttonHeight).toBeGreaterThanOrEqual(48)
+        expect(layout.baseFont).toBeGreaterThanOrEqual(18)
+        expect(Number.isInteger(layout.baseFont)).toBe(true)
+        expect(Number.isInteger(layout.margin)).toBe(true)
+        expect(layout.contentWidth).toBeLessThanOrEqual(viewport.width)
+        expect(layout.boardArea.height).toBeGreaterThan(0)
+      })
+    }
+  }
+
+  it('字号放大只会增加按钮与顶部栏的高度，不会缩到红线以下', () => {
+    const viewport = REFERENCE_VIEWPORTS[0]!.viewport
+    const standard = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale: 1 })
+    const huge = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale: 1.5 })
+    expect(huge.baseFont).toBeGreaterThan(standard.baseFont)
+    expect(huge.buttonHeight).toBeGreaterThanOrEqual(standard.buttonHeight)
+    expect(huge.controlsHeight).toBeGreaterThanOrEqual(standard.controlsHeight)
+  })
+
+  it('整个纵向预算不会超过视口高度', () => {
+    for (const { viewport } of REFERENCE_VIEWPORTS) {
+      for (const fontScale of FONT_SCALES) {
+        const layout = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale })
+        const total = layout.topBarHeight + layout.boardArea.height + layout.controlsHeight + layout.margin * 2
+        expect(total).toBeLessThanOrEqual(viewport.height)
+      }
+    }
+  })
+})
+
+describe('棋盘布局不变量', () => {
+  for (const { name, viewport } of REFERENCE_VIEWPORTS) {
+    for (const fontScale of FONT_SCALES) {
+      for (const [cols, rows] of BOARD_SHAPES) {
+        it(`${name} / 字号 ${fontScale} / ${cols}x${rows}：棋盘完整落在可用区域内`, () => {
+          const root = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale })
+          const board = computeBoardLayout(root.boardArea, cols, rows, { ...DEFAULT_LAYOUT, fontScale })
+          expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
+          expect(Number.isInteger(board.cell)).toBe(true)
+          expect(board.boardWidth).toBeLessThanOrEqual(root.boardArea.width)
+          expect(board.boardHeight).toBeLessThanOrEqual(root.boardArea.height)
+          expect(board.offsetX).toBeGreaterThanOrEqual(0)
+          expect(board.offsetY).toBeGreaterThanOrEqual(0)
+        })
+      }
+    }
+  }
+
+  it('主基线设备（10.3 吋）在最大字号下，11x9 棋盘仍有舒适格子', () => {
+    const viewport = REFERENCE_VIEWPORTS[0]!.viewport
+    const root = computeRootLayout(viewport, { ...DEFAULT_LAYOUT, fontScale: 1.5 })
+    const board = computeBoardLayout(root.boardArea, 11, 9, { ...DEFAULT_LAYOUT, fontScale: 1.5 })
+    // 44px 是「舒适」下限；真机按 F04 复核后再调整这个门槛
+    expect(board.cell).toBeGreaterThanOrEqual(44)
+  })
+
+  it('极窄视口下不会算出负数或零尺寸', () => {
+    const layout = computeRootLayout({ width: 320, height: 480, dpr: 2 })
+    const board = computeBoardLayout(layout.boardArea, 11, 9)
+    expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
+    expect(board.boardWidth).toBeGreaterThan(0)
+  })
+})
