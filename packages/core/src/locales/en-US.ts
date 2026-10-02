@@ -93,6 +93,7 @@ export const enUS: Dict = {
   'shell.settings.appliesToAll': 'These are global defaults; each game may override them',
 
   'shell.storage.title': 'Data',
+  'shell.storage.restore': 'Restore this backup',
   'shell.storage.export': 'Export backup',
   'shell.storage.import': 'Import backup',
   'shell.storage.clear': 'Clear all progress',

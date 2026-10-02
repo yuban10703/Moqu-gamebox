@@ -128,6 +128,24 @@ if (downloaded?.path && existsSync(downloaded.path)) {
   check('上一节拿到了导出文件（供闭环使用）', false, '没有下载文件')
 }
 
+/* ---------- 1c) 备份在界面上可见（安全网要能被用户看到） ---------- */
+console.log('\n[1c] 设置页的备份列表')
+{
+  // 导入动作就发生在设置页，这里不需要再导航（多按一次「设置」会找不到按钮）
+  await page.waitForTimeout(500)
+  const list = await page.evaluate(() => {
+    const items = document.querySelectorAll('.eink-backups li, .eink-backups .eink-list__item')
+    return { count: items.length, text: [...items].map((e) => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 30)) }
+  })
+  check('设置页列出至少一份备份（导入前的旧档）', list.count >= 1, `${list.count} 份：${list.text.join(' / ').slice(0, 80)}`)
+  // 每个备份条目都要有可点的恢复按钮（当前文案是「继续」，动作是 restoreBackup）
+  const actions = await page.evaluate(
+    () => document.querySelectorAll('.eink-backups button').length,
+  )
+  check('每个备份条目都带恢复按钮', actions >= list.count, `${actions} 个按钮 / ${list.count} 份备份`)
+  // 注意：这里**不要**离开设置页 —— 下一节（导入非法备份）依赖本页的 file input
+}
+
 /* ---------- 2) 导入非法备份 ---------- */
 console.log('\n[2] 导入非法备份')
 let sawError = false

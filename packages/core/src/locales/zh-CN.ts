@@ -93,6 +93,7 @@ export const zhCN: Dict = {
   'shell.settings.appliesToAll': '以下为全局默认，各游戏可单独覆盖',
 
   'shell.storage.title': '数据管理',
+  'shell.storage.restore': '恢复此备份',
   'shell.storage.export': '导出备份',
   'shell.storage.import': '导入备份',
   'shell.storage.clear': '清除全部进度',

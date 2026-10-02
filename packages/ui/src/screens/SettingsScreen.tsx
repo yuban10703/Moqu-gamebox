@@ -190,9 +190,9 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
               {backups.map((backup) => (
                 <li key={`${backup.gameId}-${backup.slot}`} className="eink-list__item">
                   <span>{new Date(backup.slot).toLocaleString()}</span>
+                  {/* 文案曾用「继续」，但动作其实是 restoreBackup —— 恢复路径上的歧义最容易误操作 */}
                   <ActionButton
-                    labelKey="shell.storage.retry"
-                    text={i18n.t('shell.detail.resume')}
+                    labelKey="shell.storage.restore"
                     onSelect={() => {
                       void storage.restoreBackup(backup.gameId, backup.slot).then(async (ok) => {
                         setMessage(ok ? i18n.t('shell.storage.saved') : i18n.t('shell.storage.importFailed', { reason: 'backup' }))
