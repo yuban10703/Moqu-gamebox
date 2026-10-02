@@ -133,6 +133,14 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
         <p className="eink-muted">{i18n.missingKeys().join(', ') || '—'}</p>
       </section>
 
+      {/* 原始转储很长（实测可达 1884px）：必须放在**可滚动的内容区**里。
+          之前它被放在页脚里，页脚被撑到 504px，内容再长就会把页脚自己顶出视口。 */}
+      <section className="eink-section">
+        <h2>{i18n.t('shell.diagnostics.raw')}</h2>
+        <div className="eink-diagnostics__raw">
+          <pre>{text || '—'}</pre>
+        </div>
+      </section>
       </div>
 
       <footer className="eink-footer">
@@ -149,9 +157,6 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
           }}
         />
         {copied ? <span className="eink-muted">{i18n.t('shell.diagnostics.copied')}</span> : null}
-        <div className="eink-diagnostics__raw">
-          <pre>{text || '—'}</pre>
-        </div>
       </footer>
     </div>
   )

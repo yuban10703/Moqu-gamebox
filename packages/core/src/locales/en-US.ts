@@ -131,6 +131,7 @@ export const enUS: Dict = {
   'shell.diagnostics.sdk.missing': 'BOOX display API not detected (generic mode)',
   'shell.diagnostics.webview': 'System WebView',
   'shell.diagnostics.webview.outdated': 'System WebView is old ({version}); consider updating',
+  'shell.diagnostics.raw': 'Raw dump',
   'shell.diagnostics.saves': 'Save check',
   'shell.diagnostics.saves.recovered': 'Recovered {count} uncommitted save(s)',
   'shell.diagnostics.saves.discarded': 'Discarded {count} corrupt uncommitted save(s)',

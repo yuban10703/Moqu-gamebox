@@ -131,6 +131,7 @@ export const zhCN: Dict = {
   'shell.diagnostics.sdk.missing': '未检测到 BOOX 屏幕接口（使用通用模式）',
   'shell.diagnostics.webview': '系统 WebView',
   'shell.diagnostics.webview.outdated': '系统 WebView 版本偏低（{version}），建议更新',
+  'shell.diagnostics.raw': '原始转储',
   'shell.diagnostics.saves': '存档自检',
   'shell.diagnostics.saves.recovered': '已恢复 {count} 条未提交存档',
   'shell.diagnostics.saves.discarded': '已丢弃 {count} 条损坏的未提交存档',

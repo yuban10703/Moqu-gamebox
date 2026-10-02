@@ -350,18 +350,25 @@ await invariants(page, '设置返回后首页')
     await clickText('诊断')
   }
   await page.waitForTimeout(800)
-  /*
-   * 注意：这里**不检查**「固定页脚在屏内」。诊断页把大量按钮与内容放在 .eink-footer 里，
-   * 实测页脚高 504px（正常应约 50px），在内容更长时会把自身底部顶出视口。
-   * 这是已记录待修项（docs/handover.md 未结项），不是本套件要断言的不变量 ——
-   * 页面本身不溢出、按钮均可达，断言页脚位置只会掩盖真正该改的地方。
-   */
-  const diagInvariants = await page.evaluate(() => ({
-    missing: document.body.innerText.includes('⟦'),
-    off: [...document.querySelectorAll('button')].filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1).length,
-  }))
+  // 诊断页的原始转储已移入可滚动内容区（此前放在页脚里，把页脚撑到 504px），
+  // 所以这里恢复完整不变量检查：页脚应当很矮且在屏内。
+  const diagInvariants = await page.evaluate(() => {
+    const f = document.querySelector('.eink-footer')
+    return {
+      missing: document.body.innerText.includes('⟦'),
+      off: [...document.querySelectorAll('button')].filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1).length,
+      footerHeight: f ? Math.round(f.getBoundingClientRect().height) : null,
+      footerOut: f ? f.getBoundingClientRect().bottom > innerHeight + 1 : false,
+    }
+  })
   check('诊断页：无缺键', !diagInvariants.missing)
   check('诊断页：无不可达按钮', diagInvariants.off === 0, `${diagInvariants.off} 个`)
+  check('诊断页：固定页脚在屏内', !diagInvariants.footerOut, `页脚高 ${diagInvariants.footerHeight}px`)
+  check(
+    '诊断页：页脚不再被原始转储撑大',
+    (diagInvariants.footerHeight ?? 0) < 150,
+    `${diagInvariants.footerHeight}px`,
+  )
   const diag = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
   // 诊断页要如实反映运行环境（网页版曾据此确认「不谎报 BOOX 能力」）
   check('诊断页给出平台与存储信息', /存储|IndexedDB|安卓|Android|BOOX/i.test(diag), diag.slice(0, 70))
