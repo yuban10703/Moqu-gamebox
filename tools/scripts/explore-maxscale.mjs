@@ -25,8 +25,19 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 
 const audit = async (label) => {
   const r = await page.evaluate(() => {
+    // 与 explore-ui 保持一致：可滚动容器内的元素算「可达」。
+    // 游戏数量增长后首页在大字号档下必须滚动，「屏外」不等于「缺陷」（第 18 轮定下的标准）。
+    const reachable = (el) => {
+      let n = el.parentElement
+      while (n) {
+        const cs = getComputedStyle(n)
+        if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && n.scrollHeight > n.clientHeight + 1) return true
+        n = n.parentElement
+      }
+      return false
+    }
     const off = [...document.querySelectorAll('button')]
-      .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1)
+      .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b))
       .map((b) => (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10))
     const board = document.querySelector('.eink-board')
     const area = document.querySelector('.eink-board-area')
