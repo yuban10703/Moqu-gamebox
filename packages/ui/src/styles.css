@@ -1356,12 +1356,19 @@ html[data-bold-lines='on'] .eink-board {
   border-top-width: 0;
 }
 
+/*
+ * 整块标签。**必须有底色**：棋盘容器上画着索科班墙壁的 45° 斜纹
+ * （`.eink-board { background-image: repeating-linear-gradient(...) }`，靠"其它格子有白底"盖住），
+ * 而标签是个 span —— 不填底色的话，未选中的那块棋子会**透出墙壁斜纹**，
+ * 看起来就像一块带斜纹的残影（用户指出：这不是墨水屏残影，截图截得到的都是 bug）。
+ */
 .eink-board__label {
   position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
+  background: var(--ink-white);
   font-weight: 700;
   line-height: 1;
   pointer-events: none;
