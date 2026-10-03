@@ -1218,7 +1218,7 @@ html[data-bold-lines='on'] .eink-board {
  * 用 `:not([data-expanded='yes'])` 限定：保存**失败**时状态条会带 data-expanded='yes'
  * 展开成多行（那条规则在上面），警告必须仍有完整空间，不能被这里压掉。
  */
-.eink-screen--game .eink-statusstrip:not([data-expanded='yes']) {
+.eink-screen--game .eink-statusstrip:not([data-expanded='yes']):not([data-notice='yes']) {
   height: 28px;
   min-height: 28px;
   max-height: 28px;
@@ -1252,6 +1252,9 @@ html[data-bold-lines='on'] .eink-board {
 /*
  * 压到 28px 的状态条里，保存提示也必须完整显示（大字号档下按原字号会高 39px 被裁掉）。
  * 提示文字随之缩到 0.75em 并收紧行高；保存**失败**时走 data-expanded='yes' 的展开规则，仍是完整字号。
+ *
+ * 注意：**有游戏提示时状态条不压缩**（见上面 :not([data-notice='yes'])）——
+ * 提示是一整句话，28px 在 26px 字号档下必然被裁（这是我压缩状态条时引入过的回归）。
  */
 .eink-screen--game .eink-statusstrip:not([data-expanded='yes']) .eink-save {
   font-size: 0.75em;
@@ -1259,4 +1262,26 @@ html[data-bold-lines='on'] .eink-board {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * 对局页状态条里的提示：**收紧行高**，让它在固定的 48px 里放得下。
+ * 实测 26px 字号档下原本内容高 54px > 可见 48px，多出的 6px 会压到棋盘上 ——
+ * 保持固定高度（避免提示出现/消失时棋盘抖动）的同时把行高压到 1.2 即可。
+ */
+.eink-screen--game .eink-statusstrip[data-notice='yes'] .eink-notice {
+  line-height: 1.2;
+  margin: 0;
+  overflow: hidden;
+}
+
+/*
+ * 对局页状态条里的提示：收窄内边距。
+ *
+ * `.eink-notice` 默认 padding 8px 12px + 边框，大字号档下一行就是 49~51px，
+ * 超过状态条固定的 48px —— 会压到棋盘上（实测 提示.bottom > 棋盘.top）。
+ * 状态条要保持固定高度（提示出现/消失不能让棋盘抖动），所以这里压的是提示自己的内边距。
+ */
+.eink-screen--game .eink-statusstrip .eink-notice {
+  padding: 2px 8px;
 }

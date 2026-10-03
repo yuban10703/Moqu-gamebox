@@ -278,6 +278,11 @@ export function GameScreen({
           <div
             className="eink-statusstrip"
             data-expanded={session.failureReason ? 'yes' : 'no'}
+            /*
+             * 有游戏提示（非法动作 / 建议竖屏）时不能走"压缩成 28px"的样式：
+             * 提示是一整句话，大字号档下 28px 装不下会被裁掉。
+             */
+            data-notice={session.view.notice || boardOverflow ? 'yes' : 'no'}
           >
             <NoticeLine
               {...(session.view.notice

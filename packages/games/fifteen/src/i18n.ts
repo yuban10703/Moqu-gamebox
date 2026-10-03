@@ -16,7 +16,7 @@ export const fifteenZh: Dict = {
   'fifteen.rules.body2':
     '步数越少越好，撤销可以退回上一次滑动。没有失败状态：排好后还可以继续滑动练习，再排好一次仍会记录更好的成绩。',
   'fifteen.rules.restart': '重新开始会回到同一种子下的初始局面，且无法撤销回重开之前。',
-  'fifteen.illegal.notice': '空白格在那个方向已经贴边，走不动',
+  'fifteen.illegal.notice': '那个方向贴边了',
   'fifteen.difficulty.starter': '入门 3×3',
   'fifteen.difficulty.skilled': '熟练 4×4',
   'fifteen.difficulty.challenging': '挑战 5×5',
@@ -45,7 +45,7 @@ export const fifteenEn: Dict = {
     "Arrow buttons move the blank. Undo and restart are counted in this puzzle's stats.",
   'fifteen.rules.restart':
     'Restarting returns to the opening position for the same seed; you cannot undo back past a restart.',
-  'fifteen.illegal.notice': 'The blank cell is against that edge and cannot move',
+  'fifteen.illegal.notice': 'Blank is against that edge',
   'fifteen.difficulty.starter': 'Starter 3×3',
   'fifteen.difficulty.skilled': 'Skilled 4×4',
   'fifteen.difficulty.challenging': 'Challenging 5×5',
