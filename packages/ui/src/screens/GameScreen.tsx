@@ -539,7 +539,15 @@ export function GameScreen({
           onConfirm={() => {
             setConfirmRestart(false)
             session.resume()
-            session.restart()
+            /*
+             * 「重新开始」对两类玩法语义不同：
+             * · 无关卡（扫雷/数独/2048/关灯/记忆…）：**换一个种子重新生成** —— 否则永远是同一道题
+             *   （用户反馈："重新开始并不会随机生成关卡"）。
+             * · 有关卡（推箱子/华容道）：回到**本关**初始局面。布局是固定的，换种子没意义，
+             *   而且用"新种子"会退回第 1 关。
+             */
+            if (hasLevels) session.restart()
+            else session.restartFresh()
           }}
           onCancel={() => setConfirmRestart(false)}
         />

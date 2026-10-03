@@ -106,6 +106,11 @@ export interface SessionApi<S, A> {
   runControl?: (controlId: string) => boolean
   undo(): void
   restart(): void
+  /**
+   * 「重新开始」的另一种语义：**换一个种子重新生成**（用于无关卡的随机玩法）。
+   * 关卡制玩法要用 restart()（回到本关初始局面），别用这个，否则会退回第 1 关。
+   */
+  restartFresh(): void
   nextLevel(): void
   /** 自由选关：直接跳到指定关卡（详情页点关卡） */
   startLevel(levelId: string): void
@@ -545,6 +550,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       : {}),
     undo: () => dispatch({ type: 'undo' } as unknown as A),
     restart: () => dispatch({ type: 'restart' } as unknown as A),
+    restartFresh: () => void discardAndRestart(),
     nextLevel: () => dispatch({ type: 'nextLevel' } as unknown as A),
     startLevel: (levelId: string) => dispatch({ type: 'startLevel', levelId } as unknown as A),
     pause,
