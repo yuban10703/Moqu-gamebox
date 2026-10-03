@@ -52,7 +52,7 @@ if (!existsSync(playwrightDir)) {
 
 let server = null
 try {
-  if (!run('类型检查 + 单元测试 + i18n + 构建（npm run check）', 'npm', ['run', 'check'])) throw new Error('check')
+  if (!run('类型检查 + 单元测试 + i18n + 构建 + 文档核对（npm run check）', 'npm', ['run', 'check'])) throw new Error('check')
 
   // 探索套件需要静态服务：这里自己起一个，并在结束时关掉（此前需要人工先起服务）
   process.stdout.write(`\n▶ 启动静态服务 :${PORT}\n`)

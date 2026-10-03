@@ -9,6 +9,7 @@
 | 单元测试 | **764**（`npm run check`）|
 | 探索套件 | 5 个（`npm run explore`），断言数见运行输出 |
 | 一键验证 | `npm run verify` 全绿 |
+| 文档核对 | `npm run check:docs`（已并入 `npm run check`）：命令/路径/游戏数与现实不符即失败 |
 | 真机 | `tools/device/verify-device.sh 10.1.1.69:5555 9333` 全绿（9 款审计，退出码可信）|
 | 构建 | Onyx SDK **默认内置**（3.4MB；排除后 2.5MB）|
 
