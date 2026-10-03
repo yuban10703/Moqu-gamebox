@@ -12,9 +12,9 @@ import type { Dict } from '@eink/core'
 export const klotskiZh: Dict = {
   'klotski.title': '华容道',
   'klotski.rules.body':
-    '先点棋子选中，再点旁边的空格即可朝那个方向滑一格。把曹操（2×2）挪到最下方中间的出口。',
+    '先点棋子选中，再点旁边的空格滑一格。把曹操（2×2）挪到最下方出口。',
   'klotski.rules.body2':
-    '棋子不能重叠或滑出棋盘，只能横竖滑一格。撤销退回上一步；重新开始回到本关初始摆法。',
+    '棋子不能重叠或滑出棋盘。撤销退回上一步，重开回到初始摆法。',
   'klotski.rules.restart': '重新开始会回到本关的初始摆法，且无法撤销回重开之前。',
   'klotski.illegal.notice': '这一步滑不过去',
   'klotski.difficulty.starter': '入门',
@@ -41,9 +41,9 @@ export const klotskiZh: Dict = {
 export const klotskiEn: Dict = {
   'klotski.title': 'Klotski',
   'klotski.rules.body':
-    'Tap a piece, then an adjacent empty cell to slide it. Move the 2×2 block to the bottom exit.',
+    'Tap a piece, then an adjacent empty cell to slide it. Move the 2×2 block to the exit.',
   'klotski.rules.body2':
-    'Slides are one cell. Undo takes back one; restart resets the level.',
+    'One slide per move. Undo takes back one slide.',
   'klotski.rules.restart':
     'Restarting returns to this level’s opening layout; you cannot undo back past a restart.',
   'klotski.illegal.notice': 'That block cannot slide that way',

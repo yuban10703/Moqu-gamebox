@@ -14,7 +14,7 @@ export const memoryZh: Dict = {
   'memory.rules.body':
     '点开两张牌，符号相同即配对。全部配对完成即获胜。',
   'memory.rules.body2':
-    '不匹配的牌不会自动翻回：下一次点击先把它们盖回，同时算作新一次翻牌（墨水屏没有计时器）。',
+    '不匹配的牌不会自动翻回：下一次点击先盖回它们，并算作新一次翻牌。',
   'memory.rules.restart': '重开会清空当前进度并重新洗牌；同一难度与同一开局种子依然完全可复现。',
   'memory.illegal.notice': '这里不能这样点',
   'memory.notice.cover': '再点一张扣着的牌，会先把这两张盖回',
@@ -36,7 +36,7 @@ export const memoryEn: Dict = {
   'memory.rules.body':
     'Flip two cards: equal symbols pair up. Pair every card to win.',
   'memory.rules.body2':
-    'Mismatched cards are covered by your next tap, which also counts as a new flip.',
+    'Mismatched cards stay until your next tap, which counts as a new flip.',
   'memory.rules.restart':
     'Restarting clears the current progress and deals a new layout; the same difficulty and starting seed stay fully reproducible.',
   'memory.illegal.notice': 'That tile cannot be tapped',
