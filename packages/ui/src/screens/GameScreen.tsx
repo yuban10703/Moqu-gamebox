@@ -116,14 +116,20 @@ export function GameScreen({
    * 没有方向键的玩法应当**忽略**方向键，而不是报一个假错误。
    */
   const onMove = (dir: MoveDir): void => {
+    /*
+     * 这个玩法有没有**这个方向**的方向键？没有就整个忽略这个按键：
+     * 既不下发（规则层会把它当未知动作报错），也不清除已有的提示
+     * ——实测按一下方向键会把刚出现的提示无声抹掉，看起来像"提示自己消失了"。
+     */
+    const declaresDir = session.controls.some(
+      (control) => control.role === 'dpad' && control.dir === dir,
+    )
+    if (!declaresDir) return
     session.clearNotice()
     // 游戏可以用 controlAction 自定义方向键的动作名（如数字华容道的 {type:'slide',dir}）；
     // 没映射时回落到既有约定 {type:'move',dir}，因此老游戏一行都不用改
     if (session.runControl?.(`move-${dir}`)) return
-    const declaresDir = session.controls.some(
-      (control) => control.role === 'dpad' && control.dir === dir,
-    )
-    if (declaresDir) session.dispatch({ type: 'move', dir } as never)
+    session.dispatch({ type: 'move', dir } as never)
   }
 
   /**
