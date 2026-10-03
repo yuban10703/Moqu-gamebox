@@ -924,7 +924,12 @@ html[data-bold-lines='on'] .eink-board {
  *  · 覆盖层/标注 → 与格子网格是两套坐标系，实测整体错位（用户："点到的不是我想点的那块"）；
  *  · 整格反白 → 按格标记天然与点击对齐；同块之间已无格线，一块多格反白会连成一整块黑。
  */
-.eink-board__cell[data-selected='yes'] {
+/*
+ * 选中格：**整格反白**（黑底白字）。
+ * 选择器写成 `.eink-board .eink-board__cell[...]` 两级：单级的 `[data-kind]` 白底规则在文件后面，
+ * 同优先级后者胜 —— 实测选中格底色仍是白（等于没有选中反馈）。
+ */
+.eink-board .eink-board__cell[data-selected='yes'] {
   background: var(--ink-black);
   color: var(--ink-white);
   outline: none;
@@ -1423,4 +1428,10 @@ html[data-bold-lines='on'] .eink-board {
   background: var(--ink-white);
   color: var(--ink-black);
   border-color: var(--ink-black);
+}
+
+
+/* 选中格内的文字必须跟着反白（否则黑底黑字） */
+.eink-board .eink-board__cell[data-selected='yes'] .eink-board__text {
+  color: var(--ink-white);
 }
