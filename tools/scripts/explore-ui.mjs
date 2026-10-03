@@ -268,7 +268,8 @@ await clickText('暂停')
 await clickOverlay('返回游戏库')
 await page.waitForTimeout(900)
 const progressText = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
-check('首页进度已更新', /1\/16/.test(progressText), progressText.slice(0, 80))
+// 卡片上的进度行已按用户要求删除；进度信息改由「继续上一局」细栏承载（关卡 N）
+check('首页不再显示卡片进度，进度改由继续栏体现', !/进度\s*\d+\/\d+/.test(progressText) && /继续上一局/.test(progressText), progressText.slice(0, 80))
 
 /* ---------- 4c) 失败也要有终局结果面板 ---------- */
 console.log('\n[4c] 踩雷失败后的终局反馈')
