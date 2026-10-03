@@ -32,7 +32,7 @@ fi
   || die "设备不可达（$DEVICE）。WiFi ADB 掉线时需在设备上重新开启无线调试；被防火墙挡住会报 No route to host。"
 
 # 现版本只有一种构建配置：Onyx SDK 已完全移除（无任何开关）
-# （旧注释已删：-PonyxBundled 开关不存在了，Onyx SDK 已完全移除）
+# （该构建开关已随 Onyx SDK 一并删除，现版本只有一种构建配置）
 # 显式传参等于绕过默认值，默认值错了也发现不了。
 (cd "$ROOT" && source .toolchain/env.sh && cd apps/android && "$GRADLE_BIN" --no-daemon assembleDebug >/dev/null) \
   || die "构建失败"
