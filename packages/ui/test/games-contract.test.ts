@@ -18,6 +18,7 @@ import { checkersGame } from '@eink/checkers'
 import { klotskiGame } from '@eink/klotski'
 import { battleshipGame } from '@eink/battleship'
 import { mancalaGame } from '@eink/mancala'
+import { ninemensGame } from '@eink/ninemens'
 import { dotsboxesGame } from '@eink/dotsboxes'
 import { knightstourGame } from '@eink/knightstour'
 import { pegsolitaireGame } from '@eink/pegsolitaire'
@@ -55,6 +56,7 @@ const GAMES: Array<GameDef<any, any>> = [
   dotsboxesGame as GameDef<any, any>,
   battleshipGame as GameDef<any, any>,
   mancalaGame as GameDef<any, any>,
+  ninemensGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {

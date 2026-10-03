@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/ninemens": ["packages/games/ninemens/src/index.ts"],
+      "@eink/ninemens/*": ["packages/games/ninemens/src/*"],
       "@eink/mancala": ["packages/games/mancala/src/index.ts"],
       "@eink/mancala/*": ["packages/games/mancala/src/*"],
       "@eink/battleship": ["packages/games/battleship/src/index.ts"],
