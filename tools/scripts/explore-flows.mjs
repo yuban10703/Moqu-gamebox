@@ -1,6 +1,6 @@
 /**
  * 探索式缺陷探测（三）：完整流程与状态一致性。
- *   1) 黑白棋**完整下完一局**（含 AI 应手、自动过手、终局判定与结果面板）
+ *   1) 完整一局的覆盖见 explore-ui（推箱子真实通关）
  *   2) 撤销一整回合（玩家 + 对方）
  *   3) 计时器：暂停期间必须停止；重载后必须从已保存用时继续
  *   4) 多游戏存档互不干扰
@@ -112,39 +112,10 @@ await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll()
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
 
-/* ---------- 1) 黑白棋完整一局 ---------- */
-console.log('\n[1] 黑白棋完整下完一局')
-await startGame('黑白棋')
-let moves = 0
-let finished = false
-for (let i = 0; i < 90 && !finished; i++) {
-  const dot = page.locator('.eink-board__cell[data-kind="number"]').first()
-  if (!(await dot.count())) break
-  await dot.click()
-  await page.waitForTimeout(90)
-  finished = (await page.locator('.eink-section--result').count()) > 0
-  moves++
-}
-check('能一路下到终局', finished, `${moves} 手`)
-const title = await page.evaluate(() => document.querySelector('.eink-section--result h2')?.textContent ?? '')
-check('终局有结果标题', title.length > 0, title)
-const details = await page.evaluate(() => document.querySelector('.eink-section--result')?.innerText.replace(/\n+/g, ' / ') ?? '')
-check('终局给出明细（双方子数）', details.length > title.length, details.slice(0, 70))
-await page.screenshot({ path: '/root/墨水屏游戏/.toolchain/shots/reversi-final.png' })
-
-/* ---------- 2) 撤销一整回合 ---------- */
-console.log('\n[2] 撤销一整回合（玩家 + 对方）')
-await startGame('黑白棋')
-await ensurePlaying()
-const blackBefore = await statValue('黑子')
-await page.locator('.eink-board__cell[data-kind="number"]').first().click()
-await page.waitForTimeout(400)
-const blackAfter = await statValue('黑子')
-await page.getByRole('button', { name: /撤销/ }).first().click()
-await page.waitForTimeout(400)
-const blackUndone = await statValue('黑子')
-check('撤销后回到落子前（黑子数一致）', blackUndone === blackBefore, `${blackBefore} → ${blackAfter} → ${blackUndone}`)
-
+/* ---------- 1) 与 2) 原先用「黑白棋」做完整一局与整回合撤销 ----------
+ * 该玩法已按用户要求移除，这两段的覆盖改由 explore-ui 承担：
+ * 它用**推箱子**走完真实通关流程（结果面板、下一关按钮）并覆盖撤销/重开。
+ */
 /* ---------- 3) 计时器 ---------- */
 console.log('\n[3] 计时器：暂停停止 / 重载延续')
 await startGame('推箱子')

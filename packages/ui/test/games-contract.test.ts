@@ -12,20 +12,10 @@ import { describe, expect, it } from 'vitest'
 import { game2048 } from '@eink/2048'
 import { fifteenGame } from '@eink/fifteen'
 import { gomokuGame } from '@eink/gomoku'
-import { connect4Game } from '@eink/connect4'
 import { lightsoutGame } from '@eink/lightsout'
-import { checkersGame } from '@eink/checkers'
 import { klotskiGame } from '@eink/klotski'
-import { battleshipGame } from '@eink/battleship'
-import { mancalaGame } from '@eink/mancala'
-import { ninemensGame } from '@eink/ninemens'
-import { dotsboxesGame } from '@eink/dotsboxes'
-import { knightstourGame } from '@eink/knightstour'
-import { pegsolitaireGame } from '@eink/pegsolitaire'
-import { mazeGame } from '@eink/maze'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
-import { reversiGame } from '@eink/reversi'
 import { sokobanGame } from '@eink/sokoban'
 import { sudokuGame } from '@eink/sudoku'
 import {
@@ -42,21 +32,11 @@ const GAMES: Array<GameDef<any, any>> = [
   sudokuGame as GameDef<any, any>,
   minesweeperGame as GameDef<any, any>,
   game2048 as GameDef<any, any>,
-  reversiGame as GameDef<any, any>,
   fifteenGame as GameDef<any, any>,
   gomokuGame as GameDef<any, any>,
   memoryGame as GameDef<any, any>,
-  connect4Game as GameDef<any, any>,
-  mazeGame as GameDef<any, any>,
   lightsoutGame as GameDef<any, any>,
-  pegsolitaireGame as GameDef<any, any>,
-  checkersGame as GameDef<any, any>,
   klotskiGame as GameDef<any, any>,
-  knightstourGame as GameDef<any, any>,
-  dotsboxesGame as GameDef<any, any>,
-  battleshipGame as GameDef<any, any>,
-  mancalaGame as GameDef<any, any>,
-  ninemensGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {

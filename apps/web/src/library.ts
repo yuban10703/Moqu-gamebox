@@ -13,14 +13,7 @@ import {
 import { game2048, game2048En, game2048Zh } from '@eink/2048'
 import { fifteenEn, fifteenGame, fifteenZh } from '@eink/fifteen'
 import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
-import { connect4En, connect4Game, connect4Zh } from '@eink/connect4'
 import { lightsoutEn, lightsoutGame, lightsoutZh } from '@eink/lightsout'
-import { checkersEn, checkersGame, checkersZh } from '@eink/checkers'
-import { battleshipEn, battleshipGame, battleshipZh } from '@eink/battleship'
-import { mancalaEn, mancalaGame, mancalaZh } from '@eink/mancala'
-import { ninemensEn, ninemensGame, ninemensZh } from '@eink/ninemens'
-import { dotsboxesEn, dotsboxesGame, dotsboxesZh } from '@eink/dotsboxes'
-import { knightstourEn, knightstourGame, knightstourZh } from '@eink/knightstour'
 import {
   PACK as KLOTSKI_PACK,
   klotskiEn,
@@ -28,66 +21,13 @@ import {
   klotskiZh,
   packProgress as klotskiProgress,
 } from '@eink/klotski'
-import { pegsolitaireEn, pegsolitaireGame, pegsolitaireZh } from '@eink/pegsolitaire'
-import { mazeEn, mazeGame, mazeZh } from '@eink/maze'
 import { memoryEn, memoryGame, memoryZh } from '@eink/memory'
-import { reversiEn, reversiGame, reversiZh } from '@eink/reversi'
 import { minesweeperEn, minesweeperGame, minesweeperZh } from '@eink/minesweeper'
 import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
   entries: [
-    defineGame({
-      game: ninemensGame,
-      cellLabelKey: (kind) => `ninemens.cell.${kind}`,
-      rulesKeys: ['ninemens.rules.body', 'ninemens.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: ninemensGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: ninemensGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: mancalaGame,
-      cellLabelKey: (kind) => `mancala.cell.${kind}`,
-      rulesKeys: ['mancala.rules.body', 'mancala.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: mancalaGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: mancalaGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: battleshipGame,
-      cellLabelKey: (kind) => `battleship.cell.${kind}`,
-      rulesKeys: ['battleship.rules.body', 'battleship.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: battleshipGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: battleshipGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: dotsboxesGame,
-      cellLabelKey: (kind) => `dotsboxes.cell.${kind}`,
-      rulesKeys: ['dotsboxes.rules.body', 'dotsboxes.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: dotsboxesGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: dotsboxesGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: knightstourGame,
-      cellLabelKey: (kind) => `knightstour.cell.${kind}`,
-      rulesKeys: ['knightstour.rules.body', 'knightstour.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: knightstourGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: knightstourGame.difficulties.length,
-      }),
-    }),
     defineGame({
       game: klotskiGame,
       cellLabelKey: (kind) => `klotski.cell.${kind}`,
@@ -137,26 +77,6 @@ export const library: GameLibrary = {
       }),
     }),
     defineGame({
-      game: checkersGame,
-      cellLabelKey: (kind) => `checkers.cell.${kind}`,
-      rulesKeys: ['checkers.rules.body', 'checkers.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: checkersGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: checkersGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: pegsolitaireGame,
-      cellLabelKey: (kind) => `pegsolitaire.cell.${kind}`,
-      rulesKeys: ['pegsolitaire.rules.body', 'pegsolitaire.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: pegsolitaireGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: pegsolitaireGame.difficulties.length,
-      }),
-    }),
-    defineGame({
       game: lightsoutGame,
       cellLabelKey: (kind) => `lightsout.cell.${kind}`,
       rulesKeys: ['lightsout.rules.body', 'lightsout.rules.body2'],
@@ -164,26 +84,6 @@ export const library: GameLibrary = {
       progressFor: (completed) => ({
         done: lightsoutGame.difficulties.filter((item) => completed.includes(item.id)).length,
         total: lightsoutGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: mazeGame,
-      cellLabelKey: (kind) => `maze.cell.${kind}`,
-      rulesKeys: ['maze.rules.body', 'maze.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: mazeGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: mazeGame.difficulties.length,
-      }),
-    }),
-    defineGame({
-      game: connect4Game,
-      cellLabelKey: (kind) => `connect4.cell.${kind}`,
-      rulesKeys: ['connect4.rules.body', 'connect4.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: connect4Game.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: connect4Game.difficulties.length,
       }),
     }),
     defineGame({
@@ -217,16 +117,6 @@ export const library: GameLibrary = {
       }),
     }),
     defineGame({
-      game: reversiGame,
-      cellLabelKey: (kind) => `reversi.cell.${kind}`,
-      rulesKeys: ['reversi.rules.body', 'reversi.rules.body2'],
-      defaultDifficulty: 'starter',
-      progressFor: (completed) => ({
-        done: reversiGame.difficulties.filter((item) => completed.includes(item.id)).length,
-        total: reversiGame.difficulties.length,
-      }),
-    }),
-    defineGame({
       game: game2048,
       cellLabelKey: (kind) => `2048.cell.${kind}`,
       rulesKeys: ['2048.rules.body'],
@@ -240,7 +130,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh, ...knightstourZh, ...dotsboxesZh, ...battleshipZh, ...mancalaZh, ...ninemensZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn, ...knightstourEn, ...dotsboxesEn, ...battleshipEn, ...mancalaEn, ...ninemensEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn },
   },
 }
