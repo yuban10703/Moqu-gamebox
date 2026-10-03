@@ -23,6 +23,20 @@ import {
 } from '@eink/core'
 import type { AppStorage } from '@eink/platform'
 
+
+/**
+ * 新一局的种子。
+ *
+ * 此前两处都写死 `seed: 0` —— 后果是**所有靠种子生成的玩法每局都一模一样**：
+ * 扫雷的雷区、迷宫的墙、记忆配对的洗牌、2048 的出块、海战棋的舰队全部固定，
+ * 玩家第二次打开就是同一局（实测确认过）。种子会随存档一起保存，
+ * 因此"恢复存档时棋盘不变"这条性质不受影响。
+ */
+function nextSeed(): number {
+  // 只用时间戳：一次新开局 = 一个新种子；同毫秒内连点两次也无妨（概率极低且不影响可玩性）
+  return Date.now() % 0x7fffffff
+}
+
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
 
 export interface GameProgress {
@@ -215,14 +229,15 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       const result = await storage.saves.loadResult(game.id)
       if (isStale()) return
       if (result.status === 'empty') {
+        const seed = nextSeed()
         const fresh = newEnvelope(
           {
             gameId: game.id,
             rulesVersion: game.rulesVersion,
             contentVersion: game.contentVersion,
             difficulty,
-            seed: 0,
-            state: game.encode(game.create(0, difficulty)),
+            seed,
+            state: game.encode(game.create(seed, difficulty)),
           },
           now(),
         )
@@ -383,14 +398,15 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
 
   const discardAndRestart = useCallback(async () => {
     await storage.saves.remove(game.id)
+    const seed = nextSeed()
     const fresh = newEnvelope(
       {
         gameId: game.id,
         rulesVersion: game.rulesVersion,
         contentVersion: game.contentVersion,
         difficulty,
-        seed: 0,
-        state: game.encode(game.create(0, difficulty)),
+        seed,
+        state: game.encode(game.create(seed, difficulty)),
       },
       now(),
     )
