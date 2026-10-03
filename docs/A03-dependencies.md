@@ -49,7 +49,7 @@
 - SDK 清单声明的 4 个权限（ACCESS_WIFI_STATE / CHANGE_WIFI_STATE / BLUETOOTH / DUMP）
   当时在本项目清单里用 `tools:node="remove"` 剥掉；**这些声明现已连同 SDK 一起删除**，
   最终 APK 依旧是**零权限**；
-- 真机结论：整屏全刷可用（`refreshScreen(GC)`），刷新档位不可用（写入被接受但不生效）。
+- **历史真机结论（该 SDK 已移除）**：整屏全刷可用（`refreshScreen(GC)`），刷新档位不可用（写入被接受但不生效）。
 
 ## 内容来源（无第三方题库）
 
