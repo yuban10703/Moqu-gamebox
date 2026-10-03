@@ -112,6 +112,12 @@ export function computeRootLayout(
  */
 export const BOARD_FRAME_PX = 5
 
+/**
+ * 格子的绝对下限（px）。低于它游戏就没法玩了 —— 即使是方向盘驱动的密集网格。
+ * 见 computeBoardLayout 里的两级下限说明。
+ */
+export const ABSOLUTE_MIN_CELL = 12
+
 export function computeBoardLayout(
   area: { width: number; height: number },
   cols: number,
@@ -137,14 +143,18 @@ export function computeBoardLayout(
   const innerHeight = Math.max(1, area.height - safeFrame * 2 - Math.max(0, safety))
   const fit = Math.min(innerWidth / safeCols, innerHeight / safeRows)
   /**
-   * `minCell` 是**硬下限**：格子绝不能小于它。
+   * 两级下限（第 36 轮定稿，两次事故换来的）：
    *
-   * 曾经为了「不裁切」把它降级成偏好下限（fit 小就让格子变小），
-   * 结果真机极矮横屏（879×407）下棋盘区几乎为 0，格子坍缩到 **1px** —— 游戏完全不可玩 ✗✗
-   * （浏览器同视口复现不出：Chromium 的可用高度比设备多）。
-   * 结论：宁可棋盘略微超出被裁一点（内容仍可辨认、按钮都可点），也不允许格子小到不可用。
+   * - `config.minCell`（24px）是**期望值**：只要放得下就取它，保证点格子的玩法好点；
+   * - `ABSOLUTE_MIN_CELL`（12px）是**绝对下限**：可用区不够时允许缩到这，但绝不能更小。
+   *
+   * 为什么不再把 24px 当硬钳位：密集网格在手机上放不下 24px，
+   * 硬钳位会让棋盘溢出被裁（21×21 迷宫在 415px 宽下只需 19px，却被顶成 24px 而裁掉上下边）。
+   * 为什么又必须有绝对下限：真机极矮横屏下棋盘区几乎为 0，曾经一路缩到 **1px**（完全不可玩 ✗✗）——
+   * 那次是"没有下限"造成的，而不是"有下限"造成的。
    */
-  const cell = Math.max(config.minCell, Math.floor(fit))
+  // 期望值优先；放不下时才退让，但永不越过绝对下限
+  const cell = fit >= config.minCell ? Math.floor(fit) : Math.max(ABSOLUTE_MIN_CELL, Math.floor(fit))
   const boardWidth = cell * safeCols + safeFrame * 2
   const boardHeight = cell * safeRows + safeFrame * 2
   return {

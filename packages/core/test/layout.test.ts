@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_LAYOUT,
   REFERENCE_VIEWPORTS,
+  ABSOLUTE_MIN_CELL,
   computeBoardLayout,
   computeRootLayout,
   type FontScale,
@@ -94,19 +95,22 @@ describe('棋盘布局不变量', () => {
     expect(board.boardHeight).toBeLessThanOrEqual(withPanel.boardArea.height)
   })
 
-  it('极矮可用区：格子仍不得低于 minCell（防坍缩到不可玩）', () => {
+  it('密集网格可以低于期望值，但不得低于绝对下限（两级下限）', () => {
     const area = { width: 860, height: 200 }
-    for (const [cols, rows] of [[15, 15], [16, 16], [9, 9]] as const) {
+    for (const [cols, rows] of [[21, 21], [16, 16], [9, 9]] as const) {
       const board = computeBoardLayout(area, cols, rows)
-      expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
+      expect(board.cell).toBeGreaterThanOrEqual(ABSOLUTE_MIN_CELL)
     }
+    // 放得下时必须用期望值
+    const roomy = computeBoardLayout({ width: 800, height: 800 }, 9, 9)
+    expect(roomy.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
   })
 
   it('极窄视口下不会算出负数或零尺寸', () => {
     const layout = computeRootLayout({ width: 320, height: 480, dpr: 2 })
     const board = computeBoardLayout(layout.boardArea, 11, 9)
-    // minCell 是硬下限：宁可棋盘超出被裁一点，也不能把格子压到不可用（真机曾坍缩到 1px）
-    expect(board.cell).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minCell)
+    // 允许低于期望值 minCell（密集网格放不下），但不得低于绝对下限（真机曾坍缩到 1px）
+    expect(board.cell).toBeGreaterThanOrEqual(ABSOLUTE_MIN_CELL)
     expect(board.boardWidth).toBeGreaterThan(0)
   })
 
