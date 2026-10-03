@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/pegsolitaire": ["packages/games/pegsolitaire/src/index.ts"],
+      "@eink/pegsolitaire/*": ["packages/games/pegsolitaire/src/*"],
       "@eink/lightsout": ["packages/games/lightsout/src/index.ts"],
       "@eink/lightsout/*": ["packages/games/lightsout/src/*"],
       "@eink/maze": ["packages/games/maze/src/index.ts"],
