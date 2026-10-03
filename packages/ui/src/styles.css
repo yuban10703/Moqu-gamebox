@@ -1227,3 +1227,59 @@ html[data-bold-lines='on'] .eink-board {
   font-size: 0.85em;
   white-space: nowrap;
 }
+
+
+/*
+ * 方块布局（用户要求）：**图标在左、文字在右**。
+ *
+ * 上一轮我理解成"整体居中"是错的 —— 用户指的是原来的排版歪：
+ * 旧网格是 'host title' / 'meta done'，于是「进度」那行落在了**图标下面**、
+ * 与标题左边缘不对齐，整张卡看着不居中。
+ * 现在改成 'host title done' / 'host meta meta'：图标跨两行居左，
+ * 标题与进度都从同一左边缘起排，右上角放「已通关」徽标。
+ */
+.eink-grid__item .eink-tile {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'host title done'
+    'host meta meta';
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  text-align: left;
+  padding: 10px;
+}
+
+.eink-grid__item .eink-tile__title {
+  grid-area: title;
+  min-height: 0;
+  display: block;
+  -webkit-line-clamp: none;
+  overflow: visible;
+}
+
+.eink-grid__item .eink-tile__meta {
+  grid-area: meta;
+}
+
+.eink-grid__item .eink-tile__done {
+  grid-area: done;
+  justify-self: end;
+  align-self: start;
+}
+
+.eink-grid__item .eink-game-icon {
+  grid-area: host;
+}
+
+/* 翻页按钮在竖屏下太大（26px 字号继承后像主按钮）——缩到辅助字号与紧凑内边距 */
+.eink-pager__btn {
+  font-size: 0.8em;
+  line-height: 1.2;
+  padding: 1px 6px;
+}
+
+.eink-pager__info {
+  font-size: 0.8em;
+}

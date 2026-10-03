@@ -2,7 +2,7 @@
  * 首页 / 游戏库：继续游戏 + 全部游戏 + 设置入口。
  * 首批游戏少，保持短列表；不使用滚动跟随的复杂导航。
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SaveEnvelope } from '@eink/core'
 import { ActionButton } from '../components.js'
 import { GameIcon } from '../GameIcon.js'
@@ -10,10 +10,14 @@ import { useUi } from '../contexts.js'
 import type { GameRegistryEntry } from '../registry.js'
 
 /**
- * 每页显示的游戏数（用户要求：为全部游戏预留**翻页**而不是滑动）。
- * 6 = 2 列 × 3 行，在 439×847、26px 字号下也放得下（每张卡约 90px）。
+ * 每页游戏数的兜底值。
+ *
+ * 真实每页数量是**按实际可用空间算出来的**（见下面的 measure）：
+ * 卡片没铺满就分页会让人困惑（用户反馈过），所以先在渲染后量一次
+ * 「内容区还能放下几行 × 网格有几列」，只有条目真的超过这个数才分页。
+ * 这个常量只在测量前作为首帧值使用。
  */
-const PAGE_SIZE = 6
+const PAGE_SIZE_FALLBACK = 24
 
 export interface LibraryScreenProps {
   entries: ReadonlyArray<GameRegistryEntry<unknown, unknown>>
@@ -40,11 +44,44 @@ export function LibraryScreen({
   onHelp,
 }: LibraryScreenProps): ReactNode {
   const { i18n, platform } = useUi()
-  // 分页状态；current 做 clamp，条目数变化时不会停在空页
+  // 分页状态；current 做 clamp，条目数/每页数变化时不会停在空页
   const [page, setPage] = useState(0)
-  const pageCount = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_FALLBACK)
+  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
   const current = Math.min(page, pageCount - 1)
-  const pageEntries = entries.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE)
+  const pageEntries = entries.slice(current * pageSize, current * pageSize + pageSize)
+  const gridRef = useRef<HTMLUListElement | null>(null)
+
+  /*
+   * 量一次「这屏能放多少张卡」：列数 = 网格宽度 / 卡片宽度，行数 = 内容区剩余高度 / 卡片高度。
+   * 用实测而不是写死数字：字号档位、横竖屏、卡片高度都会影响能放几张。
+   */
+  useEffect(() => {
+    const measure = (): void => {
+      const grid = gridRef.current
+      if (!grid) return
+      const content = grid.closest('.eink-screen__content') as HTMLElement | null
+      const tile = grid.querySelector('.eink-tile') as HTMLElement | null
+      if (!content || !tile) return
+      const tileRect = tile.getBoundingClientRect()
+      if (tileRect.height < 1 || tileRect.width < 1) return
+      const style = getComputedStyle(grid)
+      const gap = Number.parseFloat(style.rowGap || '8') || 8
+      const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (tileRect.width + gap)))
+      const available = content.getBoundingClientRect().bottom - grid.getBoundingClientRect().top - 4
+      const rows = Math.max(1, Math.floor((available + gap) / (tileRect.height + gap)))
+      const next = Math.max(1, columns * rows)
+      setPageSize((prev) => (prev === next ? prev : next))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    if (observer && gridRef.current) observer.observe(gridRef.current)
+    return () => {
+      window.removeEventListener('resize', measure)
+      observer?.disconnect()
+    }
+  }, [entries.length])
   const offline = platform.offline.state()
   /**
    * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
@@ -152,7 +189,7 @@ export function LibraryScreen({
         {entries.length === 0 ? (
           <p className="eink-muted">{i18n.t('shell.library.empty')}</p>
         ) : (
-          <ul className="eink-grid">
+          <ul className="eink-grid" ref={gridRef}>
             {pageEntries.map((entry) => {
               const envelope = saves[entry.game.id]
               const progress = entry.progressFor?.(progressOf(envelope).completed)
