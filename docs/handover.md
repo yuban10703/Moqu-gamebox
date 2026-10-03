@@ -9,7 +9,8 @@
 | 单元测试 | **764**（`npm run check`）|
 | 探索套件 | 5 个（`npm run explore`），断言数见运行输出 |
 | 一键验证 | `npm run verify` 全绿 |
-| 文档核对 | `npm run check:docs`（已并入 `npm run check`）：命令/路径/游戏数与现实不符即失败 |
+| 文档核对 | `npm run check:docs`（并入 `npm run check`）：命令/路径/游戏数与现实不符即失败 |
+| 接入完整性 | `npm run check:games`（并入 `npm run check`）：逐款核对 5 个接入点 + i18n + 无 Math.random + 有测试 |
 | 真机 | `tools/device/verify-device.sh 10.1.1.69:5555 9333` 全绿（9 款审计，退出码可信）|
 | 构建 | Onyx SDK **默认内置**（3.4MB；排除后 2.5MB）|
 
@@ -76,7 +77,7 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 2. 实现 `GameDef`（照最近完成的 `reversi`/`gomoku`/`fifteen`/`memory`/`connect4` 抄结构）。
 3. 写测试：规则边界、确定性、非法输入抛错、encode/decode 往返 + 坏数据、
    **属性测试**（随机合法动作若干步，每步 encode→decode 往返）、AI（若有）合法且可复现、性能。
-4. 接入（4 处，缺一不可）：
+4. 接入（5 处，缺一不可；`npm run check:games` 会逐条核对）：
    - `tsconfig.json` paths 与 `vitest.config.ts` alias 各加一条
    - `npm install`（建立 `node_modules/@eink/<id>` 软链）
    - `apps/web/src/library.ts`：`defineGame({...})` + 两份字典合并

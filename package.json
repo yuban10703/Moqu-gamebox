@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "check:i18n": "vitest run packages/games/sokoban/test/dicts.test.ts && node tools/scripts/check-i18n.mjs",
     "build:web": "npm --workspace @eink/web run build && node tools/scripts/generate-sw.mjs apps/web/dist",
-    "check": "npm run typecheck && npm run test && npm run check:i18n && npm run build:web && npm run check:docs",
+    "check": "npm run typecheck && npm run test && npm run check:i18n && npm run build:web && npm run check:docs && npm run check:games",
     "dev:web": "npm --workspace @eink/web run dev",
     "setup:android": "bash tools/scripts/setup-android-toolchain.sh",
     "build:apk": "bash tools/scripts/build-apk.sh",
@@ -24,7 +24,8 @@
     "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8899",
     "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs && node tools/scripts/explore-flows.mjs && node tools/scripts/explore-maxscale.mjs && node tools/scripts/explore-landscape.mjs",
     "verify": "node tools/scripts/verify-all.mjs",
-    "check:docs": "node tools/scripts/check-docs.mjs"
+    "check:docs": "node tools/scripts/check-docs.mjs",
+    "check:games": "node tools/scripts/check-games.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
