@@ -111,8 +111,16 @@ export function reduceSudoku(state: SudokuState, action: SudokuAction): SudokuSt
       const index = state.selected
       if (index === null) throw illegal('sudoku.illegal.noselect')
       if (state.given[index] !== 0) throw illegal(`sudoku.illegal.given:${index}`)
-      if (state.filled[index] !== 0) throw illegal(`sudoku.illegal.occupied:${index}`)
-      if (state.difficulty !== CHALLENGE_DIFFICULTY && !legalDigitsAt(state, index).includes(value)) {
+      /*
+       * 直接改写已填的格子（用户要求："填入数字后可以直接修改，而不需要清除后再填"）。
+       * 不再拒绝已填格；判冲突时要把这一格**先当作空格** ——
+       * 因为 legalDigitsAt 对已填格直接返回空数组，不这么做会把任何数字都判成冲突。
+       */
+      const isEmpty = state.filled[index] === 0
+      const forCheck: SudokuState = isEmpty
+        ? state
+        : { ...state, filled: state.filled.map((cell, i) => (i === index ? 0 : cell)) as SudokuState['filled'] }
+      if (state.difficulty !== CHALLENGE_DIFFICULTY && !legalDigitsAt(forCheck, index).includes(value)) {
         /*
          * 行/列/宫冲突：明确拒绝，而不是让盘面进入矛盾态。
          * **挑战档例外**：那一档要的是纯数独 —— 什么数字都能填，由玩家自己负责一致性

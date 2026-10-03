@@ -128,11 +128,14 @@ describe('填入与清除', () => {
     expect(() => act(state, { type: 'clear' })).toThrow(IllegalActionError)
   })
 
-  it('格子已满再填 → 抛错', () => {
+  it('格子已填后可以直接改写（不再要求先清除）', () => {
     const state = fresh()
     const index = emptyCells(state)[0]!
-    const filled = act(act(state, { type: 'select', index }), { type: 'set', value: state.solution[index]! })
-    expect(() => act(filled, { type: 'set', value: state.solution[index]! })).toThrow(IllegalActionError)
+    const value = state.solution[index]!
+    const filled = act(act(state, { type: 'select', index }), { type: 'set', value })
+    // 旧实现这里会抛 sudoku.illegal.occupied；现在应当接受（覆盖为同一个值即幂等）
+    const again = act(filled, { type: 'set', value })
+    expect(again.filled[index]).toBe(value)
   })
 
   it('数字越界 → 抛错', () => {
