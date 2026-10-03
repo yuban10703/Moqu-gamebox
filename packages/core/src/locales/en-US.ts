@@ -160,6 +160,7 @@ export const enUS: Dict = {
   'shell.common.moves': 'Moves',
   'shell.common.time': 'Time',
   'shell.common.level': 'Level',
+  'shell.common.version': 'Version',
   'shell.common.close': 'Close',
   'shell.common.cancel': 'Cancel',
   'shell.common.confirm': 'Confirm',

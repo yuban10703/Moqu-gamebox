@@ -1429,3 +1429,17 @@ html[data-bold-lines='on'] .eink-board {
 .eink-board .eink-board__cell[data-wrong='yes'][data-selected='yes']::after {
   background: var(--ink-white);
 }
+
+/*
+ * 首页页脚右侧的版本号：`v0.1.0 · 10-03 22:30`（构建时注入，见 apps/web/vite.config.ts）。
+ * 允许收缩 + 省略号：窄屏上宁可截断版本号，也不能把设置/帮助/诊断三个按钮挤坏。
+ */
+.eink-version {
+  margin-left: auto;
+  min-width: 0;
+  font-size: 0.75em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+}

@@ -43,6 +43,11 @@ export function LibraryScreen({
   onDiagnostics,
   onHelp,
 }: LibraryScreenProps): ReactNode {
+  /*
+   * 构建时注入的版本信息；单测/非 vite 环境下不存在，因此做存在性判断（不能直接引用，
+   * 否则在 vitest 里会抛 ReferenceError）。
+   */
+  const buildInfo = typeof __BUILD_INFO__ === 'undefined' ? null : __BUILD_INFO__
   const { i18n, platform } = useUi()
   // 分页状态；current 做 clamp，条目数/每页数变化时不会停在空页
   const [page, setPage] = useState(0)
@@ -220,6 +225,21 @@ export function LibraryScreen({
         <ActionButton labelKey="shell.nav.settings" onSelect={onSettings} />
         <ActionButton labelKey="shell.nav.help" onSelect={onHelp} />
         <ActionButton labelKey="shell.nav.diagnostics" onSelect={onDiagnostics} />
+        {/*
+          Build version in the footer's right corner, so the user can tell at a glance
+          whether the device runs the latest build. It is deliberately placed inside the
+          EXISTING footer row (not a new line): the library fits exactly one screen at the
+          largest font scale, and an extra row would make it scroll. It can shrink and
+          ellipsize, so it never squeezes the three buttons.
+        */}
+        {buildInfo ? (
+          <span
+            className="eink-version"
+            aria-label={`${i18n.t('shell.common.version')} ${buildInfo.version} ${buildInfo.stamp}`}
+          >
+            v{buildInfo.version} · {buildInfo.stamp}
+          </span>
+        ) : null}
       </footer>
     </div>
   )

@@ -159,6 +159,7 @@ export const zhCN: Dict = {
   'shell.common.moves': '步数',
   'shell.common.time': '用时',
   'shell.common.level': '关卡',
+  'shell.common.version': '版本',
   'shell.common.close': '关闭',
   'shell.common.cancel': '取消',
   'shell.common.confirm': '确定',
