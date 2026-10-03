@@ -53,8 +53,11 @@ export function LibraryScreen({
   const gridRef = useRef<HTMLUListElement | null>(null)
 
   /*
-   * 量一次「这屏能放多少张卡」：列数 = 网格宽度 / 卡片宽度，行数 = 内容区剩余高度 / 卡片高度。
-   * 用实测而不是写死数字：字号档位、横竖屏、卡片高度都会影响能放几张。
+   * 量「这屏能放多少张卡」：列数 = 网格宽 / 卡宽，行数 = 内容区可用高 / 卡高。
+   *
+   * 关键：**只观察内容区与窗口，绝不观察网格自身**。
+   * 之前观察网格导致翻页后重算（页数从 2 变 3）、页码自己跳 —— 真机上实测到的 bug。
+   * 另外可用高度用「内容区高度 − 网格相对内容区的偏移」算，与网格当页有几张卡无关。
    */
   useEffect(() => {
     const measure = (): void => {
@@ -68,7 +71,8 @@ export function LibraryScreen({
       const style = getComputedStyle(grid)
       const gap = Number.parseFloat(style.rowGap || '8') || 8
       const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (tileRect.width + gap)))
-      const available = content.getBoundingClientRect().bottom - grid.getBoundingClientRect().top - 4
+      const gridOffset = grid.getBoundingClientRect().top - content.getBoundingClientRect().top
+      const available = content.clientHeight - gridOffset - 4
       const rows = Math.max(1, Math.floor((available + gap) / (tileRect.height + gap)))
       const next = Math.max(1, columns * rows)
       setPageSize((prev) => (prev === next ? prev : next))
@@ -76,7 +80,9 @@ export function LibraryScreen({
     measure()
     window.addEventListener('resize', measure)
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    if (observer && gridRef.current) observer.observe(gridRef.current)
+    // 观察内容区（尺寸随视口/字号变化），**不观察网格**（它会随翻页变化 → 页数自跳）
+    const content = gridRef.current?.closest('.eink-screen__content')
+    if (observer && content) observer.observe(content)
     return () => {
       window.removeEventListener('resize', measure)
       observer?.disconnect()
@@ -191,26 +197,12 @@ export function LibraryScreen({
         ) : (
           <ul className="eink-grid" ref={gridRef}>
             {pageEntries.map((entry) => {
-              const envelope = saves[entry.game.id]
-              const progress = entry.progressFor?.(progressOf(envelope).completed)
               return (
                 <li key={entry.game.id} className="eink-grid__item">
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <GameIcon namespace={entry.game.i18nNamespace} />
                     <span className="eink-tile__title">{i18n.t(`${entry.game.i18nNamespace}.title`)}</span>
-                    {/*
-                      进度行**只有关卡制玩法才显示文字**（用户反馈：没有关卡的游戏不需要设计进度），
-                      但这一行在每张卡上都**保留占位** —— 否则有进度的卡片会比别的高，
-                      方块高度就不一致了（实测过 84/74/103 三种高度）。
-                    */}
-                    <span className="eink-tile__meta">
-                      {progress && hasLevels(entry)
-                        ? i18n.t('shell.library.progress', { done: progress.done, total: progress.total })
-                        : ''}
-                    </span>
-                    {progress && hasLevels(entry) && progress.done >= progress.total && progress.total > 0 ? (
-                      <span className="eink-tile__done">{i18n.t('shell.library.completed')}</span>
-                    ) : null}
+
                   </button>
                 </li>
               )
@@ -231,11 +223,6 @@ export function LibraryScreen({
 }
 
 /** 关卡制玩法：注册表里登记了 levels 的才算（推箱子/华容道） */
-function hasLevels(entry: GameRegistryEntry<unknown, unknown>): boolean {
-  const levels = (entry as { levels?: ReadonlyArray<unknown> }).levels
-  return Array.isArray(levels) && levels.length > 0
-}
-
 export function progressOf(envelope: SaveEnvelope | undefined): { completed: string[]; bestMoves: Record<string, number> } {
   const progress = (envelope?.progress ?? {}) as { completed?: string[]; bestMoves?: Record<string, number> }
   return { completed: progress.completed ?? [], bestMoves: progress.bestMoves ?? {} }

@@ -1158,13 +1158,6 @@ html[data-bold-lines='on'] .eink-board {
  */
 .eink-tile {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  text-align: center;
-  padding: 8px;
-}
 
 .eink-game-icon {
   flex: 0 0 auto;
@@ -1295,4 +1288,37 @@ html[data-bold-lines='on'] .eink-board {
 /* 进度行始终占位：没有进度的玩法留空，但这一行的高度要在 —— 否则卡片高矮不一 */
 .eink-grid__item .eink-tile__meta {
   min-height: 1.2em;
+}
+
+/*
+ * 方块最终形态（用户要求）：**图标在左、游戏名在右且上下居中**，进度行删除。
+ *
+ * 因此卡片只需要一行：图标 + 标题。高度由「图标 + 内边距」决定，
+ * 标题固定一行高度（超长省略），于是所有卡片严格等高。
+ */
+.eink-grid__item .eink-tile {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 0;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.eink-grid__item .eink-tile__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  line-height: 1.25;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 进度行与「已通关」徽标已按用户要求删除，这里只保留必要的占位规则以防旧结构残留 */
+.eink-grid__item .eink-tile__meta,
+.eink-grid__item .eink-tile__done {
+  display: none;
 }

@@ -70,11 +70,12 @@ function statValue(label: string): string {
 const DIR_LABEL: Record<string, string> = { up: 'Up', down: 'Down', left: 'Left', right: 'Right' }
 
 describe('游戏库 → 详情 → 游戏', () => {
-  it('首页显示游戏与进度，无法持久化时有明确提示', async () => {
+  it('首页只显示游戏名（不含进度），无法持久化时有明确提示', async () => {
     await mount()
     expect(screen.getByText('Sokoban')).toBeTruthy()
-    expect(screen.getAllByText(/0\/16/).length).toBeGreaterThan(0)
     expect(screen.getByText(/cannot be persisted/)).toBeTruthy()
+    // 用户要求：卡片上不要进度行（没有关卡的游戏更没有意义）→ 首页不应出现任何「进度 x/y」
+    expect(screen.queryByText(/进度\s*\d+\/\d+/)).toBeNull()
   })
 
   it('开始新游戏后棋盘渲染出全部格子，有效方向产生状态变化', async () => {
