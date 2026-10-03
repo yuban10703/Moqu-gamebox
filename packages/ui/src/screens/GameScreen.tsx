@@ -53,7 +53,17 @@ export function GameScreen({
   initialProgress,
   startLevelId,
 }: GameScreenProps): ReactNode {
-  const { i18n, settings, platform, viewport, layoutConfig, updateSettings } = useUi()
+  const { i18n, settings, platform, viewport, layoutConfig, updateGameSettings } = useUi()
+
+  /*
+   * 方向按钮是否显示：**按游戏各自记住**（settings.perGame[gameId].dpad），缺省跟随全局设置。
+   *
+   * 为什么不能直接用全局值：在 2048 里为了把棋盘留大而关掉方向键之后，
+   * 推箱子也会跟着没有方向键 —— 而推箱子主要靠方向键玩（用户反馈："推箱子的方向键默认开启"）。
+   * 现在各游戏互不影响，且每个游戏默认都是开。
+   */
+  const dpadOn = settings.perGame[entry.game.id]?.dpad ?? settings.dpad
+
   const session = useSession({
     game: entry.game,
     storage: platform.storage,
@@ -82,10 +92,10 @@ export function GameScreen({
         // 玩家得滚动才能点到「下一关」（墨水屏上不该这样）。
         // 这两个只作为**首帧兜底**（实测尺寸出来前用）；真实布局由 flex + 实测反算决定，
         // 因此不再需要 extraBottom 预留结果面板高度 —— 棋盘区会自动收缩。
-        showDpad: settings.dpad && !session.finished,
+        showDpad: dpadOn && !session.finished,
         showStats: true,
       }),
-    [viewport, layoutConfig, settings.dpad, session.finished],
+    [viewport, layoutConfig, dpadOn, session.finished],
   )
   useLayoutEffect(() => {
     const element = boardAreaRef.current
@@ -406,7 +416,7 @@ export function GameScreen({
               否则数独、扫雷这类没有方向控件的游戏会连自己的按钮都不显示。 */}
           {!session.finished ? (
             <div className="eink-controls">
-              {settings.dpad ? (
+              {dpadOn ? (
                 <Dpad
                   controls={session.controls}
                   onMove={onMove}
@@ -472,9 +482,9 @@ export function GameScreen({
               */}
               {session.controls.some((control) => control.role === 'dpad') ? (
                 <ActionButton
-                  text={`${i18n.t('shell.settings.dpad')}: ${settings.dpad ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
-                  emphasis={settings.dpad ? 'primary' : 'normal'}
-                  onSelect={() => void updateSettings({ dpad: !settings.dpad })}
+                  text={`${i18n.t('shell.settings.dpad')}: ${dpadOn ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
+                  emphasis={dpadOn ? 'primary' : 'normal'}
+                  onSelect={() => void updateGameSettings(entry.game.id, { dpad: !dpadOn })}
                 />
               ) : null}
               <ActionButton labelKey="shell.result.library" onSelect={onExit} />
