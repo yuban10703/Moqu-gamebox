@@ -107,15 +107,23 @@ export function GameScreen({
   /**
    * 方向键动作名由**游戏**决定：优先走 controlAction（游戏自己把 `move-<dir>` 控件映射成动作），
    * 例如数字华容道的规范动作是 `{ type:'slide', dir }` 而不是 `{ type:'move', dir }`。
-   * 没有实现 controlAction 的游戏沿用既有约定 `{ type:'move', dir }`，行为完全不变。
+   *
+   * 回落到 `{ type:'move', dir }` 的前提是**这个玩法真的有方向键**：
+   * 数独 / 扫雷 / 记忆配对 / 五子棋 / 华容道 / 消消乐 / 关灯游戏都不声明方向控件，
+   * 它们的规则层收到 `move` 只会抛「未知动作」——于是键盘（BOOX 的翻页键、蓝牙键盘、
+   * 外接遥控器）按一下方向键就弹出一句和技术上都无关的错误提示
+   * （实测：数独弹「这一步填不了」、五子棋弹「这里不能落子」、记忆配对弹「这里不能这样点」）。
+   * 没有方向键的玩法应当**忽略**方向键，而不是报一个假错误。
    */
   const onMove = (dir: MoveDir): void => {
     session.clearNotice()
     // 游戏可以用 controlAction 自定义方向键的动作名（如数字华容道的 {type:'slide',dir}）；
     // 没映射时回落到既有约定 {type:'move',dir}，因此老游戏一行都不用改
-    if (!session.runControl?.(`move-${dir}`)) {
-      session.dispatch({ type: 'move', dir } as never)
-    }
+    if (session.runControl?.(`move-${dir}`)) return
+    const declaresDir = session.controls.some(
+      (control) => control.role === 'dpad' && control.dir === dir,
+    )
+    if (declaresDir) session.dispatch({ type: 'move', dir } as never)
   }
 
   /**

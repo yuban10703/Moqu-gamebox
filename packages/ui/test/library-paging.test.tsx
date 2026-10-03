@@ -129,4 +129,30 @@ describe('首页分页：页码保留', () => {
     expect(tileTitles().length).toBe(3)
     expect(tileTitles()[0]).toBe('Game 1')
   })
+
+  it('首帧兜底每页数不得冲掉记住的页码', async () => {
+    /*
+     * 真机实测过的回归（26px 档）：在第 2 页点进游戏、返回首页却回到第 1 页。
+     *
+     * 原因不是缓存没生效，而是「把越界页码回写缓存」这件事在第一帧就跑了：
+     * 首帧 pageSize 是兜底 24，12 款游戏在兜底里只有 1 页 → current 被钳成 0 →
+     * 回写把刚记住的第 2 页冲掉。这里用一个「兜底只有 1 页」的库把那一帧复现出来。
+     */
+    const kv = createMemoryKv()
+    const first = await mount(manyLibrary, kv)
+    rewindToFirstPage()
+    fireEvent.click(pageButton('next')!)
+    await waitFor(() => expect(pagerInfo()).toBe('Page 2/2'))
+    first.unmount()
+
+    // 这一帧真实每页数还没量出来，钳位是假的，不许回写
+    const middle = await mount(smallLibrary, kv)
+    expect(pager()).toBeNull()
+    middle.unmount()
+
+    // 回到多游戏库：缓存里记的第 2 页必须还在（被冲掉的话这里会显示第 1 页）
+    await mount(manyLibrary, kv)
+    expect(pagerInfo()).toBe('Page 2/2')
+    expect(tileTitles()[0]).toBe('Game 25')
+  })
 })

@@ -331,6 +331,12 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         envelopeRef.current = fresh
         setProgress((fresh.progress ?? {}) as GameProgress)
         setReady(true)
+        /*
+         * 这里**不**主动提交：新开的一局还没有任何玩家动作，界面处于 idle（"没有需要写入的变化"）。
+         * 玩家按返回时会走 pause() → flush() 落盘，因此正常路径不会丢；
+         * 只有"开局后直接杀进程"才会丢，代价是下一局换一道题（不涉及任何已完成进度）。
+         * 真正会丢进度的是下面的 discardAndRestart（它先把旧档删掉），那一处必须立即提交。
+         */
         return
       }
       if (result.status === 'corrupt') {
@@ -490,8 +496,14 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
           persist(next, { force: false })
         }
         const kind = action && typeof action === 'object' ? (action as { type?: string }).type : undefined
-        // 换关（下一关 / 自由选关）都要重置本关计时起点，否则用时会把上一关的算进来
-        if (kind === 'nextLevel' || kind === 'startLevel') {
+        /*
+         * 换关（下一关 / 自由选关）与**重开本关**都要重置本关计时起点：
+         * 界面上的「用时」是 `elapsed - levelStart`（本关用时），
+         * 少了 `restart` 这一支，重开推箱子/华容道之后用时会把重开前的分钟数继续算进去
+         * ——实测 439×847：重开前 0:26、点完"重新开始"立刻显示 0:28，
+         * 而对话框上写的是「重开本关会清空当前进度」。本关的记录用时会一并被算大。
+         */
+        if (kind === 'nextLevel' || kind === 'startLevel' || kind === 'restart') {
           levelStartRef.current = elapsedRef.current
         }
         /*
@@ -577,8 +589,17 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
      * 和之前"两处都写死 seed: 0"是同一类错误，这次漏的是第三处。
      */
     setState(game.create(seed, difficulty))
+    /*
+     * 「重新开始」也要**立即落盘**，不能等玩家走下一步。
+     *
+     * 原先这里只换内存里的信封（并 remove 掉旧档），存档因此处于"空的"状态：
+     * 实测（浏览器存档接口）重开后 `loadResult(gameId)` 返回 `empty`，
+     * 要等到下一次操作才写入。用户重开一局、还没落子就退出/崩溃 → 这一局凭空消失，
+     * 而旧档已经被删掉，等于"重开把进度弄没了"。这与「每一步立即提交」的既有口径不一致。
+     */
     setSaveStatus('idle')
-  }, [storage, game, difficulty, now, progress])
+    void commitNow(fresh)
+  }, [storage, game, difficulty, now, progress, commitNow])
 
   // 页面隐藏/退出时强制落盘；同时把"隐藏"这件事告诉自动步进（隐藏时必须停表）
   useEffect(() => {
@@ -677,7 +698,27 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       ? {
           selectCell: (index: number) => {
             const action = game.selectAction?.(state, index)
-            if (action) dispatch(action)
+            if (action) {
+              // 有效点击要先把上一次的无效提示清掉，否则会出现"牌翻开了、提示还写着点不了"
+              clearNotice()
+              dispatch(action)
+              return
+            }
+            /*
+             * 点了一个规则层**不会产生动作**的格子：已翻开的雷格、已配对/已翻开的牌、
+             * 已有棋子的交叉点、够不着的空格…… 这些在规则层都是明确的非法动作
+             * （各玩法的 reduce 会抛错），但 selectAction 先返回 null，于是界面静默无响应。
+             *
+             * 实测（浏览器探针，439×847）：扫雷点已翻开的格子、记忆配对点已翻开的牌、
+             * 五子棋点已有棋子的点、华容道点够不着的空格 —— 四个玩法全都一声不响，
+             * 而它们的 `illegalNoticeKey` 文案（"这里不能这样操作 / 这里不能这样点 /
+             * 这里不能落子 / 这一步滑不过去"）在界面里**根本没有出现的机会**
+             * （唯一能触发它的是键盘方向键，那本身又是另一个缺陷）。
+             *
+             * 因此这里统一补上反馈：文案仍由**游戏包**提供，壳层不硬编码任何玩法文案。
+             * 只在"正在对局"时提示：终局后棋盘仍可见，那时的点击不该再弹错误。
+             */
+            if (status === 'playing' && game.illegalNoticeKey) setNoticeKey(game.illegalNoticeKey)
           },
         }
       : {}),

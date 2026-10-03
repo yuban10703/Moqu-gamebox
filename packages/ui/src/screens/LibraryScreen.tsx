@@ -92,6 +92,15 @@ export function LibraryScreen({
     setPageState(lastLibraryPage)
   }
   const [pageSize, setPageSize] = useState(PAGE_SIZE_FALLBACK)
+  /*
+   * 真实每页数是否已经量出来。
+   *
+   * 首帧用的是兜底 PAGE_SIZE_FALLBACK=24：12 款游戏在兜底里只有 1 页，
+   * 于是 current 会被钳到 0 —— 如果这时执行下面的「回写」，就会把刚记住的第 2 页
+   * 冲成第 1 页（真机实测：26px 档在第 2 页点进游戏、返回首页直接回到第 1 页）。
+   * 因此回写必须等到量出真实每页数之后，兜底阶段的钳位一律不算数。
+   */
+  const [measured, setMeasured] = useState(false)
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
   const current = Math.min(page, pageCount - 1)
   /*
@@ -104,10 +113,11 @@ export function LibraryScreen({
    * 回写后缓存始终等于屏幕上真正显示的那一页。
    */
   useEffect(() => {
+    if (!measured) return
     if (page === current) return
     lastLibraryPage = current
     setPageState(current)
-  }, [page, current])
+  }, [page, current, measured])
   const pageEntries = entries.slice(current * pageSize, current * pageSize + pageSize)
   const gridRef = useRef<HTMLUListElement | null>(null)
   // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
@@ -161,6 +171,8 @@ export function LibraryScreen({
       const rows = Math.max(1, Math.floor((available + gap) / (tileRect.height + gap)))
       const next = Math.max(1, columns * rows)
       setPageSize((prev) => (prev === next ? prev : next))
+      // 真实每页数已经量出来了：从这里开始才允许把越界页码回写（见上面的 measured 说明）
+      setMeasured(true)
     }
     measure()
     window.addEventListener('resize', measure)
