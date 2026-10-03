@@ -424,6 +424,70 @@ for (const key of ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown']) {
 }
 check('键盘方向键能操作（四个方向里至少一个可走）', Number(after) > Number(before), `${before} → ${after}`)
 
+/* ---------- 自由选关：关卡行是可点按钮，点第 N 关就进第 N 关 ---------- */
+console.log('\n[选关] 关卡行可点 + 点第 3 关进第 3 关')
+await gotoLibrary()
+await clickTile('华容道')
+await page.waitForSelector('text=玩法说明', { timeout: 8000 })
+const levelRows = await page.evaluate(() => {
+  const items = [...document.querySelectorAll('.eink-levels__item')]
+  return {
+    rows: items.length,
+    withButton: items.filter((li) => li.querySelector('button')).length,
+    allEnabled: items.every((li) => {
+      const button = li.querySelector('button')
+      return button instanceof HTMLButtonElement && !button.disabled
+    }),
+    names: items.map((li) => {
+      const button = li.querySelector('button')
+      return (button?.getAttribute('aria-label') || button?.innerText || '').replace(/\s+/g, ' ').trim()
+    }),
+  }
+})
+check(
+  '华容道·详情：每条关卡都是可聚焦的 <button>',
+  levelRows.rows > 1 && levelRows.withButton === levelRows.rows && levelRows.allEnabled && levelRows.names.every((n) => n.length > 0),
+  `${levelRows.rows} 行 / ${levelRows.withButton} 个按钮 / 名称=${levelRows.names.join(' | ').slice(0, 60)}`,
+)
+// 点第 3 关（行序号从 1 开始；非当前关才算真的"跳关"）
+await page.locator('.eink-levels__item button').nth(2).click()
+await page.waitForTimeout(400)
+if (await page.getByRole('button', { name: /替换并开始/ }).count()) {
+  await clickOverlay('替换并开始')
+}
+await page.waitForSelector('.eink-board', { timeout: 8000 })
+await page.waitForTimeout(400)
+const picked = await page.evaluate(() => ({
+  title: (document.querySelector('.eink-topbar')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+  stats: [...document.querySelectorAll('.eink-stats__item')].map((el) => el.innerText.replace(/\s+/g, ' ').trim()),
+  body: document.body.innerText.replace(/\n+/g, ' '),
+}))
+check(
+  '点第 3 关后标题显示第 3 关',
+  /第\s*3\s*\//.test(picked.title),
+  picked.title.slice(0, 60),
+)
+check(
+  '点第 3 关后统计显示关卡 3/N',
+  picked.stats.some((item) => /关卡\s*3\s*\//.test(item)),
+  picked.stats.join(' | ').slice(0, 60),
+)
+check('选关后的对局页无缺键', !picked.body.includes('⟦'))
+
+// 无关卡玩法不应有关卡行（该区已换成历史记录）
+await gotoLibrary()
+await clickTile('数独')
+await page.waitForSelector('text=玩法说明', { timeout: 8000 })
+const sudokuSections = await page.evaluate(() => ({
+  levelRows: document.querySelectorAll('.eink-levels__item').length,
+  headings: [...document.querySelectorAll('.eink-section h2')].map((h) => (h.textContent ?? '').trim()),
+}))
+check(
+  '数独·详情：无关卡行、仍是历史记录',
+  sudokuSections.levelRows === 0 && sudokuSections.headings.includes('历史记录') && !sudokuSections.headings.includes('关卡'),
+  `分区=${sudokuSections.headings.join('/')}`,
+)
+
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 6)) console.log('  ! ' + e)
 const failed = results.filter((r) => !r.ok)

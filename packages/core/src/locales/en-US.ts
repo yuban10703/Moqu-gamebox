@@ -37,6 +37,7 @@ export const enUS: Dict = {
   'shell.detail.replace.confirm': 'Replace and start',
   'shell.detail.replace.cancel': 'Cancel',
   'shell.detail.levels': 'Levels',
+  'shell.detail.pickLevel': 'Tap any level to start there',
   'shell.detail.history': 'History',
   'shell.detail.historyEmpty': 'No records yet',
   'shell.detail.historyMoves__one': '{count} move',

@@ -236,6 +236,8 @@ export function GameDetailScreen({
       {levels.length > 0 ? (
       <section className="eink-section">
         <h2>{i18n.t('shell.detail.levels')}</h2>
+        {/* 关卡行整行可点：说明一句，免得用户以为只是展示（只有有关卡的玩法才有这一区） */}
+        <p className="eink-muted">{i18n.t('shell.detail.pickLevel')}</p>
         {summary ? (
           <StatBar
             stats={[

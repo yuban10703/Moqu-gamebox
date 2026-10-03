@@ -93,40 +93,49 @@ describe('view / 1-bit 呈现约定', () => {
     expect(view.board!.groups).toBeUndefined()
   })
 
-  it('块占用格是 tile（无格内文字）+ 同块合并标记；整块用 labels 写全名', () => {
+  it('块占用格是 tile + 同块合并标记；名字只写在锚格内（不用覆盖层）', () => {
     const board = klotskiGame.view(createState('level-1')).board!
     const cells = board.cells
     /*
-     * 契约变更（方案 A）：一块棋子**不再让每个格子各写一个字** ——
-     * 那样 2×2 的曹操是四个「曹」，看上去像四个独立小块（用户反馈）。
-     * 现在：格子只保留 kind='tile' 与"同块相邻"的合并标记，文字改由 labels 整块覆盖。
+     * 契约（现行方案）：一块棋子**只在锚格（最左上那一格）里写一次全名**，其余格空着；
+     * 同块相邻的格带 mergeRight / mergeBottom（壳层据此去掉共享边，一块才看得出是一体）。
+     *
+     * 走过的两条弯路都记在这里，避免以后又退回去：
+     *  1. 每格各写一个字 → 2×2 的曹操变成四个「曹」，像四个独立小块；
+     *  2. 用绝对定位的覆盖层写整块名字 → 覆盖层与格子网格是**两套坐标系**，真机上整体错位
+     *     （棋盘元素在 (30,211)、格子在 (172,259)），用户反馈"点到的不是我想点的那块 / 完全乱了"。
+     * 因此覆盖层契约已删除：`BoardView.labels` 不再存在（下面显式断言它没有被重新引入）。
      */
-    expect(cells[indexOf(0, 1)]).toMatchObject({
-      index: indexOf(0, 1),
-      kind: 'tile',
-      glyph: '',
-    })
+    expect((board as { labels?: unknown }).labels).toBeUndefined()
+
     // 曹操 2×2：内部右/下方向带合并标记，朝外的边不带
     expect(cells[indexOf(0, 1)]!.mergeRight).toBe(true)
     expect(cells[indexOf(0, 1)]!.mergeBottom).toBe(true)
     expect(cells[indexOf(0, 2)]!.mergeRight).toBeUndefined()
     expect(cells[indexOf(1, 1)]!.mergeBottom).toBeUndefined()
-    expect(cells.filter((cell) => cell.glyph !== '' && cell.kind === 'tile')).toHaveLength(0)
-    // 整块标签：每块一个，2×2 的曹操反白
-    const labels = board.labels ?? []
-    expect(labels).toHaveLength(10)
-    expect(labels.find((l) => l.index === indexOf(0, 1))).toEqual({
-      index: indexOf(0, 1),
-      text: '曹操',
-      cols: 2,
-      rows: 2,
-      invert: true,
-    })
-    // 竖将竖排（1×2）、横将横排（2×1）、卒 1×1
-    expect(labels.find((l) => l.text === '张飞')).toMatchObject({ cols: 1, rows: 2 })
-    expect(labels.find((l) => l.text === '关羽')).toMatchObject({ cols: 2, rows: 1 })
-    expect(labels.filter((l) => l.text === '卒')).toHaveLength(4)
-    expect(labels.every((l) => l.invert !== true || (l.cols === 2 && l.rows === 2))).toBe(true)
+
+    // 一块只写一次名字：10 块棋子 → 10 个带字形的格（其余 tile 格字形为空）
+    const named = cells.filter((cell) => cell.kind === 'tile' && cell.glyph !== '')
+    expect(named).toHaveLength(10)
+    expect(cells.filter((cell) => cell.kind === 'tile').length - named.length).toBe(8)
+
+    // 锚格就是该块最左上那一格，且字号固定 0.42 格（两字名也放得进一格）
+    const anchorGlyphs: Array<[number, string]> = [
+      [indexOf(0, 1), '曹操'],
+      [indexOf(0, 0), '张飞'],
+      [indexOf(0, 3), '马超'],
+      [indexOf(2, 0), '赵云'],
+      [indexOf(2, 3), '黄忠'],
+      [indexOf(2, 1), '关羽'],
+      [indexOf(3, 1), '卒'],
+      [indexOf(3, 2), '卒'],
+      [indexOf(4, 0), '卒'],
+      [indexOf(4, 3), '卒'],
+    ]
+    for (const [index, name] of anchorGlyphs) {
+      expect(cells[index], `锚格 ${index}`).toMatchObject({ kind: 'tile', glyph: name, textScale: 0.42 })
+    }
+
     // 出口两格没有块 → goal
     for (const exit of EXIT_CELLS) {
       expect(cells[exit]).toEqual({ index: exit, kind: 'goal', glyph: '' })
@@ -135,23 +144,25 @@ describe('view / 1-bit 呈现约定', () => {
     expect(cells.filter((cell) => cell.kind === 'goal')).toHaveLength(2)
   })
 
-  it('被选中的块：选中标记落在**整块标签**上，格子逐格不标（否则一块棋子看着像两个小方块）', () => {
+  it('被选中的块：**整块逐格**标 selected（按格标记天然与点击区域对齐）', () => {
     const state = reduceKlotski(createState('level-1'), { type: 'select', id: CAO_ID })
     const board = klotskiGame.view(state).board!
     const cells = board.cells
     /*
-     * 用户反馈："点击选中后还是两个小方块的效果" —— 原因是选中态原先逐格画内框，
-     * 一块 1×2 的棋子会有两个框。现在选中态由整块标签承载，因此格子一律不带 selected。
+     * 选中态按格标记，而不是画在覆盖层/细线框上：
+     *  - 覆盖层与网格两套坐标系，真机错位（见上一个用例）；
+     *  - 3px 细线框在 dpr 1.875 下落在半像素上，会渲染成破碎斜纹（真机截图确认）。
+     * 同块之间已无格线，所以整块几格同时反白会连成一整块黑，不会被看成多个小方块。
      */
-    expect(cells.filter((cell) => cell.selected === true)).toHaveLength(0)
-    const labels = board.labels ?? []
-    const marked = labels.filter((label) => label.selected === true)
-    expect(marked).toHaveLength(1)
-    expect(marked[0]!.text).toBe('曹操')
-    expect(marked[0]!.cols).toBe(2)
-    expect(marked[0]!.rows).toBe(2)
+    const selected = cells.filter((cell) => cell.selected === true).map((cell) => cell.index)
+    expect(selected.sort((a, b) => a - b)).toEqual(
+      [indexOf(0, 1), indexOf(0, 2), indexOf(1, 1), indexOf(1, 2)].sort((a, b) => a - b),
+    )
     // 未选中的块不带 selected 字段
-    expect(labels.find((label) => label.text === '张飞')!.selected).toBeUndefined()
+    expect(cells[indexOf(0, 0)]!.selected).toBeUndefined()
+    expect(cells[indexOf(2, 1)]!.selected).toBeUndefined()
+    // 选中不影响锚格名字
+    expect(cells[indexOf(0, 1)]!.glyph).toBe('曹操')
   })
 
   it('stats 恰好三项：步数 / 关卡 / 最少步数（内容恒定，高度不跳）', () => {
