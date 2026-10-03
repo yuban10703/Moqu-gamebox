@@ -663,6 +663,11 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
  * 「继续上一局」细栏：原来是一张全宽大卡（标题 + 统计 + 两个大按钮），小屏上占近三行。
  * 压成一条细栏，整栏可点即继续；标题与 meta 都可收缩（min-width:0）并省略号截断，
  * 因此窄屏 + 大字号下也绝不横向溢出屏幕。
+ *
+ * 内边距 6px → 4px、行高 1.2 → 1.1：这一栏现在上面多了一行区块标题
+ * （与「全部游戏」同一套 eink-section 写法），加标题多出来的高度在这里找回来一部分，
+ * 26px 档下细栏从 47px 降到 41px。首页在最大字号档必须一屏放得下（不许滚动），
+ * 所以这点高度是必须省的 —— 但不再往下压：整栏仍是首页最容易点中的目标之一。
  */
 .eink-continue {
   width: 100%;
@@ -670,7 +675,7 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 4px 10px;
   border: var(--line) solid var(--ink-black);
   background: var(--ink-white);
   color: var(--ink-black);
@@ -684,7 +689,7 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 .eink-continue__meta {

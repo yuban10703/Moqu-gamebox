@@ -144,29 +144,39 @@ export function LibraryScreen({
 
       {continued ? (
         /*
-         * 「继续上一局」压缩成**一条细栏**（原来是一张全宽大卡：标题 + 统计 + 两个大按钮，
-         * 在小屏上占掉近三行高度）。整栏可点即继续；「玩法说明」不再重复出现
-         * （下面同一款游戏的卡片点进去就是说明页）。
+         * 「继续上一局」与下面的「全部游戏」用**同一套区块写法**：eink-section + __head + h2。
+         * 用户反馈它原先没有任何标题、直接顶在页面最上面一块，很突兀。
+         *
+         * 栏本身仍是**一条细栏**（原来是一张全宽大卡：标题 + 统计 + 两个大按钮，小屏上占近三行）。
+         * 整栏可点即继续；标题已经写了「继续上一局」，栏内就只留有用的信息
+         * （游戏名 + 关卡），不再重复文案。
          */
-        (() => {
-          const envelope = saves[continued.game.id]!
-          const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
-          const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
-          return (
-            <button
-              type="button"
-              className="eink-continue"
-              onClick={() => onContinue(continued.game.id)}
-              aria-label={`${i18n.t('shell.library.continue')} ${i18n.t(`${continued.game.i18nNamespace}.title`)}`}
-            >
-              <GameIcon namespace={continued.game.i18nNamespace} size={22} />
-              <span className="eink-continue__title">{i18n.t(`${continued.game.i18nNamespace}.title`)}</span>
-              <span className="eink-continue__meta">
-                {i18n.t('shell.library.continue')} · {i18n.t('shell.common.level')} {index + 1}
-              </span>
-            </button>
-          )
-        })()
+        <section className="eink-section">
+          <div className="eink-section__head">
+            <h2>{i18n.t('shell.library.continue')}</h2>
+          </div>
+          {(() => {
+            const envelope = saves[continued.game.id]!
+            const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
+            const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
+            const title = i18n.t(`${continued.game.i18nNamespace}.title`)
+            // 只保留「关卡 N」；区块标题已经说明这是「继续」，栏内不再以「继续上一局 ·」开头
+            const level = `${i18n.t('shell.common.level')} ${index + 1}`
+            return (
+              <button
+                type="button"
+                className="eink-continue"
+                onClick={() => onContinue(continued.game.id)}
+                // 无障碍名仍要能独立读懂：区块标题在按钮之外，读屏可能只读到按钮
+                aria-label={`${i18n.t('shell.library.continue')} ${title} ${level}`}
+              >
+                <GameIcon namespace={continued.game.i18nNamespace} size={22} />
+                <span className="eink-continue__title">{title}</span>
+                <span className="eink-continue__meta">{level}</span>
+              </button>
+            )
+          })()}
+        </section>
       ) : null}
 
       <section className="eink-section">
