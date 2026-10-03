@@ -201,7 +201,30 @@ export function LibraryScreen({
                 <li key={entry.game.id} className="eink-grid__item">
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <GameIcon namespace={entry.game.i18nNamespace} />
-                    <span className="eink-tile__title">{i18n.t(`${entry.game.i18nNamespace}.title`)}</span>
+                    {/*
+                      标题用内联样式定死"在图标右侧的剩余空间里水平+垂直居中"。
+                      原因：styles.css 里同一选择器有多轮历史规则互相覆盖（display/min-height 等），
+                      已连续被旧规则盖住三次；这里先用内联样式保证效果，
+                      后续应把 CSS 里的重复规则清掉再改回类样式。
+                    */}
+                    <span
+                      className="eink-tile__title"
+                      style={{
+                        flex: '1 1 auto',
+                        minWidth: 0,
+                        minHeight: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        lineHeight: 1.25,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {i18n.t(`${entry.game.i18nNamespace}.title`)}
+                    </span>
 
                   </button>
                 </li>

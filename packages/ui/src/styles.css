@@ -1306,12 +1306,24 @@ html[data-bold-lines='on'] .eink-board {
   text-align: left;
 }
 
+/*
+ * 标题：在**图标右侧的剩余空间里水平 + 垂直居中**（用户反馈"标题偏左上"）。
+ *
+ * 两个细节：
+ *  1) 之前用 text-align:left，图标右侧还有一百多像素空着，字贴着左边 → 看着偏左；
+ *  2) 之前给标题留了两行高度（min-height:2.4em）以便长短标题等高，但单行文字会贴在
+ *     这个高盒子的**顶部** → 看着偏上。现在标题不再换行（nowrap + 省略号），
+ *     一行高度就是自身高度，因此去掉预留、用 flex 居中即可，卡片仍然等高。
+ */
 .eink-grid__item .eink-tile__title {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   line-height: 1.25;
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1321,4 +1333,24 @@ html[data-bold-lines='on'] .eink-board {
 .eink-grid__item .eink-tile__meta,
 .eink-grid__item .eink-tile__done {
   display: none;
+}
+
+/*
+ * 首页方块标题的**最终规则（放在文件末尾以确保生效）**：
+ * 之前的多次修改被后面同选择器的旧规则覆盖过，这里明确置于最后。
+ *
+ * 目标：图标在左、标题在图标右侧的剩余空间里**水平与垂直都居中**。
+ */
+.eink-grid__item .eink-tile__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
