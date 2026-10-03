@@ -90,6 +90,17 @@ export function buildControls(state: MinesweeperState): ControlSpec[] {
   const playing = gameStatus(state) === 'playing'
   return [
     {
+      id: 'undo',
+      labelKey: 'shell.game.undo',
+      role: 'action',
+      /*
+       * 有历史就可撤销 —— **包括输局之后**：踩雷那一步正是玩家最想撤回的
+       * （壳层在结果面板里据此给出「撤销」按钮，把局面退回踩雷之前）。
+       */
+      enabled: state.history.length > 0,
+      emphasis: 'normal',
+    },
+    {
       id: 'flag-mode',
       // 开关用两个 key 表达当前状态，避免出现 ⟦key⟧ 或猜谜式图标
       labelKey: state.flagMode

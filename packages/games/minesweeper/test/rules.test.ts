@@ -216,7 +216,8 @@ describe('胜负与标记', () => {
     expect(() => act(state, { type: 'toggleFlag', index: firstHidden(state) })).toThrow(IllegalActionError)
     expect(() => act(state, { type: 'toggleFlagMode' })).toThrow(IllegalActionError)
     expect(selectAt(state, firstHidden(state))).toBeNull()
-    expect(game.legal(state).map((action) => action.type)).toEqual(['restart'])
+    // 输局后只剩重开与撤销：撤销正是把局面退回踩雷之前的那一步
+    expect(game.legal(state).map((action) => action.type)).toEqual(['restart', 'undo'])
   })
 
   it('已翻开的格子不能插旗 → 抛 IllegalActionError', () => {
@@ -301,7 +302,8 @@ describe('胜负与标记', () => {
     expect(view.result!.titleKey).toBe('minesweeper.won.title')
     expect(statValue(state, 'minesweeper.stat.progress')).toBe('71/81')
     expect(statValue(state, 'minesweeper.stat.mines')).toBe('10')
-    expect(game.legal(state).map((action) => action.type)).toEqual(['restart'])
+    // 赢局后同样只剩重开与撤销（撤销回到赢之前，供玩家回看最后一步）
+    expect(game.legal(state).map((action) => action.type)).toEqual(['restart', 'undo'])
     expect(() => act(state, { type: 'reveal', index: 0 })).toThrow(IllegalActionError)
   })
 
@@ -322,6 +324,170 @@ describe('胜负与标记', () => {
     const lost = act(state, { type: 'reveal', index: mine })
     expect(game.status(lost)).toBe('lost')
     expect(game.status(act(lost, { type: 'restart' }))).toBe('playing')
+  })
+})
+
+describe('撤销', () => {
+  /** 手工构造：左下一颗雷 + 最下一行整行雷，首点 (0,0) 已用过，(4,4) 插旗 */
+  const CHAIN_FIXTURE: unknown = {
+    difficulty: 'starter',
+    seed: 0,
+    mines: [63, 72, 73, 74, 75, 76, 77, 78, 79, 80],
+    revealed: [],
+    flags: [40],
+    firstIndex: 0,
+    firstClickUsed: true,
+    rngCursor: 10,
+    flagMode: false,
+  }
+
+  /** 找一个还没翻开的非雷格（用于「撤销之后还能继续玩」） */
+  function firstSafeHidden(state: MinesweeperState): number {
+    const mineSet = new Set(state.mines)
+    const revealed = new Set(state.revealed)
+    for (let index = 0; index < cellCount(configFor(state.difficulty)); index++) {
+      if (!mineSet.has(index) && !revealed.has(index)) return index
+    }
+    return -1
+  }
+
+  it('走一步 → 撤销回到上一步；没有历史时明确抛错', () => {
+    const initial = fresh(21, 'starter')
+    // 还没动作：撤销必须明确抛错（壳层据此把按钮置灰），而不是静默无事发生
+    expect(controlById(initial, 'undo')!.enabled).toBe(false)
+    expect(() => act(initial, { type: 'undo' })).toThrow(IllegalActionError)
+
+    const revealed = act(initial, { type: 'reveal', index: 40 })
+    expect(controlById(revealed, 'undo')!.enabled).toBe(true)
+    const undone = act(revealed, { type: 'undo' })
+    expect(encodeState(undone)).toEqual(encodeState(initial))
+    // 这一步是首点：延迟布雷一并作废（mines 清空、首点标记归零、随机游标归零）
+    expect(undone.mines).toEqual([])
+    expect(undone.firstIndex).toBeNull()
+    expect(undone.firstClickUsed).toBe(false)
+    expect(undone.rngCursor).toBe(0)
+    // 历史用光后再撤销仍然抛错
+    expect(() => act(undone, { type: 'undo' })).toThrow(IllegalActionError)
+  })
+
+  it('撤销连锁翻开：一次动作翻开的整片区域一起收回', () => {
+    const initial = decodeState(CHAIN_FIXTURE)
+    const opened = act(initial, { type: 'reveal', index: 0 })
+    expect(opened.revealed.length).toBeGreaterThan(10)
+    const undone = act(opened, { type: 'undo' })
+    expect(undone.revealed).toEqual([])
+    expect(undone.flags).toEqual(initial.flags)
+    expect(encodeState(undone)).toEqual(encodeState(initial))
+  })
+
+  it('插旗 / 取消旗都能撤销，撤销后可以继续正常玩', () => {
+    const initial = act(fresh(31, 'starter'), { type: 'reveal', index: 40 })
+    const target = firstHidden(initial)
+    const flagged = act(initial, { type: 'toggleFlag', index: target })
+    expect(flagged.flags).toContain(target)
+
+    const undone = act(flagged, { type: 'undo' })
+    expect(encodeState(undone)).toEqual(encodeState(initial))
+    // 撤销后重做同一个插旗动作：结果与第一次完全相同
+    expect(encodeState(act(undone, { type: 'toggleFlag', index: target }))).toEqual(
+      encodeState(flagged),
+    )
+    // 取消旗也能撤销（插旗与取消旗互为逆操作）
+    const unflagged = act(flagged, { type: 'toggleFlag', index: target })
+    expect(encodeState(act(unflagged, { type: 'undo' }))).toEqual(encodeState(flagged))
+
+    // 继续正常玩：再翻开一个非雷格，状态合法且能存档往返
+    const safe = firstSafeHidden(undone)
+    expect(safe).toBeGreaterThanOrEqual(0)
+    const continued = act(undone, { type: 'reveal', index: safe })
+    expect(game.status(continued)).toBe('playing')
+    expect(continued.revealed.length).toBeGreaterThan(undone.revealed.length)
+    expect(game.decode(game.encode(continued))).toEqual(continued)
+  })
+
+  it('踩雷输掉后撤销 → 回到踩雷之前的局面，并且还能继续玩', () => {
+    const started = act(fresh(3, 'starter'), { type: 'reveal', index: 40 })
+    const mine = started.mines.find((index) => !started.revealed.includes(index))!
+    const lost = act(started, { type: 'reveal', index: mine })
+    expect(game.status(lost)).toBe('lost')
+    expect(game.view(lost).result!.titleKey).toBe('minesweeper.lost.title')
+    // 输局后撤销仍然可用 —— 这正是玩家最需要撤销的时刻
+    expect(controlById(lost, 'undo')!.enabled).toBe(true)
+
+    const back = act(lost, { type: 'undo' })
+    expect(game.status(back)).toBe('playing')
+    expect(game.view(back).result).toBeNull()
+    expect(back.revealed).not.toContain(mine)
+    // 盘面逐字段回到踩雷之前；视图也不再亮出全部雷
+    expect(encodeState(back)).toEqual(encodeState(started))
+    expect(game.view(back).board!.cells[mine]!.kind).toBe('hidden')
+    for (const index of back.mines) expect(game.view(back).board!.cells[index]!.kind).not.toBe('mine')
+
+    // 撤销之后可以继续玩：换一个非雷格翻开，不进入任何坏状态
+    const safe = firstSafeHidden(back)
+    expect(safe).toBeGreaterThanOrEqual(0)
+    const continued = act(back, { type: 'reveal', index: safe })
+    expect(game.status(continued)).toBe('playing')
+    expect(game.decode(game.encode(continued))).toEqual(continued)
+  })
+
+  it('撤销后重做同一步得到完全相同的局面（确定性：同种子同结果）', () => {
+    for (const seed of [1, 7, 20260101]) {
+      const initial = fresh(seed, 'skilled')
+      const first = act(initial, { type: 'reveal', index: 30 })
+      // 撤销首点后再点同一格：按同一 seed 布出的雷图必须一模一样
+      const redone = act(act(first, { type: 'undo' }), { type: 'reveal', index: 30 })
+      expect(encodeState(redone)).toEqual(encodeState(first))
+
+      // 第二步（含可能踩雷的那一步）同样：撤销后重做结果一致
+      const second = act(first, { type: 'reveal', index: firstHidden(first) })
+      const secondAgain = act(act(second, { type: 'undo' }), {
+        type: 'reveal',
+        index: firstHidden(first),
+      })
+      expect(encodeState(secondAgain)).toEqual(encodeState(second))
+    }
+  })
+
+  it('标记模式开关不属于棋步：撤销不回退它（有意行为）', () => {
+    const revealed = act(fresh(41, 'starter'), { type: 'reveal', index: 40 })
+    const modeOn = act(revealed, { type: 'toggleFlagMode' })
+    // 开关本身不产生可撤销历史
+    expect(modeOn.history).toHaveLength(revealed.history.length)
+    const flagged = act(modeOn, { type: 'toggleFlag', index: firstHidden(modeOn) })
+    const undone = act(flagged, { type: 'undo' })
+    // 撤销的是插旗那一步；标记模式是界面模式，保持开启
+    expect(undone.flagMode).toBe(true)
+    expect(encodeState(undone)).toEqual(encodeState(modeOn))
+  })
+
+  it('撤销栈随存档往返；旧存档（没有 history 字段）仍然能读', () => {
+    let state = act(fresh(5, 'starter'), { type: 'reveal', index: 40 })
+    state = act(state, { type: 'toggleFlag', index: firstHidden(state) })
+    expect(state.history).toHaveLength(2)
+
+    const decoded = game.decode(JSON.parse(JSON.stringify(game.encode(state))))
+    expect(decoded).toEqual(state)
+    expect(decoded.history).toHaveLength(2)
+    // 撤销栈一起还原：decode 之后撤销得到同一局面
+    expect(encodeState(act(decoded, { type: 'undo' }))).toEqual(encodeState(act(state, { type: 'undo' })))
+
+    // 旧存档：删掉 history 字段（模拟加撤销之前存下的进度）仍能读，历史视为空
+    const legacy = game.encode(state) as Record<string, unknown>
+    delete legacy.history
+    const old = game.decode(legacy)
+    expect(old.history).toEqual([])
+    expect(encodeState(old)).toEqual(encodeState({ ...state, history: [] }))
+
+    // 坏 history 一律拒绝，而不是带着半个撤销栈继续
+    expect(() => game.decode({ ...legacy, history: 'nope' })).toThrow(IllegalActionError)
+    expect(() => game.decode({ ...legacy, history: [{ kind: 'nope' }] })).toThrow(IllegalActionError)
+    expect(() =>
+      game.decode({ ...legacy, history: [{ kind: 'reveal', added: [999], wasFirstClick: false }] }),
+    ).toThrow(IllegalActionError)
+    expect(() =>
+      game.decode({ ...legacy, history: [{ kind: 'flag', index: -1 }] }),
+    ).toThrow(IllegalActionError)
   })
 })
 
@@ -454,11 +620,8 @@ describe('契约细节', () => {
     }
   })
 
-  it('非法动作（方向键/U 键派发的 move、undo）与越界索引都抛错', () => {
+  it('未知动作（方向键派发的 move）与越界索引都抛错', () => {
     const state = fresh(1, 'starter')
-    expect(() => act(state, { type: 'undo' } as unknown as MinesweeperAction)).toThrow(
-      IllegalActionError,
-    )
     expect(() => act(state, { type: 'move' } as unknown as MinesweeperAction)).toThrow(
       IllegalActionError,
     )

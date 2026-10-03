@@ -90,9 +90,12 @@ describe('数独 · 已填格可以直接改写', () => {
     expect(first.filled[index]).toBe(v1)
     expect(second.filled[index]).toBe(v2)
     /*
-     * 这里不测撤销：数独的 reduce 不支持 `undo`（会抛 sudoku.illegal.action:undo），
-     * 撤销是由壳层的状态历史实现的 —— 覆盖只是一次普通动作，因此天然可撤回一步。
+     * 覆盖是一次普通动作，因此天然可撤回一步：规则层的 `undo` 会把这一格
+     * 恢复成覆盖之前的值（v1），再撤一次才回到空格（详见 rules.test.ts 的「撤销」）。
      */
+    const undone = sudokuGame.reduce(second, { type: 'undo' } as never)
+    expect(undone.filled[index]).toBe(v1)
+    expect(sudokuGame.reduce(undone, { type: 'undo' } as never).filled[index]).toBe(0)
   })
 
   it('填同一个数字是幂等的（不会因为"自己和自己冲突"被拒）', () => {

@@ -335,6 +335,27 @@ export function GameScreen({
                 ) : null}
               </ul>
               <div className="eink-card__actions">
+                {/*
+                  Undo stays reachable after a loss: losing the game (stepping on a mine,
+                  filling the board with no move left) is exactly when a player wants the
+                  previous position back. The controls row is hidden once finished, so the
+                  button is offered here instead. Only rendered when the game itself reports
+                  an enabled `undo` control, and only for losses/draws — undoing a win would
+                  fight with the completion record that has just been written.
+                */}
+                {!session.solved &&
+                !entry.hideShellControls?.includes('undo') &&
+                session.controls.some((control) => control.id === 'undo' && control.enabled) ? (
+                  <ActionButton
+                    labelKey="shell.game.undo"
+                    emphasis="primary"
+                    size="large"
+                    onSelect={() => {
+                      session.clearNotice()
+                      session.undo()
+                    }}
+                  />
+                ) : null}
                 {/* 「下一关」由游戏自己声明（id: next-level）：无关卡的游戏不声明 → 这个按钮不渲染；
                     关卡制游戏在最后一关声明 enabled:false → 按钮显示为禁用。 */}
                 {session.controls.some((control) => control.id === 'next-level') ? (
@@ -386,15 +407,18 @@ export function GameScreen({
                 </div>
               ) : null}
               <div className="eink-controls__actions">
-                <ActionButton
-                  labelKey="shell.game.undo"
-                  size="large"
-                  disabled={!session.controls.some((control) => control.id === 'undo' && control.enabled)}
-                  onSelect={() => {
-                    session.clearNotice()
-                    session.undo()
-                  }}
-                />
+                {/* 玩法没有撤销能力时不渲染（见 GameRegistryEntry.hideShellControls） */}
+                {entry.hideShellControls?.includes('undo') ? null : (
+                  <ActionButton
+                    labelKey="shell.game.undo"
+                    size="large"
+                    disabled={!session.controls.some((control) => control.id === 'undo' && control.enabled)}
+                    onSelect={() => {
+                      session.clearNotice()
+                      session.undo()
+                    }}
+                  />
+                )}
                 <ActionButton
                   labelKey="shell.game.restart"
                   size="large"

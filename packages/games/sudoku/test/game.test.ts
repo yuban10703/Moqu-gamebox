@@ -7,7 +7,7 @@
  *   - 中英字典基础 key 集合完全一致，且 view/controls 用到的 key 都能取到。
  */
 import { describe, expect, it } from 'vitest'
-import { IllegalActionError, baseKeys, compareDicts, createI18n, type Dict } from '@eink/core'
+import { IllegalActionError, baseKeys, compareDicts, coreDictEn, coreDictZh, createI18n, type Dict } from '@eink/core'
 import {
   DIFFICULTY_IDS,
   SUDOKU_CELLS,
@@ -63,6 +63,13 @@ function peerHas(state: SudokuState, index: number, value: number): boolean {
 
 const zh: Dict = { ...sudokuZh }
 const en: Dict = { ...sudokuEn }
+/*
+ * 壳层键（例如撤销按钮的 `shell.game.undo`）不在本包字典里，而是核心字典提供的。
+ * 控件 labelKey 是**由游戏声明、由壳层用合并后的字典渲染**的，因此解析它们时要带上核心字典 ——
+ * 与扫雷/2048 的字典测试一致。
+ */
+const zhWithCore: Dict = { ...coreDictZh, ...sudokuZh }
+const enWithCore: Dict = { ...coreDictEn, ...sudokuEn }
 
 describe('view', () => {
   it('棋盘是 9×9，共 81 格', () => {
@@ -243,8 +250,8 @@ describe('controls', () => {
   })
 
   it('controls 的 labelKey 在中英字典里都能取到', () => {
-    const i18nZh = createI18n('zh-CN', { 'zh-CN': zh, 'en-US': en })
-    const i18nEn = createI18n('en-US', { 'zh-CN': zh, 'en-US': en })
+    const i18nZh = createI18n('zh-CN', { 'zh-CN': zhWithCore, 'en-US': enWithCore })
+    const i18nEn = createI18n('en-US', { 'zh-CN': zhWithCore, 'en-US': enWithCore })
     const labelKeys = [
       ...sudokuGame.controls(fresh()).map((control) => control.labelKey),
       ...sudokuGame.difficulties.map((difficulty) => difficulty.labelKey),

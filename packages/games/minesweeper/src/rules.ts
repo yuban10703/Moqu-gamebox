@@ -4,6 +4,11 @@
  * 状态是「不可变」的：每个动作返回新状态，绝不原地改写。
  * 地雷在第一次翻开时才放置（延迟布雷），因此首点及其 8 邻域必然安全；
  * `encode`/`decode` 只搬运已经放好的雷，**不会**重新布雷（否则同一存档双端会开出不同盘面）。
+ *
+ * 撤销（`history`）：每次**被接受**的棋盘动作（翻开 / 插旗）压入一条「逆操作」，
+ * `undo` 弹出一条并精确还原。存逆操作而不是整盘快照：16×16/50 雷的一盘要走上百步，
+ * 快照栈会让存档膨胀到几百 KB（每走一步都要落盘），而逆操作只记「这一步新翻开了哪些格」。
+ * 输局（踩雷）后也允许撤销 —— 那正是玩家最需要撤销的时刻。
  */
 import { IllegalActionError, type GameStatus } from '@eink/core'
 import {
@@ -22,8 +27,23 @@ export type MinesweeperAction =
   | { type: 'toggleFlag'; index: number }
   /** 切换「标记模式」：开启后点格子 = 插旗（手机端没有右键，必须给一个明确的模式开关） */
   | { type: 'toggleFlagMode' }
+  /** 撤销上一次被接受的棋盘动作（翻开 / 插旗）；没有可撤销的动作时明确抛错 */
+  | { type: 'undo' }
   /** 重开。壳层的重开按钮与 R 键会无条件派发它，因此规则层必须接受 */
   | { type: 'restart' }
+
+/**
+ * 一条「逆操作」：撤销时按它把局面精确还原回去。
+ *
+ * · reveal：`added` 是这次新翻开的格子（连锁翻开可能有几十格）。
+ *   撤销 = 把这些格子重新变回未翻开；`wasFirstClick` 为真时还要把延迟布雷一并还原
+ *   （mines 清空、firstIndex/firstClickUsed/rngCursor 归零）—— 于是再点一次仍按
+ *   同一 seed 布出同一份雷图，「同种子同结果」不受撤销影响。
+ * · flag：插旗与取消旗互为逆操作，再翻一次同一格即可。
+ */
+export type MinesweeperUndoEntry =
+  | { readonly kind: 'reveal'; readonly added: readonly number[]; readonly wasFirstClick: boolean }
+  | { readonly kind: 'flag'; readonly index: number }
 
 export interface MinesweeperState {
   difficulty: DifficultyId
@@ -43,6 +63,8 @@ export interface MinesweeperState {
   rngCursor: number
   /** 标记模式：开启后点格子 = 插旗 */
   flagMode: boolean
+  /** 撤销栈：每次被接受的棋盘动作压入一条逆操作（重开清空） */
+  history: readonly MinesweeperUndoEntry[]
 }
 
 /** 升序去重，保证状态可以用深比较直接比对 */
@@ -61,6 +83,7 @@ export function createState(seed: number, difficulty: DifficultyId): Minesweeper
     firstClickUsed: false,
     rngCursor: 0,
     flagMode: false,
+    history: [],
   }
 }
 
@@ -120,14 +143,48 @@ export function reduceMinesweeper(
       const flags = state.flags.includes(action.index)
         ? state.flags.filter((index) => index !== action.index)
         : sortedUnique([...state.flags, action.index])
-      return { ...state, flags }
+      return {
+        ...state,
+        flags,
+        history: [...state.history, { kind: 'flag', index: action.index }],
+      }
     }
 
     case 'reveal':
       return reveal(state, action.index)
 
+    case 'undo': {
+      /*
+       * 撤销：**不经过 assertPlayable** —— 踩雷输掉之后正是最需要撤销的时刻，
+       * 而输局状态会拒绝其它动作。没有可撤销的动作时明确抛错（壳层给出文字提示），
+       * 而不是静默返回原状态（那样按钮点了像坏了）。
+       */
+      const entry = state.history[state.history.length - 1]
+      if (!entry) throw new IllegalActionError(GAME_ID, 'nothing to undo')
+      const history = state.history.slice(0, -1)
+      if (entry.kind === 'flag') {
+        const flags = state.flags.includes(entry.index)
+          ? state.flags.filter((index) => index !== entry.index)
+          : sortedUnique([...state.flags, entry.index])
+        return { ...state, flags, history }
+      }
+      const added = new Set(entry.added)
+      const revealed = state.revealed.filter((index) => !added.has(index))
+      if (!entry.wasFirstClick) return { ...state, revealed, history }
+      // 撤销的这一步就是首点：延迟布雷一并作废，重新点任意一格都会按 seed 布出同一份雷图
+      return {
+        ...state,
+        mines: [],
+        revealed,
+        firstIndex: null,
+        firstClickUsed: false,
+        rngCursor: 0,
+        history,
+      }
+    }
+
     default: {
-      // 壳层会无条件派发 move / undo / nextLevel（方向键、U 键、结果面板按钮）：
+      // 壳层会无条件派发 move / nextLevel（方向键、结果面板按钮）：
       // 扫雷没有这些语义，按契约抛错，壳层会给出明确文字提示而不是静默无响应
       const unknown = action as { type?: string }
       throw new IllegalActionError(GAME_ID, `unknown action ${String(unknown.type)}`)
@@ -143,9 +200,10 @@ function reveal(state: MinesweeperState, index: number): MinesweeperState {
   if (state.revealed.includes(index) || state.flags.includes(index)) return state
 
   const config = configFor(state.difficulty)
+  const wasFirstClick = !state.firstClickUsed
   let mines = state.mines
   let rngCursor = state.rngCursor
-  if (!state.firstClickUsed) {
+  if (wasFirstClick) {
     const placement = placeMines(config, state.seed, index)
     mines = placement.mines
     rngCursor = placement.cursor
@@ -158,25 +216,35 @@ function reveal(state: MinesweeperState, index: number): MinesweeperState {
     firstClickUsed: true,
   }
   const mineSet = new Set(mines)
+  /** 本次动作新翻开的格子 = 撤销要还原回去的那一批（连锁翻开可能有几十格） */
+  const undoEntry = (added: readonly number[]): MinesweeperUndoEntry => ({
+    kind: 'reveal',
+    added,
+    wasFirstClick,
+  })
   if (mineSet.has(index)) {
     // 踩雷：本次只翻开踩中的那一颗，其余雷由 view 在输局后统一亮出
-    return { ...placed, revealed: sortedUnique([...placed.revealed, index]) }
+    return {
+      ...placed,
+      revealed: sortedUnique([...placed.revealed, index]),
+      history: [...state.history, undoEntry([index])],
+    }
   }
+  const revealed = expandChain(config, mineSet, new Set(placed.flags), new Set(placed.revealed), index)
+  // expandChain 只会新增格子，因此「新翻开的格子」= 结果里原本没翻开的部分
+  const before = new Set(placed.revealed)
   return {
     ...placed,
-    revealed: expandChain(
-      config,
-      mineSet,
-      new Set(placed.flags),
-      new Set(placed.revealed),
-      index,
-    ),
+    revealed,
+    history: [...state.history, undoEntry(revealed.filter((cell) => !before.has(cell)))],
   }
 }
 
 /** 当前局面下规则允许的动作（可用按钮/回放校验） */
 export function legalActions(state: MinesweeperState): readonly MinesweeperAction[] {
   const out: MinesweeperAction[] = [{ type: 'restart' }]
+  // 撤销在输/赢之后仍然可用（踩雷那一步正是最想撤回的），因此放在状态判断之前
+  if (state.history.length > 0) out.push({ type: 'undo' })
   if (gameStatus(state) !== 'playing') return out
   out.push({ type: 'toggleFlagMode' })
   const revealed = new Set(state.revealed)
@@ -215,6 +283,12 @@ export function encodeState(state: MinesweeperState): unknown {
     firstClickUsed: state.firstClickUsed,
     rngCursor: state.rngCursor,
     flagMode: state.flagMode,
+    // 撤销栈一起进存档：重开应用后仍能撤销（与其它玩法的约定一致）
+    history: state.history.map((entry) =>
+      entry.kind === 'flag'
+        ? { kind: 'flag', index: entry.index }
+        : { kind: 'reveal', added: [...entry.added], wasFirstClick: entry.wasFirstClick },
+    ),
   }
 }
 
@@ -238,6 +312,51 @@ function readBoolean(value: unknown, field: string): boolean {
   return value
 }
 
+function readRngCursor(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new IllegalActionError(GAME_ID, `bad ${field}`)
+  }
+  return value
+}
+
+/**
+ * 撤销栈的校验。
+ *
+ * `undefined` 视为空栈：加了撤销之后，**旧存档（没有 history 字段）必须继续能读**，
+ * 否则玩家已有的进度会被判成「存档损坏」。
+ * 有该字段时逐条校验，坏数据（越界索引、重复格、未知 kind）一律拒绝。
+ */
+function readHistory(value: unknown, total: number): MinesweeperUndoEntry[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw new IllegalActionError(GAME_ID, 'bad history')
+  return value.map((raw) => {
+    if (!raw || typeof raw !== 'object') {
+      throw new IllegalActionError(GAME_ID, 'bad history entry')
+    }
+    const entry = raw as {
+      kind?: unknown
+      added?: unknown
+      wasFirstClick?: unknown
+      index?: unknown
+    }
+    if (entry.kind === 'flag') {
+      const index = entry.index
+      if (!Number.isInteger(index) || (index as number) < 0 || (index as number) >= total) {
+        throw new IllegalActionError(GAME_ID, 'bad history flag index')
+      }
+      return { kind: 'flag', index: index as number }
+    }
+    if (entry.kind === 'reveal') {
+      return {
+        kind: 'reveal',
+        added: readIntList(entry.added, total, 'history added'),
+        wasFirstClick: readBoolean(entry.wasFirstClick, 'history wasFirstClick'),
+      }
+    }
+    throw new IllegalActionError(GAME_ID, 'bad history kind')
+  })
+}
+
 /**
  * 严格校验存档（对应「拒绝损坏或非法存档」）。
  *
@@ -259,13 +378,7 @@ export function decodeState(raw: unknown): MinesweeperState {
     throw new IllegalActionError(GAME_ID, 'bad seed')
   }
   if (value.seed > 0xffffffff) throw new IllegalActionError(GAME_ID, 'seed out of range')
-  if (
-    typeof value.rngCursor !== 'number' ||
-    !Number.isInteger(value.rngCursor) ||
-    value.rngCursor < 0
-  ) {
-    throw new IllegalActionError(GAME_ID, 'bad rngCursor')
-  }
+  const rngCursor = readRngCursor(value.rngCursor, 'rngCursor')
   const flagMode = readBoolean(value.flagMode, 'flagMode')
   const firstClickUsed = readBoolean(value.firstClickUsed, 'firstClickUsed')
 
@@ -285,6 +398,7 @@ export function decodeState(raw: unknown): MinesweeperState {
   const mines = readIntList(value.mines, total, 'mines')
   const revealed = readIntList(value.revealed, total, 'revealed')
   const flags = readIntList(value.flags, total, 'flags')
+  const history = readHistory(value.history, total)
 
   if (firstIndex === null && revealed.length > 0) {
     throw new IllegalActionError(GAME_ID, 'revealed cells before the first click')
@@ -318,7 +432,8 @@ export function decodeState(raw: unknown): MinesweeperState {
     flags,
     firstIndex,
     firstClickUsed,
-    rngCursor: value.rngCursor,
+    rngCursor,
     flagMode,
+    history,
   }
 }

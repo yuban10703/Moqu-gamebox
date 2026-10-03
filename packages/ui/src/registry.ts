@@ -15,6 +15,12 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
    * 只有难度、没有关卡的玩法**不要**设它，那七款的难度是真难度。
    */
   hideDifficulty?: boolean
+  /**
+   * 不渲染这些**壳层按钮**（id 与壳层保持一致，例如 'undo'）。
+   * 用于"这个玩法没有这个能力、按钮永远点不动"的情况 —— 与其显示一个假按钮，不如不显示。
+   * 目前：数独不提供撤销，因此隐藏 'undo'（用户要求"数独的撤销直接隐藏"）。
+   */
+  hideShellControls?: readonly string[]
   defaultDifficulty: string
   /** 详情页展示的内容列表（关卡等） */
   levels?: readonly { id: string }[]

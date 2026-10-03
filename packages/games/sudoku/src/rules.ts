@@ -18,6 +18,19 @@ export type SudokuAction =
   | { type: 'set'; value: number }
   /** 清除选中格（只清玩家填的，清不掉题目给定格） */
   | { type: 'clear' }
+  /** 撤销上一次填入 / 清除（含"直接覆盖已填格"）；没有可撤销的动作时明确抛错 */
+  | { type: 'undo' }
+
+/**
+ * 一条「逆操作」：撤销时把这一格恢复成动作之前的值。
+ * 存逆操作而不是整盘快照：9×9 每步 81 个数字，快照栈会让存档白胖一大圈。
+ * `selected`（光标）不属于棋步，撤销不回退它 —— 玩家撤销后通常想立刻改填另一个数字。
+ */
+export interface SudokuUndoEntry {
+  readonly index: number
+  /** 动作之前该格的值（0 = 空） */
+  readonly previous: number
+}
 
 export interface SudokuState {
   difficulty: DifficultyId
@@ -29,6 +42,8 @@ export interface SudokuState {
   filled: Grid
   /** 当前选中的格子索引，未选中为 null */
   selected: number | null
+  /** 撤销栈：每次被接受的填入 / 清除压入一条逆操作 */
+  history: readonly SudokuUndoEntry[]
 }
 
 function illegal(reason: string): IllegalActionError {
@@ -129,9 +144,12 @@ export function reduceSudoku(state: SudokuState, action: SudokuAction): SudokuSt
          */
         throw illegal(`sudoku.illegal.conflict:${index}=${value}`)
       }
+      // 填入与原来相同的数字：无事发生，也不该占一格撤销历史
+      if (state.filled[index] === value) return state
       const filled = state.filled.slice()
       filled[index] = value
-      return { ...state, filled }
+      const entry: SudokuUndoEntry = { index, previous: state.filled[index]! }
+      return { ...state, filled, history: [...state.history, entry] }
     }
     case 'clear': {
       const index = state.selected
@@ -140,7 +158,17 @@ export function reduceSudoku(state: SudokuState, action: SudokuAction): SudokuSt
       if (state.filled[index] === 0) return state // 已经是空的：无事发生，不算非法
       const filled = state.filled.slice()
       filled[index] = 0
-      return { ...state, filled }
+      const entry: SudokuUndoEntry = { index, previous: state.filled[index]! }
+      return { ...state, filled, history: [...state.history, entry] }
+    }
+    case 'undo': {
+      const entry = state.history[state.history.length - 1]
+      if (!entry) throw illegal('sudoku.illegal.nothing-to-undo')
+      // 题目给定格永远不可写：存档被篡改出这样的逆操作时明确拒绝
+      if (state.given[entry.index] !== 0) throw illegal(`sudoku.illegal.given:${entry.index}`)
+      const filled = state.filled.slice()
+      filled[entry.index] = entry.previous
+      return { ...state, filled, history: state.history.slice(0, -1) }
     }
     default: {
       // 运行期拿到未知动作（例如旧版本存档）时明确报错
@@ -160,5 +188,6 @@ export function legalActions(state: SudokuState): SudokuAction[] {
       actions.push({ type: 'clear' })
     }
   }
+  if (state.history.length > 0) actions.push({ type: 'undo' })
   return actions
 }

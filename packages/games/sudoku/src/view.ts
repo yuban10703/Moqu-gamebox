@@ -92,6 +92,14 @@ export function buildControls(state: SudokuState): ControlSpec[] {
       state.filled[state.selected] !== 0,
     emphasis: 'normal',
   })
+  controls.push({
+    id: 'undo',
+    labelKey: 'shell.game.undo',
+    role: 'action',
+    // 有过一次填入/清除就可撤销；光标（selected）不随撤销回退，撤完可以直接接着填
+    enabled: state.history.length > 0,
+    emphasis: 'normal',
+  })
   return controls
 }
 

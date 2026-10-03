@@ -59,6 +59,8 @@ export const library: GameLibrary = {
     }),
     defineGame({
       game: sudokuGame,
+      // 数独不提供撤销 → 不渲染那个按钮（否则是个永远点不动的假按钮）
+      hideShellControls: ['undo'],
       // 数独没有 cell.* 字典键 → 不设 cellLabelKey，无障碍标签回退到格子自身符号（数字）
       rulesKeys: ['sudoku.rules.body'],
       defaultDifficulty: 'starter',

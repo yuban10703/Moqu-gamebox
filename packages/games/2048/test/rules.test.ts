@@ -159,6 +159,27 @@ describe('撤销与重开', () => {
     expect(() => reduceState(state, { type: 'undo' })).toThrow(IllegalActionError)
   })
 
+  it('撤销后重做同一步得到完全相同的局面（不重新抽随机数）', () => {
+    for (const difficulty of ['starter', 'skilled', 'challenging'] as const) {
+      let state = createState(31337, difficulty)
+      for (let step = 0; step < 15; step++) {
+        const moves = legalActions(state).filter((action) => action.type === 'move')
+        if (moves.length === 0) break
+        const action = moves[step % moves.length]!
+        const after = reduceState(state, action)
+        // 撤销回到移动前：棋盘、得分、步数、随机游标全部还原
+        const undone = reduceState(after, { type: 'undo' })
+        expect(encodeState(undone)).toEqual(encodeState(state))
+        // 再走同一个方向：出块必须与第一次逐字段相同（游标一并还原，不重新抽随机数）
+        const redone = reduceState(undone, action)
+        expect(encodeState(redone)).toEqual(encodeState(after))
+        // 撤销之后还能继续正常玩：状态仍可存档往返
+        expect(decodeState(JSON.parse(JSON.stringify(encodeState(redone))))).toEqual(redone)
+        state = after
+      }
+    }
+  })
+
   it('未知动作类型抛 IllegalActionError（例如壳层的 nextLevel）', () => {
     const state = createState(5, 'starter')
     expect(() => reduceState(state, { type: 'nextLevel' } as unknown as Game2048Action)).toThrow(

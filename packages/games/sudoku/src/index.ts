@@ -22,6 +22,7 @@ import {
   reduceSudoku,
   type SudokuAction,
   type SudokuState,
+  type SudokuUndoEntry,
 } from './rules.js'
 import { SUDOKU_CELLS, SUDOKU_SIZE, countSolutions, gridFromArray, gridToArray } from './solver.js'
 import { buildControls, buildView } from './view.js'
@@ -68,6 +69,7 @@ export {
   reduceSudoku,
   type SudokuAction,
   type SudokuState,
+  type SudokuUndoEntry,
 } from './rules.js'
 export { WRONG_MARK, buildBoard, buildControls, buildView, cellGlyph, cellKindAt } from './view.js'
 
@@ -82,6 +84,7 @@ export function createSudokuState(seed: number, difficulty: DifficultyId): Sudok
     solution: puzzle.solution,
     filled: puzzle.given.slice(),
     selected: null,
+    history: [],
   }
 }
 
@@ -153,6 +156,7 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
    * 壳层只负责把 role:'action' 的控件渲染成按钮并回调这里（它不该知道任何玩法）。
    */
   controlAction(_state: SudokuState, controlId: string): SudokuAction | null {
+    if (controlId === 'undo') return { type: 'undo' }
     if (controlId === 'clear') return { type: 'clear' }
     const match = /^digit-([1-9])$/.exec(controlId)
     if (!match) return null
@@ -171,6 +175,8 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
       solution: gridToArray(state.solution),
       filled: gridToArray(state.filled),
       selected: state.selected,
+      // 撤销栈一起进存档：重开应用后仍能撤销（与其它玩法的约定一致）
+      history: state.history.map((entry) => ({ index: entry.index, previous: entry.previous })),
     }
   },
 
@@ -182,6 +188,7 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
       solution: unknown
       filled: unknown
       selected: unknown
+      history: unknown
     }>
     const difficulty = asDifficulty(String(value.difficulty ?? ''))
     const given = assertCellArray(value.given, 'given')
@@ -220,6 +227,7 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
       solution: gridFromArray(solution),
       filled: gridFromArray(filled),
       selected: selected === undefined ? null : (selected as number | null),
+      history: readHistory(value.history, given),
     }
     // 题目数据必须仍然是一道唯一解的题；坏存档在这里就会被拒
     if (countSolutions(state.given, 2) !== 1) {
@@ -227,4 +235,35 @@ export const sudokuGame: GameDef<SudokuState, SudokuAction> = {
     }
     return state
   },
+}
+
+/**
+ * 撤销栈的校验。
+ *
+ * `undefined` 视为空栈：加了撤销之后，**旧存档（没有 history 字段）必须继续能读**，
+ * 否则玩家已有的进度会被判成「存档损坏」。
+ * 有该字段时逐条校验，并守住「给定格永不被改写」这条不变量 ——
+ * 否则一份被篡改的存档可以靠 `undo` 把题目给定格改掉。
+ */
+function readHistory(value: unknown, given: readonly number[]): SudokuUndoEntry[] {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) throw illegal('sudoku.illegal.state:history')
+  return value.map((raw) => {
+    if (!raw || typeof raw !== 'object') throw illegal('sudoku.illegal.state:history-entry')
+    const entry = raw as { index?: unknown; previous?: unknown }
+    const index = entry.index
+    if (!Number.isInteger(index) || (index as number) < 0 || (index as number) >= SUDOKU_CELLS) {
+      throw illegal('sudoku.illegal.state:history-index')
+    }
+    if (given[index as number] !== 0) throw illegal('sudoku.illegal.state:history-given')
+    const previous = entry.previous
+    if (
+      !Number.isInteger(previous) ||
+      (previous as number) < 0 ||
+      (previous as number) > SUDOKU_SIZE
+    ) {
+      throw illegal('sudoku.illegal.state:history-previous')
+    }
+    return { index: index as number, previous: previous as number }
+  })
 }

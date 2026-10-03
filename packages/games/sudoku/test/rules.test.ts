@@ -313,3 +313,135 @@ describe('胜局的可达性', () => {
     expect(sudokuGame.status(state)).toBe('won')
   })
 })
+
+describe('撤销', () => {
+  /** 填入某个合法值与撤销的便捷写法（选中 → 填 → 撤） */
+  function selectAndSet(state: SudokuState, index: number, value: number): SudokuState {
+    return act(act(state, { type: 'select', index }), { type: 'set', value })
+  }
+
+  it('填入一步 → 撤销回到上一步；没有历史时明确抛错', () => {
+    const initial = fresh()
+    // 还没填入过：撤销必须明确抛错（壳层据此把按钮置灰），而不是静默无事发生
+    expect(() => act(initial, { type: 'undo' })).toThrow(IllegalActionError)
+    expect(
+      sudokuGame.controls(initial).find((control) => control.id === 'undo')!.enabled,
+    ).toBe(false)
+
+    const index = emptyCells(initial)[0]!
+    const filled = selectAndSet(initial, index, initial.solution[index]!)
+    expect(filled.filled[index]).toBe(initial.solution[index])
+    expect(
+      sudokuGame.controls(filled).find((control) => control.id === 'undo')!.enabled,
+    ).toBe(true)
+
+    const undone = act(filled, { type: 'undo' })
+    expect(undone.filled[index]).toBe(0)
+    expect(Array.from(undone.filled)).toEqual(Array.from(initial.filled))
+    // 光标不随撤销回退：撤完可以直接改填另一个数字
+    expect(undone.selected).toBe(index)
+    // 历史用光后再撤销仍然抛错
+    expect(() => act(undone, { type: 'undo' })).toThrow(IllegalActionError)
+  })
+
+  it('覆盖已填格是一次独立动作：撤销回到被覆盖前的值', () => {
+    const initial = fresh()
+    const index = emptyCells(initial)[0]!
+    const target = initial.solution[index]!
+    const other = legalDigitsAt(initial, index).find((value) => value !== target)!
+    const first = selectAndSet(initial, index, target)
+    const second = selectAndSet(first, index, other)
+    expect(second.filled[index]).toBe(other)
+
+    const backToFirst = act(second, { type: 'undo' })
+    expect(backToFirst.filled[index]).toBe(target)
+    expect(Array.from(backToFirst.filled)).toEqual(Array.from(first.filled))
+    const backToEmpty = act(backToFirst, { type: 'undo' })
+    expect(backToEmpty.filled[index]).toBe(0)
+    expect(Array.from(backToEmpty.filled)).toEqual(Array.from(initial.filled))
+  })
+
+  it('清除也能撤销（清除 + 撤销 = 回到清除前）', () => {
+    const initial = fresh()
+    const index = emptyCells(initial)[0]!
+    const filled = selectAndSet(initial, index, initial.solution[index]!)
+    const cleared = act(filled, { type: 'clear' })
+    expect(cleared.filled[index]).toBe(0)
+    const undone = act(cleared, { type: 'undo' })
+    expect(undone.filled[index]).toBe(filled.filled[index])
+    expect(Array.from(undone.filled)).toEqual(Array.from(filled.filled))
+  })
+
+  it('撤销后可以继续正常玩（选中还在、还能接着填并走到 won）', () => {
+    let state = fresh()
+    const index = emptyCells(state)[0]!
+    state = selectAndSet(state, index, state.solution[index]!)
+    state = act(state, { type: 'undo' })
+    // 继续玩：撤销后把正确的数字填回去，状态合法且可以一路填到赢
+    state = act(state, { type: 'set', value: state.solution[state.selected!]! })
+    expect(state.filled[index]).toBe(state.solution[index])
+    for (const cell of emptyCells(state)) {
+      state = selectAndSet(state, cell, state.solution[cell]!)
+    }
+    expect(sudokuGame.status(state)).toBe('won')
+    // 撤销仍可用，且撤销后不再是 won
+    expect(() => act(state, { type: 'undo' })).not.toThrow()
+    expect(sudokuGame.status(act(state, { type: 'undo' }))).toBe('playing')
+  })
+
+  it('撤销永远不会改题目给定格（给定格与解逐格比对）', () => {
+    let state = fresh()
+    const given = givenCells(state)
+    // 随意填几格再全部撤销，给定格必须逐格保持原样
+    for (const index of emptyCells(state).slice(0, 5)) {
+      state = selectAndSet(state, index, legalDigitsAt(state, index)[0]!)
+    }
+    let guard = 0
+    while (state.history.length > 0 && guard < 20) {
+      guard++
+      state = act(state, { type: 'undo' })
+      for (const cell of given) expect(state.filled[cell]).toBe(state.given[cell])
+    }
+    expect(state.history).toHaveLength(0)
+    expect(Array.from(state.filled)).toEqual(Array.from(fresh().filled))
+  })
+
+  it('撤销栈随存档往返；旧存档（没有 history 字段）仍然能读', () => {
+    const initial = fresh()
+    const index = emptyCells(initial)[0]!
+    const state = selectAndSet(initial, index, initial.solution[index]!)
+
+    const raw = sudokuGame.encode(state) as Record<string, unknown>
+    expect(raw.history).toEqual([{ index, previous: 0 }])
+    const decoded = sudokuGame.decode(JSON.parse(JSON.stringify(raw)))
+    expect(decoded).toEqual(state)
+    // 撤销栈一起还原：decode 之后撤销得到同一盘面
+    expect(Array.from(act(decoded, { type: 'undo' }).filled)).toEqual(
+      Array.from(act(state, { type: 'undo' }).filled),
+    )
+
+    // 旧存档：删掉 history 字段（模拟加撤销之前存下的进度）仍能读，历史视为空
+    const legacy = { ...raw }
+    delete legacy.history
+    const old = sudokuGame.decode(legacy)
+    expect(old.history).toEqual([])
+    expect(Array.from(old.filled)).toEqual(Array.from(state.filled))
+
+    // 坏 history 一律拒绝（含「靠撤销改写题目给定格」这种被篡改的存档）
+    const givenIndex = givenCells(initial)[0]!
+    const bad: unknown[] = [
+      { ...legacy, history: 'nope' },
+      { ...legacy, history: [{ index: 81, previous: 1 }] },
+      { ...legacy, history: [{ index: -1, previous: 1 }] },
+      { ...legacy, history: [{ index: 1.5, previous: 1 }] },
+      { ...legacy, history: [{ index, previous: 10 }] },
+      { ...legacy, history: [{ index: givenIndex, previous: 1 }] },
+      { ...legacy, history: [null] },
+    ]
+    for (const candidate of bad) {
+      expect(() => sudokuGame.decode(candidate), JSON.stringify(candidate)?.slice(0, 80)).toThrow(
+        IllegalActionError,
+      )
+    }
+  })
+})

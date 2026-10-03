@@ -62,6 +62,7 @@ export {
   totalCells,
   type MinesweeperAction,
   type MinesweeperState,
+  type MinesweeperUndoEntry,
 } from './rules.js'
 export {
   buildBoard,
@@ -120,11 +121,13 @@ export const minesweeperGame: GameDef<MinesweeperState, MinesweeperAction> = {
   },
 
   /**
-   * 「标记模式」开关与重开由游戏自己说明派发什么动作。
-   * 壳层只把 role:'action' 的控件渲染成按钮并回调这里（它不该知道任何玩法）。
+   * 「标记模式」开关、撤销与重开由游戏自己说明派发什么动作。
+   * 壳层只把 role:'action' 的控件渲染成按钮并回调这里（它不该知道任何玩法）；
+   * 撤销目前由壳层的固定按钮派发，这里也映射一次，壳层改走 controlAction 时不会失效。
    */
   controlAction(_state: MinesweeperState, controlId: string): MinesweeperAction | null {
     if (controlId === 'flag-mode') return { type: 'toggleFlagMode' }
+    if (controlId === 'undo') return { type: 'undo' }
     if (controlId === 'restart') return { type: 'restart' }
     return null
   },
