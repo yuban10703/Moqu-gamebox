@@ -191,6 +191,7 @@ function hostGlyph(namespace: string): string {
     knightstour: '♞',
     dotsboxes: '⊹',
     battleship: '⌖',
+    mancala: '◍',
     '2048': '▩',
   }
   return glyphs[namespace] ?? '◈'

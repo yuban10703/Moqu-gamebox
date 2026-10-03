@@ -22,6 +22,7 @@ export default defineConfig({
       '@eink/knightstour': pkg('games/knightstour/src/index.ts'),
       '@eink/dotsboxes': pkg('games/dotsboxes/src/index.ts'),
       '@eink/battleship': pkg('games/battleship/src/index.ts'),
+      '@eink/mancala': pkg('games/mancala/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
       '@eink/ui': pkg('ui/src/index.ts'),
