@@ -1372,3 +1372,49 @@ html[data-bold-lines='on'] .eink-board {
   color: var(--ink-black);
   cursor: pointer;
 }
+
+
+/*
+ * 玩法说明（用户要求：默认收起、右下角按钮、收起时末尾加 …、字号小一点）
+ * 说明区本身 position: relative，右下角的「…」与按钮**覆盖**在文字上。
+ */
+.eink-rules {
+  position: relative;
+  font-size: 0.9em;
+}
+
+.eink-rules[data-expanded='no'] {
+  /* 给右下角的按钮让出位置，避免压住正文 */
+  padding-bottom: 1.9em;
+  overflow: hidden;
+}
+
+.eink-rules[data-expanded='no'] .eink-text:last-of-type {
+  margin-bottom: 0;
+}
+
+.eink-rules__foot {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ink-white);
+  padding-left: 6px;
+}
+
+.eink-rules__ellipsis {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.eink-rules__more {
+  font: inherit;
+  font-size: 0.95em;
+  padding: 1px 8px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  cursor: pointer;
+}

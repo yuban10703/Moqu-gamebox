@@ -139,24 +139,65 @@ export function GameDetailScreen({
         <div
           className={rulesExpanded ? 'eink-rules' : 'eink-rules eink-rules--clamped'}
           ref={rulesRef}
-          /* 固定长度用内联样式定死：styles.css 里同名类样式在构建后未生效（与标题那次同类问题） */
-          style={rulesExpanded ? undefined : { maxHeight: '7.8em', overflow: 'hidden' }}
+          /* 限高用内联样式（styles.css 同名类样式构建后未生效，与首页标题同类问题） */
+          style={
+            rulesExpanded
+              ? { position: 'relative', fontSize: '0.9em' }
+              : { position: 'relative', fontSize: '0.9em', maxHeight: '7.8em', paddingBottom: '1.9em' }
+          }
+          data-expanded={rulesExpanded ? 'yes' : 'no'}
         >
           {entry.rulesKeys.map((key) => (
             <p key={key} className="eink-text">
               {i18n.t(key)}
             </p>
           ))}
+          {/*
+            收起时：右下角放「…」与「阅读全部」，两者都是**覆盖**在说明右下角（绝对定位）。
+            墨水屏没有渐变可用，硬截断 + 显式省略号是唯一诚实的表达。
+          */}
+          {rulesExpanded || rulesOverflow ? (
+            <div
+                className="eink-rules__foot"
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  bottom: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--ink-white)',
+                  paddingLeft: 6,
+                }}
+              >
+              {rulesExpanded ? null : (
+                <span
+                  className="eink-rules__ellipsis"
+                  aria-hidden="true"
+                  style={{ fontWeight: 700, letterSpacing: '0.1em' }}
+                >
+                  …
+                </span>
+              )}
+              <button
+                type="button"
+                className="eink-rules__more"
+                onClick={() => setRulesExpanded((prev) => !prev)}
+                style={{
+                  font: 'inherit',
+                  fontSize: '0.95em',
+                  padding: '1px 8px',
+                  border: 'var(--line) solid var(--ink-black)',
+                  background: 'var(--ink-white)',
+                  color: 'var(--ink-black)',
+                  cursor: 'pointer',
+                }}
+              >
+                {i18n.t(rulesExpanded ? 'shell.detail.collapse' : 'shell.detail.readAll')}
+              </button>
+            </div>
+          ) : null}
         </div>
-        {rulesExpanded || rulesOverflow ? (
-          <button
-            type="button"
-            className="eink-rules__more"
-            onClick={() => setRulesExpanded((prev) => !prev)}
-          >
-            {i18n.t(rulesExpanded ? 'shell.detail.collapse' : 'shell.detail.readAll')}
-          </button>
-        ) : null}
       </section>
 
       <section className="eink-section">
