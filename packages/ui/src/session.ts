@@ -480,7 +480,13 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     corruptRef.current = false
     setProgress(carried)
     setCorrupt(false)
-    setState(game.create(0, difficulty))
+    /*
+     * 必须用**同一个新种子**生成界面状态。
+     * 这里原先写的是 `game.create(0, difficulty)` —— 存档里是新的 seed，界面却是用字面量 0 生成的，
+     * 于是"重新开始"永远显示同一道题（用户反馈："扫雷在我点重新开始后不是新的题目"）。
+     * 和之前"两处都写死 seed: 0"是同一类错误，这次漏的是第三处。
+     */
+    setState(game.create(seed, difficulty))
     setSaveStatus('idle')
   }, [storage, game, difficulty, now, progress])
 
