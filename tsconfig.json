@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/dotsboxes": ["packages/games/dotsboxes/src/index.ts"],
+      "@eink/dotsboxes/*": ["packages/games/dotsboxes/src/*"],
       "@eink/knightstour": ["packages/games/knightstour/src/index.ts"],
       "@eink/knightstour/*": ["packages/games/knightstour/src/*"],
       "@eink/klotski": ["packages/games/klotski/src/index.ts"],
