@@ -38,10 +38,26 @@ page.on('pageerror', (e) => errors.push(String(e).slice(0, 180)))
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 180)) })
 
 const clickText = async (text, { optional = false } = {}) => {
-  // 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它
+  /*
+   * 先找同名的**游戏方块**并点它：
+   *  1) 「继续上一局」细栏的可访问名里也含游戏名（对无障碍是有意的），
+   *     直接用 getByRole(name) 会在有存档时先命中继续栏；
+   *  2) 首页现在是**翻页**而不是滚动（每页 6 款），目标可能不在当前页 → 自动往后翻。
+   */
   {
-    const tile = page.locator('.eink-tile', { hasText: text }).first()
-    if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+    const findTile = () => page.locator('.eink-tile', { hasText: text }).first()
+    for (let hop = 0; hop < 6; hop++) {
+      const tile = findTile()
+      if ((await tile.count()) > 0) {
+        await tile.click()
+        await page.waitForTimeout(250)
+        return true
+      }
+      const next = page.locator('button[data-page="next"]:not([disabled])').first()
+      if (!(await next.count())) break
+      await next.click()
+      await page.waitForTimeout(250)
+    }
   }
   const btn = page.getByRole('button', { name: new RegExp(text) }).first()
   if (!(await btn.count())) {

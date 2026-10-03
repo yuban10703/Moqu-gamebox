@@ -123,8 +123,19 @@ const clickOverlay = async (text) => {
  * 不限定就会先命中继续栏、直接进游戏而不是进说明页。
  */
 const clickTile = async (text) => {
-  const tile = page.locator('.eink-tile', { hasText: text }).first()
-  if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+  /*
+   * 首页现在是**翻页**而不是滚动（每页 6 款）：目标不在当前页时自动往后翻。
+   * 另外「继续上一局」细栏的可访问名里也含游戏名（对无障碍是有意的），
+   * 所以一律限定在 .eink-tile 内找，避免误点继续栏。
+   */
+  for (let hop = 0; hop < 6; hop++) {
+    const tile = page.locator('.eink-tile', { hasText: text }).first()
+    if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click()
+    await page.waitForTimeout(250)
+  }
   return false
 }
 

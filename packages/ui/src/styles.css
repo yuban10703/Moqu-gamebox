@@ -1144,3 +1144,86 @@ html[data-bold-lines='on'] .eink-board {
   overflow: hidden;
   min-height: 2.4em;
 }
+
+/*
+ * 首页方块的最终形态（用户反馈：文字不居中）。
+ *
+ * 从「图标左、文字右」的两列网格改成**竖排居中**：图标在上，标题与进度居中排布。
+ * 图标改用自绘 SVG（GameIcon），因此不再受符号字体覆盖差异影响。
+ */
+.eink-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-align: center;
+  padding: 8px;
+}
+
+.eink-game-icon {
+  flex: 0 0 auto;
+}
+
+.eink-tile__done {
+  font-size: 0.8em;
+  line-height: 1.2;
+}
+
+/*
+ * 「继续上一局」细栏此前会**溢出屏幕**：meta 用了 nowrap，窄屏 + 大字号下整行超出。
+ * 现在标题与 meta 都可收缩（min-width: 0）并省略号截断，栏内绝不横向溢出。
+ */
+.eink-continue {
+  min-width: 0;
+}
+
+.eink-continue__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eink-continue__meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 「全部游戏」标题行 + 翻页控件（用户要求：预留翻页而不是滑动） */
+.eink-section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.eink-section__head h2 {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.eink-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eink-pager__btn {
+  font: inherit;
+  padding: 2px 8px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  cursor: pointer;
+}
+
+.eink-pager__btn[disabled] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.eink-pager__info {
+  font-size: 0.85em;
+  white-space: nowrap;
+}

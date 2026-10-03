@@ -2,11 +2,18 @@
  * 首页 / 游戏库：继续游戏 + 全部游戏 + 设置入口。
  * 首批游戏少，保持短列表；不使用滚动跟随的复杂导航。
  */
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { SaveEnvelope } from '@eink/core'
 import { ActionButton } from '../components.js'
+import { GameIcon } from '../GameIcon.js'
 import { useUi } from '../contexts.js'
 import type { GameRegistryEntry } from '../registry.js'
+
+/**
+ * 每页显示的游戏数（用户要求：为全部游戏预留**翻页**而不是滑动）。
+ * 6 = 2 列 × 3 行，在 439×847、26px 字号下也放得下（每张卡约 90px）。
+ */
+const PAGE_SIZE = 6
 
 export interface LibraryScreenProps {
   entries: ReadonlyArray<GameRegistryEntry<unknown, unknown>>
@@ -33,6 +40,11 @@ export function LibraryScreen({
   onHelp,
 }: LibraryScreenProps): ReactNode {
   const { i18n, platform } = useUi()
+  // 分页状态；current 做 clamp，条目数变化时不会停在空页
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+  const current = Math.min(page, pageCount - 1)
+  const pageEntries = entries.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE)
   const offline = platform.offline.state()
   /**
    * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
@@ -47,15 +59,11 @@ export function LibraryScreen({
       <header className="eink-screen__header">
         <h1>{i18n.t('shell.app.title')}</h1>
         <p className="eink-badges">
-          <span className="eink-badge" data-state={offline}>
-            {i18n.t(
-              offline === 'ready'
-                ? 'shell.offline.ready'
-                : offline === 'preparing'
-                  ? 'shell.offline.preparing'
-                  : 'shell.offline.unavailable',
-            )}
-          </span>
+          {/* 离线状态不再显示（用户要求）：安装包内置全部资源，装好即可离线，
+              常驻一个「已可离线」徽标只是噪音。真正的异常仍会提示。 */}
+          {offline === 'unavailable' ? (
+            <span className="eink-badge eink-badge--warning">{i18n.t('shell.offline.unavailable')}</span>
+          ) : null}
           {platform.storage.persistent ? null : (
             <span className="eink-badge eink-badge--warning">{i18n.t('shell.storage.notPersistent')}</span>
           )}
@@ -101,13 +109,10 @@ export function LibraryScreen({
               onClick={() => onContinue(continued.game.id)}
               aria-label={`${i18n.t('shell.library.continue')} ${i18n.t(`${continued.game.i18nNamespace}.title`)}`}
             >
-              <span className="eink-tile__host" aria-hidden="true">
-                {hostGlyph(continued.game.i18nNamespace)}
-              </span>
+              <GameIcon namespace={continued.game.i18nNamespace} size={22} />
               <span className="eink-continue__title">{i18n.t(`${continued.game.i18nNamespace}.title`)}</span>
               <span className="eink-continue__meta">
-                {i18n.t('shell.library.continue')} · {i18n.t('shell.common.level')} {index + 1} ·{' '}
-                {i18n.t('shell.common.moves')} {envelope.moves}
+                {i18n.t('shell.library.continue')} · {i18n.t('shell.common.level')} {index + 1}
               </span>
             </button>
           )
@@ -115,18 +120,46 @@ export function LibraryScreen({
       ) : null}
 
       <section className="eink-section">
-        <h2>{i18n.t('shell.library.all')}</h2>
+        {/* 翻页而不是滚动：多游戏时高度/宽度都不变；硬件翻页键也接管（useHardwarePageKeys） */}
+        <div className="eink-section__head">
+          <h2>{i18n.t('shell.library.all')}</h2>
+          {pageCount > 1 ? (
+            <div className="eink-pager">
+              <button
+                type="button"
+                className="eink-pager__btn"
+                data-page="prev"
+                disabled={current === 0}
+                onClick={() => setPage(current - 1)}
+              >
+                {i18n.t('shell.library.prevPage')}
+              </button>
+              <span className="eink-pager__info">
+                {i18n.t('shell.library.page', { index: current + 1, total: pageCount })}
+              </span>
+              <button
+                type="button"
+                className="eink-pager__btn"
+                data-page="next"
+                disabled={current >= pageCount - 1}
+                onClick={() => setPage(current + 1)}
+              >
+                {i18n.t('shell.library.nextPage')}
+              </button>
+            </div>
+          ) : null}
+        </div>
         {entries.length === 0 ? (
           <p className="eink-muted">{i18n.t('shell.library.empty')}</p>
         ) : (
           <ul className="eink-grid">
-            {entries.map((entry) => {
+            {pageEntries.map((entry) => {
               const envelope = saves[entry.game.id]
               const progress = entry.progressFor?.(progressOf(envelope).completed)
               return (
                 <li key={entry.game.id} className="eink-grid__item">
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
-                    <span className="eink-tile__host" aria-hidden="true">{hostGlyph(entry.game.i18nNamespace)}</span>
+                    <GameIcon namespace={entry.game.i18nNamespace} />
                     <span className="eink-tile__title">{i18n.t(`${entry.game.i18nNamespace}.title`)}</span>
                     {/* 没有进度概念的玩法（2048）不显示进度行，避免出现「0/0」这种噪音 */}
                     {progress ? (
@@ -166,20 +199,3 @@ export function levelIdOf(envelope: SaveEnvelope | undefined): string {
   return state?.levelId ?? ''
 }
 
-/** 1-bit 友好的矢量字母标记，不使用位图封面 */
-function hostGlyph(namespace: string): string {
-  // 1-bit 友好（纯几何、无灰度）：每款游戏一个可辨认的字形
-  const glyphs: Record<string, string> = {
-    // 每款一个**互不重复**、且能从形状联想到玩法的字形（此前华容道与数独都用了 ▤，看起来像同一款游戏）
-    sokoban: '▣', // 箱子（内嵌方块 = 箱子推到目标）
-    sudoku: '▦', // 九宫格（网格细分）
-    minesweeper: '☒', // 叉掉的格子 = 雷
-    klotski: '▥', // 并排的滑块（曹操与五虎将）
-    lightsout: '⊙', // 亮着的灯
-    memory: '◫', // 两张并排的牌
-    gomoku: '⬤', // 棋子
-    fifteen: '⊞', // 数字格
-    '2048': '▩', // 数字方块
-  }
-  return glyphs[namespace] ?? '◈'
-}

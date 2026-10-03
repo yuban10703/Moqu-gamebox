@@ -18,7 +18,7 @@ const library = read('apps/web/src/library.ts')
 const contract = read('packages/ui/test/games-contract.test.ts')
 const tsconfig = read('tsconfig.json')
 const vitest = read('vitest.config.ts')
-const glyphs = read('packages/ui/src/screens/LibraryScreen.tsx')
+const icons = read('packages/ui/src/GameIcon.tsx')
 const problems = []
 
 for (const id of games) {
@@ -37,9 +37,12 @@ for (const id of games) {
   // 3) library 登记
   if (!library.includes(name)) problems.push(`${id}: apps/web/src/library.ts 未登记`)
   // 4) 首页字形
-  // 键可能是标识符（maze:）也可能是引号字符串（'2048':），两种都要认
-  const glyphKey = new RegExp(`(^|[\\s{,])['"]?${id}['"]?\\s*:`, 'm')
-  if (!glyphKey.test(glyphs)) problems.push(`${id}: LibraryScreen 的 hostGlyph 没有 ${id}`)
+  /*
+   * 图标检查：首页图标已从 Unicode 符号改成**自绘 SVG**（packages/ui/src/GameIcon.tsx 的 SHAPES）。
+   * 键可能是标识符（sokoban:）也可能是引号字符串（'2048':），两种都要认。
+   */
+  const iconKey = new RegExp(`(^|[\\s{,])['"]?${id}['"]?\\s*:`, 'm')
+  if (!iconKey.test(icons)) problems.push(`${id}: GameIcon 的 SHAPES 里没有 ${id}`)
   // 5) 跨游戏契约测试
   if (!contract.includes(name)) problems.push(`${id}: games-contract.test.ts 未纳入`)
   // 6) 中英字典 + 无 Math.random + 有测试
