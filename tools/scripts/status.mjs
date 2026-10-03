@@ -14,7 +14,7 @@ const pkg = JSON.parse(readFileSync(`${ROOT}package.json`, 'utf8'))
 const doc = readFileSync(`${ROOT}docs/handover.md`, 'utf8')
 const checkpoint = doc.match(/\| 游戏 \| \*\*(\d+) 款\*\*[\s\S]*?\| 单元测试 \| \*\*(\d+)\*\*/)
 
-console.log('=== 墨水屏游戏盒子 · 状态 ===')
+console.log('=== 墨趣 · 状态 ===')
 console.log(`游戏          ${games} 款`)
 console.log(`单元测试      ${checkpoint ? checkpoint[2] : '?'}（文档检查点；以 npm run check 实际输出为准）`)
 console.log(`探索套件      ${suites} 个（npm run explore）`)

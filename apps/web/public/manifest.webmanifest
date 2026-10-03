@@ -1,6 +1,6 @@
 {
-  "name": "墨水屏游戏盒子",
-  "short_name": "游戏盒子",
+  "name": "墨趣",
+  "short_name": "墨趣",
   "description": "为 BOOX 等墨水屏设备准备的离线游戏合集",
   "lang": "zh-CN",
   "start_url": "./index.html",
@@ -15,6 +15,30 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "./favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

@@ -98,7 +98,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 
 const gotoLibrary = async () => {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await page.waitForSelector('text=墨趣', { timeout: 15000 })
 }
 /**
  * 点击「最上层浮层」里的按钮。
@@ -178,10 +178,10 @@ const startGame = async (title) => {
 // 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
 // 若不清空，下一次运行会读到上一次留下的坏档（曾因此误判成「进度丢失」）
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll() })
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 
 /* ---------- 1) 横竖屏中途切换 ---------- */
 console.log('\n[1] 游玩中切换横竖屏')

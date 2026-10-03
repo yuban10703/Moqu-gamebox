@@ -73,7 +73,7 @@ const clickDialog = async (text) => {
 }
 const gotoLibrary = async () => {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await page.waitForSelector('text=墨趣', { timeout: 15000 })
 }
 const startGame = async (title, attempt = 1) => {
   await gotoLibrary()
@@ -128,10 +128,10 @@ const statValue = (label) =>
 // 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
 // 若不清空，下一次运行会读到上一次留下的坏档（曾因此误判成「进度丢失」）
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll() })
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 
 /* ---------- 1) 与 2) 原先用「黑白棋」做完整一局与整回合撤销 ----------
  * 该玩法已按用户要求移除，这两段的覆盖改由 explore-ui 承担：

@@ -58,7 +58,7 @@ const clickDialog = async (text) => {
 }
 const gotoLibrary = async () => {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await page.waitForSelector('text=墨趣', { timeout: 15000 })
 }
 const play = async (title, moves = 1) => {
   /*
@@ -113,10 +113,10 @@ const play = async (title, moves = 1) => {
 // 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
 // 若不清空，下一次运行会读到上一次留下的坏档（曾因此误判成「进度丢失」）
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 await page.evaluate(async () => { await window.__einkPlatform.storage.clearAll() })
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 
 /* ---------- 1) 备份导出 ---------- */
 console.log('\n[1] 备份导出')
@@ -235,9 +235,32 @@ await play('数独', 0)
 await play('扫雷', 0)
 await play('2048', 1)
 await gotoLibrary()
-const tiles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile')].map((t) => t.innerText.replace(/\n+/g, ' ')))
-check('每款游戏的进度都能显示', tiles.length >= 5 && tiles.every((t) => t.length > 0), `${tiles.length} 款：${tiles.join(' | ').slice(0, 110)}`)
 /*
+ * 按**全部页面**收集方块：首页会翻页，断言不该与"每页几个"耦合
+ * （分页搬到网格下方后每页少了一个，旧写法 tiles.length >= 5 会假失败）。
+ * 翻遍所有页再断言"每一款都有进度文字"，比只查第一页更强。
+ */
+const collectTiles = async () => {
+  const acc = []
+  for (let guard = 0; guard < 40; guard += 1) {
+    acc.push(
+      ...(await page.evaluate(() =>
+        [...document.querySelectorAll('.eink-tile')].map((t) => t.innerText.replace(/\s+/g, ' ').trim()),
+      )),
+    )
+    const next = page.locator('.eink-pager__btn[data-page="next"]')
+    if ((await next.count()) === 0 || (await next.isDisabled())) break
+    await next.click()
+    await page.waitForTimeout(400)
+  }
+  return acc
+}
+const tiles = await collectTiles()
+check(
+  '每款游戏的进度都能显示',
+  tiles.length >= 9 && tiles.every((t) => t.length > 0),
+  `${tiles.length} 款：${tiles.join(' | ').slice(0, 110)}`,
+)/*
  * 断言"继续"是否指向**最近玩过**的那一款：不匹配细栏文字（文字可能为空），
  * 而是**点它、看打开了哪款游戏** —— 行为验证比文本匹配更强，也不依赖具体排版。
  */

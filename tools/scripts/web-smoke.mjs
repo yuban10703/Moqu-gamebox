@@ -45,7 +45,7 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => check('页面无 JS 异常', false, String(e).slice(0, 120)))
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
 
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 check('首页渲染', true)
 
 const platform = await page.evaluate(() => {
@@ -91,7 +91,7 @@ check('存档步数与界面一致', stored.moves === movesAfter, `存档 ${stor
 await page.screenshot({ path: '../shots/web-01-landscape-game.png' })
 
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+await page.waitForSelector('text=墨趣', { timeout: 15000 })
 const restored = await page.evaluate(() => Number(document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? -1))
 check('刷新后存档恢复（步数一致）', restored === movesAfter, `刷新前 ${movesAfter} → 刷新后 ${restored}`)
 
@@ -101,7 +101,7 @@ console.log('\n[1b] locale=en-US：界面应走英文')
   const c = await browser.newContext({ viewport: { width: 1248, height: 903 }, locale: 'en-US' })
   const p = await c.newPage()
   await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await p.waitForSelector('text=E-ink Game Box', { timeout: 15000 })
+  await p.waitForSelector('text=Moqu', { timeout: 15000 })
   const en = await p.evaluate(() => document.body.innerText)
   check('英文界面（跟随浏览器语言）', /All games/.test(en) && /Sokoban/.test(en),
     en.split('\n').slice(0, 3).join(' / '))
@@ -114,7 +114,7 @@ async function auditViewport(width, height, tag) {
   const c = await browser.newContext({ viewport: { width, height }, locale: 'zh-CN' })
   const p = await c.newPage()
   await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await p.waitForSelector('text=墨趣', { timeout: 15000 })
 
   const offscreen = async (label) => {
     const off = await p.evaluate(() => {
@@ -155,7 +155,7 @@ console.log('\n[2b] 逐款游戏：进详情 → 开局 → 棋盘渲染 + 按�
   const c = await browser.newContext({ viewport: { width: 1248, height: 903 }, locale: 'zh-CN' })
   const p = await c.newPage()
   await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await p.waitForSelector('text=墨趣', { timeout: 15000 })
   const titles = await p.evaluate(() =>
     [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent?.trim() ?? ''),
   )
@@ -163,7 +163,7 @@ console.log('\n[2b] 逐款游戏：进详情 → 开局 → 棋盘渲染 + 按�
 
   for (const title of titles) {
     await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
-    await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+    await p.waitForSelector('text=墨趣', { timeout: 15000 })
     await p.getByRole('button', { name: new RegExp(title) }).first().click()
     await p.waitForSelector('text=玩法说明', { timeout: 8000 })
     // 无关卡的游戏不该出现「暂无进行中的局面」以外的报错，也不该出现缺键标记
@@ -192,7 +192,7 @@ console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
   const c = await browser.newContext({ viewport: { width: 1248, height: 903 }, locale: 'zh-CN' })
   const p = await c.newPage()
   await p.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+  await p.waitForSelector('text=墨趣', { timeout: 15000 })
 
   const controlled = await p
     .waitForFunction(() => navigator.serviceWorker?.controller != null, { timeout: 20000 })
@@ -227,7 +227,7 @@ console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
   let openedOffline = true
   try {
     await p.reload({ waitUntil: 'domcontentloaded', timeout: 15000 })
-    await p.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
+    await p.waitForSelector('text=墨趣', { timeout: 15000 })
   } catch {
     openedOffline = false
   }

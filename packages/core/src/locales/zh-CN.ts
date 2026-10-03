@@ -2,7 +2,7 @@ import type { Dict } from '../i18n.js'
 
 /** 壳层通用文案（中文） */
 export const zhCN: Dict = {
-  'shell.app.title': '墨水屏游戏盒子',
+  'shell.app.title': '墨趣',
   'shell.library.title': '游戏库',
   'shell.library.continue': '继续上一局',
   'shell.library.page': '第 {index}/{total} 页',
@@ -143,4 +143,14 @@ export const zhCN: Dict = {
   'shell.help.saves.body':
     '每款游戏保留一个进行中的局面，关键动作会立即写入本机存储；不同设备的进度不会自动同步，请用「导出备份 / 导入备份」在设备之间搬运。卸载应用或清除数据会丢失进度。',
   'shell.help.storage.warning': '当前环境无法持久化进度，请导出备份后再继续。',
+
+  'shell.nav.about': '关于',
+  'shell.about.title': '关于',
+  'shell.about.product': '墨趣',
+  'shell.about.tagline': '墨水屏上的离线游戏盒子：装上就能玩，不需要网络。',
+  'shell.about.mine.title': '我的信息',
+  'shell.about.mine.hint': '只保存在这台设备上，不会上传；保存后刷新或重开应用都还在。',
+  'shell.about.mine.placeholder': '例如：姓名、联系方式、想记的事…',
+  'shell.about.mine.save': '保存',
+  'shell.about.mine.saved': '已保存',
 }

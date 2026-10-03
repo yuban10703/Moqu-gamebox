@@ -74,7 +74,7 @@ const audit = async (label) => {
 }
 
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 // 制造一份存档，让「继续」入口存在（更接近真实使用）
 const click = async (re, optional = false) => {
   /*
@@ -104,14 +104,14 @@ await page.locator('button[aria-label="左"]').first().click(); await page.waitF
 
 // 切到最大字号档位
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 await page.evaluate(async () => {
   const p = window.__einkPlatform
   const s = await p.storage.loadSettings()
   await p.storage.saveSettings({ ...s, fontScale: 1.5 })
 })
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 await page.waitForTimeout(500)
 const rootFont = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)
 check('已切到最大字号档位', rootFont === '26px', rootFont)
@@ -139,7 +139,7 @@ const titles = await collectTitles()
 console.log(`\n[逐款游戏 · 最大字号]（${titles.length} 款）`)
 for (const title of titles) {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子')
+  await page.waitForSelector('text=墨趣')
   await click(new RegExp(title))
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情`)

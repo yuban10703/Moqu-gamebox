@@ -2,7 +2,7 @@ import type { Dict } from '../i18n.js'
 
 /** Shell strings (English) */
 export const enUS: Dict = {
-  'shell.app.title': 'E-ink Game Box',
+  'shell.app.title': 'Moqu',
   'shell.library.title': 'Game library',
   'shell.library.continue': 'Continue',
   'shell.library.page': 'Page {index}/{total}',
@@ -144,4 +144,14 @@ export const enUS: Dict = {
   'shell.help.saves.body':
     'Each game keeps one game in progress and writes key actions to local storage immediately. Progress is not synced between devices: use "Export backup" and "Import backup" to move it. Uninstalling the app or clearing data loses progress.',
   'shell.help.storage.warning': 'This environment cannot persist progress; export a backup before continuing.',
+
+  'shell.nav.about': 'About',
+  'shell.about.title': 'About',
+  'shell.about.product': 'Moqu',
+  'shell.about.tagline': 'An offline game box for e-ink devices: install it and play, no network needed.',
+  'shell.about.mine.title': 'My info',
+  'shell.about.mine.hint': 'Kept on this device only, never uploaded. It stays after a refresh or restart.',
+  'shell.about.mine.placeholder': 'For example: name, contact, notes…',
+  'shell.about.mine.save': 'Save',
+  'shell.about.mine.saved': 'Saved',
 }

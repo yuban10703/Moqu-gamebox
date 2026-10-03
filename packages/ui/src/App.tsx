@@ -16,6 +16,7 @@ import { GameScreen } from './screens/GameScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen.js'
 import { HelpScreen } from './screens/HelpScreen.js'
+import { AboutScreen } from './screens/AboutScreen.js'
 
 type Screen =
   | { name: 'library' }
@@ -38,6 +39,7 @@ type Screen =
   | { name: 'settings' }
   | { name: 'diagnostics' }
   | { name: 'help' }
+  | { name: 'about' }
 
 export interface AppProps {
   platform: Platform
@@ -206,6 +208,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
             onSettings={() => navigate({ name: 'settings' })}
             onDiagnostics={() => navigate({ name: 'diagnostics' })}
             onHelp={() => navigate({ name: 'help' })}
+            onAbout={() => navigate({ name: 'about' })}
           />
         )
       case 'detail': {
@@ -222,6 +225,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
               onSettings={() => undefined}
               onDiagnostics={() => undefined}
               onHelp={() => undefined}
+              onAbout={() => undefined}
             />
           )
         }
@@ -268,6 +272,8 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
         return <DiagnosticsScreen onBack={goBack} recovery={recovery} />
       case 'help':
         return <HelpScreen onBack={goBack} onDiagnostics={() => navigate({ name: 'diagnostics' })} />
+      case 'about':
+        return <AboutScreen onBack={goBack} />
     }
   }
 

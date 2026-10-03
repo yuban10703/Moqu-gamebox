@@ -69,7 +69,7 @@ const audit = async (label) => {
 }
 
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 // 制造一份存档，让「继续」入口存在（更接近真实使用）
 const click = async (re, optional = false) => {
   /*
@@ -103,7 +103,7 @@ await page.locator('button[aria-label="左"]').first().click(); await page.waitF
 
 // 这一档只关心横屏高度，不改字号；但要先回到首页再开始巡检
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 await page.waitForTimeout(400)
 const vp = await page.evaluate(() => `${innerWidth}x${innerHeight}`)
 check('视口为极矮横屏', vp === '879x407', vp)
@@ -131,7 +131,7 @@ const titles = await collectTitles()
 console.log(`\n[逐款游戏 · 极矮横屏]（${titles.length} 款）`)
 for (const title of titles) {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子')
+  await page.waitForSelector('text=墨趣')
   await click(new RegExp(title))
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情`)
@@ -156,7 +156,7 @@ await page.evaluate(async () => {
   await p.storage.saveSettings({ ...s, fontScale: 1.5 })
 })
 await page.reload({ waitUntil: 'networkidle' })
-await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForSelector('text=墨趣')
 await page.waitForTimeout(600)
 const rootFont = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)
 check('已切到最大字号', rootFont === '26px', rootFont)
@@ -164,7 +164,7 @@ await audit('首页·1.5×')
 
 for (const title of titles) {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('text=墨水屏游戏盒子')
+  await page.waitForSelector('text=墨趣')
   await click(new RegExp(title))
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情·1.5×`)

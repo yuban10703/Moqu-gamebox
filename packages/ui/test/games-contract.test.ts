@@ -24,6 +24,7 @@ import { tetrisGame } from '@eink/tetris'
 import {
   BOARD_FRAME_PX,
   DEFAULT_LAYOUT,
+  MIN_TICK_MS,
   createRng,
   type GameDef,
   type LayoutConfig,
@@ -127,6 +128,54 @@ describe('所有游戏的存档契约', () => {
             `${game.id}/${difficulty}（${cols}×${rows}）在 ${area.name}（可用 ${area.width}×${area.height}）上放不下：` +
               `按 ${config.minCell}px 下限需要 ${needed.width}×${needed.height} —— 该网格在这台设备上不可玩`,
           ).toBe(true)
+        }
+      }
+    }
+  })
+})
+
+/**
+ * 自动步进（tick）的跨游戏契约。
+ *
+ * 用户要求：**只有贪吃蛇与俄罗斯方块**自动前进/下落，其余 10 款行为完全不变。
+ * 这条约束放在这里守：它是"每加一款游戏都可能被破坏、而单测很难发现"的那类约定。
+ */
+describe('自动步进的声明（tickMs）', () => {
+  it('只有贪吃蛇与俄罗斯方块声明 tickMs，其余玩法一个定时器都不起', () => {
+    const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
+      .map((game) => game.id)
+      .sort()
+    expect(withTick).toEqual(['snake', 'tetris'])
+  })
+
+  it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {
+    for (const game of GAMES) {
+      if (!game.tickMs) continue
+      for (const difficulty of game.difficulties.map((item) => item.id)) {
+        const state = game.create(4242, difficulty)
+        const first = game.tickMs(state, difficulty)
+        // 尚未结束的局面必须给出一个可用的间隔
+        expect(first, `${game.id}/${difficulty}`).not.toBeNull()
+        expect(first!, `${game.id}/${difficulty}`).toBeGreaterThanOrEqual(MIN_TICK_MS)
+        // 纯函数：同一状态重复问、以及从存档读回来之后问，答案必须一致
+        expect(game.tickMs(state, difficulty)).toBe(first)
+        expect(game.tickMs(game.decode(game.encode(state)), difficulty)).toBe(first)
+      }
+    }
+  })
+
+  it('tick 是合法的规则动作：任何 tickMs 非空的状态都接受它并能存能读', () => {
+    for (const game of GAMES) {
+      if (!game.tickMs) continue
+      for (const difficulty of game.difficulties.map((item) => item.id)) {
+        let state = game.create(4242, difficulty)
+        for (let step = 0; step < 40; step++) {
+          if (game.tickMs(state, difficulty) === null) break
+          expect(() => game.reduce(state, { type: 'tick' } as never)).not.toThrow()
+          state = game.reduce(state, { type: 'tick' } as never)
+          // 每一步都要能原样存档往返（自动步进也必须落在存档里）
+          expect(() => game.decode(game.encode(state))).not.toThrow()
+          expect(game.decode(game.encode(state))).toEqual(state)
         }
       }
     }

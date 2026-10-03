@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  英文环境的显示名。Android 会按资源限定符逐条回退：
+  英文系统上桌面显示「Moqu」，其余情况（含中文系统）回落到 values/strings.xml 的「墨趣」。
+  选 ASCII 的 Moqu 而不是带声调的 Mòqù：启动器标签/搜索/排序里 ASCII 更稳，
+  且与 i18n 字典 en-US 的 shell.app.title / shell.about.product 保持同一口径。
+-->
+<resources>
+    <string name="app_name">Moqu</string>
+    <string name="backup_file_name">eink-gamebox-backup.json</string>
+</resources>

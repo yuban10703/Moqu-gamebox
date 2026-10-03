@@ -123,6 +123,18 @@ body {
   text-overflow: ellipsis;
 }
 
+/*
+ * 首页标题行里的「关于」入口（用户要求把「关于」从页脚挪到 h1 这一行）。
+ *
+ * 布局直接沿用「区块标题行」那套 .eink-section__head（标题占满剩余宽度、控件靠右，
+ * 与「全部游戏」标题行的分页控件同一写法），这里只补 h1 作为 flex 子项的收缩规则：
+ * 既有规则写的是 h2。min-width:0 + overflow:hidden 让长标题出省略号而不是把入口挤出屏幕。
+ */
+.eink-screen__header .eink-section__head h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .eink-section {
   border-top: var(--line) solid var(--ink-black);
   padding-top: var(--gap);
@@ -1430,3 +1442,65 @@ html[data-bold-lines='on'] .eink-board {
   text-overflow: ellipsis;
   color: #333;
 }
+
+/* 「全部游戏」的分页移到网格**右下方**（用户要求：原来挤在标题行右侧）。
+   放在网格之后自成一行、右对齐；section 自身的 gap 负责它与网格的间距，
+   这里只用 flex 的 justify-content 把它推到右边，不额外增加上下外边距。 */
+.eink-pager--footer {
+  justify-content: flex-end;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ 8 关于页 */
+
+/*
+ * 分页行的**高度回收**（用户要求：挪到下方多占的那一行高度要在分页自身找回来）。
+ *
+ * 分页行原本有 31px 高（26px 档）：`.eink-pager__info` 继承正文的 line-height:1.5，
+ * 0.8em×1.5 = 31px，比按钮本身（0.8em + 上下各 1px 边框 = 23px）还高。
+ * 分页是辅助控件、只有一行字，行高收到 1 后整行高度 = 按钮高度，
+ * 一行就省下 8px —— 网格因此不必为它少放一行（26px 档的余量全靠这点）。
+ * 只作用于「右下角那一排」这个修饰类，标题行里的分页（组件 Pager）不受影响。
+ */
+.eink-pager--footer {
+  line-height: 1;
+}
+
+/*
+ * 关于页的项目名：比区块标题再大一点，作为整页的「抬头」。
+ * 只改字号与下边距，颜色/线型沿用全局基线。
+ */
+.eink-about__product {
+  font-size: 1.3em;
+  margin: 0;
+}
+
+/*
+ * 「我的信息」输入区（关于页）。
+ *
+ * 为什么单独写一个类：这是全应用唯一的**多行文本输入**，此前只有隐藏的 <input type=file>，
+ * 没有可复用的输入框样式；直接裸 <textarea> 会带上浏览器默认边框/字体，与墨水屏基线不一致。
+ * 与 .eink-button 同一套语言：2px 实线黑边、白底黑字、inherit 字体（不引入新颜色/圆角/阴影）。
+ * rows=5 给出稳定的初始高度，用户可拖动右下角（resize: vertical）加高。
+ */
+.eink-note {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px 10px;
+  border: var(--line) solid var(--ink-black);
+  border-radius: 2px;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  line-height: 1.35;
+  resize: vertical;
+  touch-action: manipulation;
+}
+
+.eink-note:focus-visible {
+  /* 焦点只用线型区分（墨水屏不用颜色/阴影表达状态）：与外框同宽的实线 */
+  outline: var(--line) solid var(--ink-black);
+  outline-offset: 2px;
+}
+

@@ -18,7 +18,38 @@ import type { GameRegistryEntry } from '../registry.js'
  * 「内容区还能放下几行 × 网格有几列」，只有条目真的超过这个数才分页。
  * 这个常量只在测量前作为首帧值使用。
  */
+// 离开首页（例如进对局）后仍然记住用户所在的页码，返回时不会被重置为 1
+let lastLibraryPage = 0
+
 const PAGE_SIZE_FALLBACK = 24
+
+/**
+ * 分页器占用的一行高度（含它与网格之间的间距）。只用于**测量阶段的高度预留**，
+ * 不参与任何样式计算。
+ *
+ * 两个来源取**较大值**：
+ * - 真实元素（分页器已经渲染出来时直接量）；
+ * - 按 CSS 反推的兜底估算（首帧只有一页、分页器还没渲染时走这条，是必经路径）。
+ *
+ * 为什么兜底按「最坏情况」算：measure() 只在内容区尺寸/条目数变化时重跑，
+ * **分页器出现本身不会触发重测**（内容区尺寸没变，ResizeObserver 不会回调），
+ * 所以这一枪打低了就会一直低，网格富余小于误差时就把分页器顶出内容区。
+ * `.eink-pager--footer` 现在把行高收到 1（行高 = 按钮 0.8em + 上下 2px 边框），
+ * 但页码文字 `.eink-pager__info` 一旦继承正文行高就是 0.8em × 1.5；
+ * 兜底按后者算（0.8em × 1.5 + 2px 边框 + 区块间距），任何排版下都不会低估。
+ * 实测代价是多留 8~11px，六个档位里没有一档因此掉一行方块（见本轮报告）。
+ */
+function pagerRowHeight(content: HTMLElement, gap: number): number {
+  const spacing = Math.max(gap, 8)
+  const font = Number.parseFloat(getComputedStyle(content).fontSize) || 18
+  const estimate = Math.ceil(font * 0.8 * 1.5) + 2 + spacing
+  const pager = content.querySelector('.eink-pager')
+  if (pager) {
+    const rect = pager.getBoundingClientRect()
+    if (rect.height > 0) return Math.max(estimate, Math.ceil(rect.height) + spacing)
+  }
+  return estimate
+}
 
 export interface LibraryScreenProps {
   entries: ReadonlyArray<GameRegistryEntry<unknown, unknown>>
@@ -31,6 +62,8 @@ export interface LibraryScreenProps {
   onSettings: () => void
   onDiagnostics: () => void
   onHelp: () => void
+  /** 关于页入口：放在**标题行**（h1 那一行的右侧），不占页脚那排（见 LibraryScreen 里的说明） */
+  onAbout: () => void
 }
 
 export function LibraryScreen({
@@ -43,6 +76,7 @@ export function LibraryScreen({
   onSettings,
   onDiagnostics,
   onHelp,
+  onAbout,
 }: LibraryScreenProps): ReactNode {
   /*
    * 构建时注入的版本信息；单测/非 vite 环境下不存在，因此做存在性判断（不能直接引用，
@@ -51,10 +85,29 @@ export function LibraryScreen({
   const buildInfo = typeof __BUILD_INFO__ === 'undefined' ? null : __BUILD_INFO__
   const { i18n, platform } = useUi()
   // 分页状态；current 做 clamp，条目数/每页数变化时不会停在空页
-  const [page, setPage] = useState(0)
+  // 页码存在模块级缓存里：进对局会让 LibraryScreen 卸载，返回首页时若只用组件内 state 就会跳回第 1 页
+  const [page, setPageState] = useState(() => lastLibraryPage)
+  const setPage = (next: number) => {
+    lastLibraryPage = Math.max(0, next)
+    setPageState(lastLibraryPage)
+  }
   const [pageSize, setPageSize] = useState(PAGE_SIZE_FALLBACK)
   const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
   const current = Math.min(page, pageCount - 1)
+  /*
+   * 把钳位结果**回写**缓存与组件 state。
+   *
+   * 只在渲染时 Math.min 是不够的：页数先缩后增时（例如坏档警告出现→每页变少→页数变多，
+   * 之后又消失）缓存里还留着旧页码，此时 current 会被钳到最后一页，
+   * 但「进详情再返回」会重新挂载组件并从缓存读回那个**已经不存在的页码**——
+   * entries.slice 直接给出空页（用户看到「第 3/2 页上一页下一页」却一张卡都没有）。
+   * 回写后缓存始终等于屏幕上真正显示的那一页。
+   */
+  useEffect(() => {
+    if (page === current) return
+    lastLibraryPage = current
+    setPageState(current)
+  }, [page, current])
   const pageEntries = entries.slice(current * pageSize, current * pageSize + pageSize)
   const gridRef = useRef<HTMLUListElement | null>(null)
   // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
@@ -93,7 +146,18 @@ export function LibraryScreen({
       const gap = Number.parseFloat(style.rowGap || '8') || 8
       const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (tileRect.width + gap)))
       const gridOffset = grid.getBoundingClientRect().top - content.getBoundingClientRect().top
-      const available = content.clientHeight - gridOffset - 4
+      /*
+       * 分页器已经移到网格**下方**（用户要求）：它自成一行，测量时必须预留，
+       * 否则「刚好填满」的那一档会把分页器顶出内容区（首页在最大字号档不允许滚动）。
+       * 只在条目真的超过一页（分页器会出现）时预留 —— 只有一页时不留，
+       * 免得白白少放一行游戏。预留量不依赖当前 pageSize，因此不会翻页自跳。
+       */
+      const naturalRows = Math.max(
+        1,
+        Math.floor((content.clientHeight - gridOffset - 4 + gap) / (tileRect.height + gap)),
+      )
+      const reserve = entries.length > columns * naturalRows ? pagerRowHeight(content, gap) : 0
+      const available = content.clientHeight - gridOffset - 4 - reserve
       const rows = Math.max(1, Math.floor((available + gap) / (tileRect.height + gap)))
       const next = Math.max(1, columns * rows)
       setPageSize((prev) => (prev === next ? prev : next))
@@ -113,7 +177,21 @@ export function LibraryScreen({
   return (
     <div className="eink-screen eink-screen--sticky-footer">
       <header className="eink-screen__header">
-        <h1>{i18n.t('shell.app.title')}</h1>
+        {/*
+          「关于」入口放在**标题行**（用户要求），不在页脚那排：
+          页脚多一个按钮就会折行 —— 实测 en 18px 页脚 93→124px、en 26px 148→189px，
+          内容区被吃掉 31~41px，英文首页 12 个方块从「一页」变成「10+2 两页」；
+          zh 18px 也只剩 1px 余量。标题行有现成高度（18px 档 36px、26px 档 53px），
+          48px 的 .eink-link 只让 18px 那一行长高 12px、26px 档完全不涨。
+          布局沿用「区块标题行」那套（.eink-section__head：标题占满剩余宽度、控件靠右），
+          与「全部游戏」标题行的分页控件一致，不新增样式体系。
+        */}
+        <div className="eink-section__head">
+          <h1>{i18n.t('shell.app.title')}</h1>
+          <button type="button" className="eink-link" onClick={onAbout}>
+            {i18n.t('shell.nav.about')}
+          </button>
+        </div>
         <p className="eink-badges">
           {/* 离线状态不再显示（用户要求）：安装包内置全部资源，装好即可离线，
               常驻一个「已可离线」徽标只是噪音。真正的异常仍会提示。 */}
@@ -205,31 +283,6 @@ export function LibraryScreen({
         {/* 翻页而不是滚动：多游戏时高度/宽度都不变；硬件翻页键也接管（useHardwarePageKeys） */}
         <div className="eink-section__head">
           <h2>{i18n.t('shell.library.all')}</h2>
-          {pageCount > 1 ? (
-            <div className="eink-pager">
-              <button
-                type="button"
-                className="eink-pager__btn"
-                data-page="prev"
-                disabled={current === 0}
-                onClick={() => setPage(current - 1)}
-              >
-                {i18n.t('shell.library.prevPage')}
-              </button>
-              <span className="eink-pager__info">
-                {i18n.t('shell.library.page', { index: current + 1, total: pageCount })}
-              </span>
-              <button
-                type="button"
-                className="eink-pager__btn"
-                data-page="next"
-                disabled={current >= pageCount - 1}
-                onClick={() => setPage(current + 1)}
-              >
-                {i18n.t('shell.library.nextPage')}
-              </button>
-            </div>
-          ) : null}
         </div>
         {entries.length === 0 ? (
           <p className="eink-muted">{i18n.t('shell.library.empty')}</p>
@@ -251,11 +304,51 @@ export function LibraryScreen({
             })}
           </ul>
         )}
+        {/*
+          分页控件在网格**下方**、右对齐（用户要求：原来挤在标题行右侧）。
+          只有一页时不渲染；翻页按钮是原生 <button>，键盘与硬件翻页键都能到。
+        */}
+        {pageCount > 1 ? (
+          <div className="eink-pager eink-pager--footer">
+            <button
+              type="button"
+              className="eink-pager__btn"
+              data-page="prev"
+              disabled={current === 0}
+              onClick={() => setPage(current - 1)}
+              /*
+               * 可见文字「上一页」太短，读屏单独念它听不出翻到哪一页；
+               * aria-label 补上动作 + 目标页（禁用时钳到当前页，不会是「第 0 页」）。
+               */
+              aria-label={`${i18n.t('shell.library.prevPage')} · ${i18n.t('shell.library.page', { index: Math.max(1, current), total: pageCount })}`}
+            >
+              {i18n.t('shell.library.prevPage')}
+            </button>
+            <span className="eink-pager__info">
+              {i18n.t('shell.library.page', { index: current + 1, total: pageCount })}
+            </span>
+            <button
+              type="button"
+              className="eink-pager__btn"
+              data-page="next"
+              disabled={current >= pageCount - 1}
+              onClick={() => setPage(current + 1)}
+              aria-label={`${i18n.t('shell.library.nextPage')} · ${i18n.t('shell.library.page', { index: Math.min(pageCount, current + 2), total: pageCount })}`}
+            >
+              {i18n.t('shell.library.nextPage')}
+            </button>
+          </div>
+        ) : null}
       </section>
 
       </div>
 
       <footer className="eink-footer">
+        {/*
+          页脚保持**三个**按钮（设置/帮助/诊断）——「关于」已经移到标题行。
+          这三个按钮 + 右下角版本号正是首屏放得下 12 个方块的前提：
+          多一个按钮就会折到第二行（zh 18px 页脚 61→93px、en 18px 93→124px）。
+        */}
         <ActionButton labelKey="shell.nav.settings" onSelect={onSettings} />
         <ActionButton labelKey="shell.nav.help" onSelect={onHelp} />
         <ActionButton labelKey="shell.nav.diagnostics" onSelect={onDiagnostics} />
