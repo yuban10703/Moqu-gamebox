@@ -56,21 +56,53 @@ const gotoLibrary = async () => {
   await page.waitForSelector('text=墨水屏游戏盒子', { timeout: 15000 })
 }
 const play = async (title, moves = 1) => {
+  /*
+   * 进对局的入口必须**确定**，不再用"按名字找按钮"：
+   *  1) 首页的「继续上一局」细栏可访问名里也含游戏名（对无障碍是有意的），按名字会先命中它；
+   *  2) 首页可能翻页，目标方块不一定在当前页。
+   * 所以：限定 .eink-tile 找方块（必要时翻页），进说明页后再在**说明页内**找按钮。
+   */
   await gotoLibrary()
-  await clickText(title)
-  await page.waitForSelector('text=玩法说明', { timeout: 8000 })
-  await clickText('继续', { optional: true })
-  if (!(await page.locator('.eink-board').count())) await clickText('开始新游戏')
-  await page.waitForTimeout(300)
-  if (await page.getByRole('button', { name: /替换并开始/ }).count()) await clickDialog('替换并开始')
-  await page.waitForSelector('.eink-board', { timeout: 8000 })
-  for (let i = 0; i < moves; i++) {
-    const btn = page.locator('button[aria-label="左"]')
-    if (await btn.count()) await btn.first().click()
-    else { await page.evaluate(() => document.querySelector('.eink-board__cell')?.click()) }
-    await page.waitForTimeout(150)
+  let opened = false
+  for (let hop = 0; hop < 8 && !opened; hop++) {
+    const tile = page.locator('.eink-tile', { hasText: title }).first()
+    if (await tile.count()) { await tile.click(); opened = true; break }
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click(); await page.waitForTimeout(200)
   }
-  await page.waitForTimeout(600)
+  if (!opened) throw new Error(`首页找不到游戏方块「${title}」`)
+  await page.waitForSelector('text=玩法说明', { timeout: 8000 })
+
+  const detail = page.locator('.eink-screen')
+  const resume = detail.getByRole('button', { name: /^继续$/ }).first()
+  if (await resume.count()) {
+    await resume.click()
+  } else {
+    const start = detail.getByRole('button', { name: /开始新游戏/ }).first()
+    if (!(await start.count())) throw new Error(`「${title}」说明页既没有继续也没有开始新游戏`)
+    await start.click()
+  }
+  await page.waitForTimeout(400)
+  if (await page.getByRole('button', { name: /替换并开始/ }).count()) await clickDialog('替换并开始')
+  if (!(await page.locator('.eink-board').count())) {
+    await page.waitForSelector('.eink-board', { timeout: 8000 })
+  }
+  /*
+   * 至少走一步 —— 存档是在**第一次动作**时落盘的（本项目"立即提交"策略），
+   * 一步不走就等于没有存档，后续"继续上一局"相关断言会全部失败。
+   * 2048 这类靠**方向盘**操作的玩法点棋盘格是无效的，所以优先按方向盘。
+   */
+  for (let i = 0; i < Math.max(1, moves); i++) {
+    const dpad = page.locator('.eink-dpad button').first()
+    if (await dpad.count()) {
+      await dpad.click()
+    } else {
+      const cell = page.locator('.eink-board__cell').nth(i)
+      if (await cell.count()) await cell.click()
+    }
+    await page.waitForTimeout(240)
+  }
 }
 
 // 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
@@ -200,8 +232,21 @@ await play('2048', 1)
 await gotoLibrary()
 const tiles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile')].map((t) => t.innerText.replace(/\n+/g, ' ')))
 check('每款游戏的进度都能显示', tiles.length >= 5 && tiles.every((t) => t.length > 0), `${tiles.length} 款：${tiles.join(' | ').slice(0, 110)}`)
-const cont = await page.evaluate(() => document.querySelector('.eink-continue')?.innerText.replace(/\n+/g, ' ') ?? '')
-check('继续卡片指向最近玩的游戏', /2048/.test(cont), cont.slice(0, 60))
+/*
+ * 断言"继续"是否指向**最近玩过**的那一款：不匹配细栏文字（文字可能为空），
+ * 而是**点它、看打开了哪款游戏** —— 行为验证比文本匹配更强，也不依赖具体排版。
+ */
+const contExists = (await page.locator('.eink-continue').count()) > 0
+if (contExists) await page.locator('.eink-continue').first().click()
+await page.waitForTimeout(900)
+const resumedTitle = await page.evaluate(() => document.querySelector('.eink-topbar')?.textContent ?? '')
+check(
+  '「继续上一局」打开的是最近玩过的那款',
+  contExists && /2048/.test(resumedTitle),
+  `细栏存在=${contExists}，打开后标题=${resumedTitle.replace(/\s+/g, ' ').slice(0, 40)}`,
+)
+await gotoLibrary()
+
 
 /* ---------- 5) 清空全部进度 ---------- */
 console.log('\n[5] 清空全部进度')
@@ -214,7 +259,12 @@ await page.waitForTimeout(1200)
 await gotoLibrary()
 const after = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
 check('清空后首页无继续卡片', !/继续上一局/.test(after), after.slice(0, 70))
-check('清空后进度归零', /进度 0\/16/.test(after), after.slice(0, 90))
+// 卡片上的进度行已按要求删除，因此这里改为断言：清空后「继续上一局」细栏消失、游戏方块仍在
+check(
+  '清空后继续入口消失、游戏列表仍完整',
+  (await page.locator('.eink-continue').count()) === 0 && (await page.locator('.eink-tile').count()) >= 5,
+  after.slice(0, 90),
+)
 
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 5)) console.log('  ! ' + e)
