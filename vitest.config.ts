@@ -19,6 +19,7 @@ export default defineConfig({
       '@eink/pegsolitaire': pkg('games/pegsolitaire/src/index.ts'),
       '@eink/checkers': pkg('games/checkers/src/index.ts'),
       '@eink/klotski': pkg('games/klotski/src/index.ts'),
+      '@eink/knightstour': pkg('games/knightstour/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
       '@eink/ui': pkg('ui/src/index.ts'),

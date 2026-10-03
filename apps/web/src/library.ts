@@ -16,6 +16,7 @@ import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
 import { connect4En, connect4Game, connect4Zh } from '@eink/connect4'
 import { lightsoutEn, lightsoutGame, lightsoutZh } from '@eink/lightsout'
 import { checkersEn, checkersGame, checkersZh } from '@eink/checkers'
+import { knightstourEn, knightstourGame, knightstourZh } from '@eink/knightstour'
 import {
   PACK as KLOTSKI_PACK,
   klotskiEn,
@@ -33,6 +34,16 @@ import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
   entries: [
+    defineGame({
+      game: knightstourGame,
+      cellLabelKey: (kind) => `knightstour.cell.${kind}`,
+      rulesKeys: ['knightstour.rules.body', 'knightstour.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: knightstourGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: knightstourGame.difficulties.length,
+      }),
+    }),
     defineGame({
       game: klotskiGame,
       cellLabelKey: (kind) => `klotski.cell.${kind}`,
@@ -185,7 +196,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh, ...knightstourZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn, ...knightstourEn },
   },
 }
