@@ -306,13 +306,6 @@ export function Board({
       aria-rowcount={board.rows}
       aria-colcount={board.cols}
     >
-      /*
-
-       * 被整块标签覆盖的格子不逐格画选中框：选中标记由标签承载，
-
-       * 否则一块棋子（占 2 格）选中后看起来又是两个小方块。
-
-       */
       {board.cells.map((cellView) => (
         <div
           key={cellView.index}
