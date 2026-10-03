@@ -2,7 +2,7 @@
  * 游戏详情：玩法说明、难度、当前进度、关卡列表、开始/继续。
  * 「已有存档时开新局」必须明确询问，绝不静默丢局。
  */
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { SaveEnvelope } from '@eink/core'
 import { computeRootLayout } from '@eink/core'
 import { ActionButton, Dialog, Pager, StatBar, TopBar } from '../components.js'
@@ -106,6 +106,21 @@ export function GameDetailScreen({
     onStartNew(difficulty)
   }
 
+  /*
+   * 玩法说明：**固定长度**（约 6 行），超出时给一个「阅读全部」按钮展开。
+   *
+   * 只管折叠态的溢出：展开后 scrollHeight 会等于 clientHeight，
+   * 若那时重算就会把「收起」按钮弄没，用户就收不回去了。
+   */
+  const [rulesExpanded, setRulesExpanded] = useState(false)
+  const [rulesOverflow, setRulesOverflow] = useState(false)
+  const rulesRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (rulesExpanded) return
+    const element = rulesRef.current
+    if (element) setRulesOverflow(element.scrollHeight > element.clientHeight + 1)
+  }, [entry, rulesExpanded])
+
   return (
     <div className="eink-screen eink-screen--sticky-footer">
       <TopBar title={i18n.t(`${entry.game.i18nNamespace}.title`)} onBack={onBack} />
@@ -121,11 +136,27 @@ export function GameDetailScreen({
 
         <section className="eink-section">
           <h2>{i18n.t('shell.detail.rules')}</h2>
-        {entry.rulesKeys.map((key) => (
-          <p key={key} className="eink-text">
-            {i18n.t(key)}
-          </p>
-        ))}
+        <div
+          className={rulesExpanded ? 'eink-rules' : 'eink-rules eink-rules--clamped'}
+          ref={rulesRef}
+          /* 固定长度用内联样式定死：styles.css 里同名类样式在构建后未生效（与标题那次同类问题） */
+          style={rulesExpanded ? undefined : { maxHeight: '7.8em', overflow: 'hidden' }}
+        >
+          {entry.rulesKeys.map((key) => (
+            <p key={key} className="eink-text">
+              {i18n.t(key)}
+            </p>
+          ))}
+        </div>
+        {rulesExpanded || rulesOverflow ? (
+          <button
+            type="button"
+            className="eink-rules__more"
+            onClick={() => setRulesExpanded((prev) => !prev)}
+          >
+            {i18n.t(rulesExpanded ? 'shell.detail.collapse' : 'shell.detail.readAll')}
+          </button>
+        ) : null}
       </section>
 
       <section className="eink-section">

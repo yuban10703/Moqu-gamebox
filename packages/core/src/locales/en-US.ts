@@ -25,6 +25,8 @@ export const enUS: Dict = {
   'shell.nav.help': 'Help',
 
   'shell.detail.rules': 'How to play',
+  'shell.detail.readAll': 'Read all',
+  'shell.detail.collapse': 'Collapse',
   'shell.detail.difficulty': 'Difficulty',
   'shell.detail.progress': 'Current progress',
   'shell.detail.none': 'No game in progress',

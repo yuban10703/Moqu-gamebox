@@ -25,6 +25,8 @@ export const zhCN: Dict = {
   'shell.nav.help': '帮助',
 
   'shell.detail.rules': '玩法说明',
+  'shell.detail.readAll': '阅读全部',
+  'shell.detail.collapse': '收起',
   'shell.detail.difficulty': '难度',
   'shell.detail.progress': '当前进度',
   'shell.detail.none': '暂无进行中的局面',

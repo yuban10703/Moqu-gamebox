@@ -1354,3 +1354,21 @@ html[data-bold-lines='on'] .eink-board {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 玩法说明：固定长度（约 6 行），超出部分收起，由「阅读全部」展开 */
+.eink-rules--clamped {
+  max-height: 7.8em;
+  overflow: hidden;
+}
+
+.eink-rules__more {
+  align-self: flex-start;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 0.9em;
+  padding: 2px 10px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  cursor: pointer;
+}
