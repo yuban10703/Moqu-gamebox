@@ -1385,14 +1385,26 @@ html[data-bold-lines='on'] .eink-board {
  * 反白是实心区域、边缘落在整数像素，墨水屏上绝对可靠；已反白的大块（曹操）则翻转成白底黑字，
  * 形成明确的"状态切换"而不是叠加一层线。
  */
+/*
+ * 选中 = 反白 + **一圈内框**。
+ *
+ * 两次踩坑后的结论（真机截图逐次确认）：
+ *  1. 细 outline（3px）在 dpr 1.875 下落在半像素上 → 渲染成破碎斜纹；
+ *  2. 只反白不画框 → 被选中的白块变黑，**与相邻的黑色曹操连成一整块大黑块**，更难看。
+ * 因此：反白 + 白色内框（`border`，整数像素）。白框既是"选中"的明确信号，
+ * 又把相邻的两块黑分开；已反白的曹操选中时则反过来（白底 + 黑框）。
+ * 内框宽度取 5px，与棋盘外框同宽（线宽层次里 5px 是"结构线"）。
+ */
 .eink-board__label[data-selected='yes'] {
   background: var(--ink-black);
   color: var(--ink-white);
+  border: 5px solid var(--ink-white);
+  box-sizing: border-box;
   outline: none;
 }
 
 .eink-board__label[data-selected='yes'][data-invert='yes'] {
   background: var(--ink-white);
   color: var(--ink-black);
-  box-shadow: inset 0 0 0 5px var(--ink-black);
+  border-color: var(--ink-black);
 }
