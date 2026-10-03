@@ -36,15 +36,16 @@
    APK 里不出现 fastjson2 / batik / rxjava，也就没有相应的体积与冲突风险。
 2. **能力探测而非硬编码**：`UpdateMode` 的名字、前光方法签名、快刷方法签名都按运行时探测结果决定；
    探测不到的档位在设置页显示为不可用（不假装能用）。
-3. **逃生口**：万一某台设备的系统里确实没有这些类，可用 `-PonyxBundled` 让 Gradle
-   把 `onyxsdk-device` 打进来（已配置对 batik 相关组的 exclusions）。
+3. **默认不内置**：这些类不在系统里，所以反射要能用就必须把 SDK 打进来；
+   但实测它只换来「整屏全刷」一项有效能力，代价是 APK 从 1.5MB 涨到 3.3MB。
+   因此**默认不内置**；需要时用 `-PonyxBundled=true`（已配置对 batik 相关组的 exclusions）。
 4. 详细适配说明见 [refresh-adaptation.md](refresh-adaptation.md)。
 
 ### `-PonyxBundled` 变体（已实测）
 
 需要应用内控制刷新时可用 `./gradlew -PonyxBundled=true assembleDebug` 把 SDK 打进 APK：
 
-- 体积 1.4MB → 3.4MB（batik 相关组未被拉入）；
+- 体积 **1.5MB → 3.3MB**（2026-10-04 实测；batik 相关组未被拉入）；
 - SDK 清单声明的 4 个权限（ACCESS_WIFI_STATE / CHANGE_WIFI_STATE / BLUETOOTH / DUMP）
   已在本项目清单里用 `tools:node="remove"` 剥掉，最终 APK 仍然是**零权限**；
 - 真机结论：整屏全刷可用（`refreshScreen(GC)`），刷新档位不可用（写入被接受但不生效）。

@@ -532,11 +532,11 @@ npm run explore                            # 两个套件一起跑
 
 ## 两种构建配置在真机上的行为（本轮验证）
 
-反转 `onyxBundled` 默认值后，**不内置 SDK** 那条路径变成了"测得少"的一侧，因此补验：
+`onyxBundled` 默认值于 2026-10-04 改回 **false**（不内置）。两条路径都实测过：
 
-| | 内置 SDK（新默认） | `-PonyxBundled=false` |
+| | `-PonyxBundled=true`（内置） | **不内置（现默认）** |
 |---|---|---|
-| APK | 3.4 MB | 2.5 MB |
+| APK | 3.3 MB | **1.5 MB** |
 | 应用启动 | ✓ 9 款游戏 | ✓ 9 款游戏 |
 | `onyxSdkFound` | true | **false** |
 | `fullRefresh` | true | **false** |

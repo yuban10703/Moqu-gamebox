@@ -11,7 +11,8 @@ npm run build:apk       # 产出 apps/android/app/build/outputs/apk/debug/app-de
 `compileSdk 35` / `targetSdk 35` / `minSdk 23`。
 
 `-PskipWebBuild=true` 可跳过网页资源构建（IDE 里反复编译时用）；
-`-PonyxBundled=true` 会把 `onyxsdk-device` 打进 APK（仅当目标设备系统里确实没有这些类时才需要）。
+`-PonyxBundled=true` 会把 `onyxsdk-device` 打进 APK。**默认不内置**：它只换来「整屏全刷」一项有效能力，
+却让 APK 从 1.5MB 涨到 3.3MB（系统手势本来就能全刷）。需要应用内全刷时再显式打开。
 
 ## 侧载与调试
 
