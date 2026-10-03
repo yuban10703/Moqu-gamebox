@@ -139,12 +139,7 @@ export function GameDetailScreen({
         <div
           className={rulesExpanded ? 'eink-rules' : 'eink-rules eink-rules--clamped'}
           ref={rulesRef}
-          /* 限高用内联样式（styles.css 同名类样式构建后未生效，与首页标题同类问题） */
-          style={
-            rulesExpanded
-              ? { position: 'relative', fontSize: '0.9em' }
-              : { position: 'relative', fontSize: '0.9em', maxHeight: '7.8em', paddingBottom: '1.9em' }
-          }
+          /* 限高、字号、右下角按钮的定位都在 styles.css 的 .eink-rules* 里（不再用内联样式） */
           data-expanded={rulesExpanded ? 'yes' : 'no'}
         >
           {entry.rulesKeys.map((key) => (
@@ -157,25 +152,9 @@ export function GameDetailScreen({
             墨水屏没有渐变可用，硬截断 + 显式省略号是唯一诚实的表达。
           */}
           {rulesExpanded || rulesOverflow ? (
-            <div
-                className="eink-rules__foot"
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  bottom: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'var(--ink-white)',
-                  paddingLeft: 6,
-                }}
-              >
+            <div className="eink-rules__foot">
               {rulesExpanded ? null : (
-                <span
-                  className="eink-rules__ellipsis"
-                  aria-hidden="true"
-                  style={{ fontWeight: 700, letterSpacing: '0.1em' }}
-                >
+                <span className="eink-rules__ellipsis" aria-hidden="true">
                   …
                 </span>
               )}
@@ -183,15 +162,6 @@ export function GameDetailScreen({
                 type="button"
                 className="eink-rules__more"
                 onClick={() => setRulesExpanded((prev) => !prev)}
-                style={{
-                  font: 'inherit',
-                  fontSize: '0.95em',
-                  padding: '1px 8px',
-                  border: 'var(--line) solid var(--ink-black)',
-                  background: 'var(--ink-white)',
-                  color: 'var(--ink-black)',
-                  cursor: 'pointer',
-                }}
               >
                 {i18n.t(rulesExpanded ? 'shell.detail.collapse' : 'shell.detail.readAll')}
               </button>

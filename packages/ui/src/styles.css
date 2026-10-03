@@ -1,45 +1,72 @@
 /**
- * 墨水屏样式基线。
+ * 墨水屏样式基线（重构版）。
+ *
+ * 为什么要重写：这份文件是历轮追加出来的 —— 同一个选择器出现 6~12 次，属性靠
+ * 「后写的盖前写的」生效；更糟的是文件末尾有一个没闭合的 `.eink-tile {`，
+ * 构建时后面的规则被当成 CSS 嵌套、全部变成了 `.eink-tile .xxx`（28 条规则静默失效），
+ * 于是有 3 处只好改用内联样式。现在按区块重写：**每个选择器只出现一次**，
+ * 属性即最终值，不再依赖书写顺序；内联样式也收回到了类里。
+ *
+ * 组织（按依赖顺序自上而下）：
+ *   1 变量 / 2 基础 / 3 壳层 / 4 首页 / 5 详情 / 6 对局 / 7 测试页 / 8 媒体查询
  *
  * 硬性约定（与 docs/eink-guidelines.md 一致）：
- * - 没有任何 transition / animation；
- * - 不使用半透明遮罩、阴影渐变做状态表达；
- * - 状态区分靠符号（○ □ ◼ ▲ △）、线型（实线/虚线/点线）与文字；
- * - 触摸目标不小于 48px；正文不小于 18px；
- * - 文字使用系统字体（含中文回退链），不依赖打包字体。
+ * - 没有 transition / animation（基础区块里全局声明一次，不需要 !important）；
+ * - 不用半透明遮罩、阴影、颜色表达状态：区分靠符号（○ □ ◼ ✖）、线型（实线/虚线/点线）
+ *   与线宽（格子线 1px、宫线/分组线 5px、外框 5px）、文字；
+ * - 斜纹用 repeating-linear-gradient 只是为了在 1-bit 上画**黑白抖动纹理**（墙壁），
+ *   不是灰度渐变；
+ * - 触摸目标不小于 48px；正文不小于 18px；系统字体（含中文回退链），不依赖打包字体。
  */
+
+/* ------------------------------------------------------------------ 1 变量 */
+
 :root {
   --ink-black: #000;
   --ink-white: #fff;
+  /*
+   * --line 只作用于**界面控件的边框与字形笔画**。
+   * 棋盘线宽刻意不跟随它：棋盘用固定层次（格子 1px / 宫线 5px / 外框 5px），
+   * 否则"加粗线条"一开，格子线变 2px、与宫线只剩 2 倍差距，层次就没了。
+   * 外框宽度还必须与 @eink/core 的 BOARD_FRAME_PX=5 一致（它在 components.tsx 里以内联宽度给出）。
+   */
   --line: 2px;
   --gap: 12px;
   --font-base: 18px;
+  /* 棋盘固定线宽：与 BOARD_FRAME_PX 对应，集中在这里便于核对 */
+  --board-grid-line: 1px;
+  --board-frame-line: 5px;
 }
 
+/*
+ * 字号档位：--font-base 是全局正文字号，--tile-* 是首页方块的尺寸档
+ * （默认 92px/10px/12px → 大字号档 82px/8px/8px → 竖屏大字号再 74px/6px，见媒体查询）。
+ */
 html[data-font-scale='1.25'] {
   --font-base: 22px;
+  --tile-gap: 8px;
+  --tile-min-height: 82px;
+  --tile-padding: 8px;
 }
 
 html[data-font-scale='1.5'] {
   --font-base: 26px;
+  --tile-gap: 8px;
+  --tile-min-height: 82px;
+  --tile-padding: 8px;
 }
 
 html[data-bold-lines='off'] {
   --line: 1px;
 }
 
+/* ------------------------------------------------------------------ 2 基础 */
+
 * {
   box-sizing: border-box;
-  /* 墨水屏上不使用任何动画与过渡 */
-  animation: none !important;
-  transition: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
+  /* 墨水屏上任何动画/过渡都会留残影：全局只在这里声明一次即可，无需 !important */
+  animation: none;
+  transition: none;
 }
 
 html,
@@ -54,9 +81,6 @@ body {
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-}
-
-body {
   /* 防止双指缩放与双击缩放带来的误操作 */
   touch-action: manipulation;
 }
@@ -66,6 +90,8 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* ------------------------------------------------------------------ 3 壳层 */
 
 .eink-screen {
   display: flex;
@@ -107,12 +133,13 @@ body {
   padding: var(--gap);
 }
 
-.eink-text,
-.eink-muted {
+.eink-text {
   margin: 0;
 }
 
+/* 次要文字用 #333：1-bit 面板上仍是纯黑，但视觉权重低于正文 */
 .eink-muted {
+  margin: 0;
   color: #333;
 }
 
@@ -123,7 +150,279 @@ body {
   font-weight: 600;
 }
 
-/* ---------- 按钮 ---------- */
+/*
+ * 主操作固定在底部、内容单独滚动。
+ *
+ * 为什么需要：窄屏（6 寸竖屏 439 CSS px）上说明文字换行变多，
+ * 会把「开始新游戏」这类主操作挤出首屏 —— 实测 P6Plus 上按钮位于 880~940，
+ * 而视口只有 847 高，用户必须先拖动才能开始游戏。墨水屏上主操作绝不该需要滚动。
+ */
+.eink-screen--sticky-footer {
+  /* 必须覆盖 .eink-screen 的 flex:1：在列向 flex 容器里 flex-basis（0）会压掉 height，
+     只写 height:100vh 是不生效的 —— 实测计算高度会是内容高度 951px 而不是视口 847px。 */
+  flex: 0 0 auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.eink-screen--sticky-footer .eink-screen__content {
+  flex: 1 1 auto;
+  /* 关键：flex 子项默认 min-height:auto 不肯收缩，不加这行就不会出现滚动 */
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.eink-screen--sticky-footer .eink-footer {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.eink-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+  border-top: var(--line) solid var(--ink-black);
+  padding-top: 8px;
+  margin-top: auto;
+}
+
+/* 页脚里放「翻页 + 主操作」：宽屏同行、窄屏自动换行，保证翻页按钮永远无需滚动 */
+.eink-footer--split {
+  justify-content: space-between;
+  row-gap: var(--gap);
+}
+
+.eink-footer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  align-items: center;
+}
+
+.eink-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  border-bottom: var(--line) solid var(--ink-black);
+  padding-bottom: 8px;
+}
+
+.eink-topbar__title {
+  flex: 1;
+}
+
+.eink-topbar__subtitle {
+  margin: 0;
+  color: #333;
+}
+
+.eink-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin: 0;
+}
+
+/* 固定列数模式：列宽由内联 grid-template-columns 给出，行数恒定、高度不随数值宽度变化 */
+.eink-stats--fixed {
+  display: grid;
+}
+
+.eink-stats--fixed .eink-stats__item {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eink-stats__item {
+  border: 1px solid var(--ink-black);
+  padding: 4px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.eink-stats__item dt {
+  font-size: 0.85em;
+}
+
+.eink-stats__item dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 状态条：默认压缩成一行（提示与保存状态并排），高度**恒定为 48px**。
+ *
+ * 为什么必须固定高度、不能用 min-height：提示那一行的实际高度是 46px
+ * （22px 字号 × 1.5 行高 + 边距），min-height:44 拦不住 —— 提示出现时状态条长高 2px，
+ * 棋盘区被挤小、居中的棋盘跟着上移（实测棋盘 top 216 → 215），墨水屏上很显眼。
+ * 高度共有 4 档：48（默认）/ 36 / 32 / 28（极矮横屏，见媒体查询）。
+ */
+.eink-statusstrip {
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.eink-statusstrip > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 只有保存失败时才放开换行（那种情况下绝不能把「重试/导出」按钮挤没） */
+.eink-statusstrip[data-expanded='yes'] {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  white-space: normal;
+  overflow: visible;
+}
+
+.eink-save {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.eink-save--failed {
+  border: var(--line) dashed var(--ink-black);
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.eink-result-details {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.eink-diagnostics__raw pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid var(--ink-black);
+  padding: 8px;
+  font-size: 0.85em;
+  margin: 0;
+}
+
+.eink-kv {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.eink-kv__row {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px dotted var(--ink-black);
+  padding: 2px 0;
+}
+
+.eink-kv__row dt {
+  min-width: 12ch;
+  color: #333;
+}
+
+.eink-kv__row dd {
+  margin: 0;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.eink-levels,
+.eink-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+}
+
+.eink-levels__item,
+.eink-list__item {
+  border: 1px solid var(--ink-black);
+  padding: 6px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+}
+
+.eink-levels__item[data-done='yes'] {
+  border-width: 2px;
+}
+
+.eink-levels__index {
+  font-weight: 700;
+  min-width: 2ch;
+}
+
+.eink-levels__meta {
+  font-size: 0.85em;
+  color: #333;
+}
+
+.eink-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.eink-badge {
+  border: 1px solid var(--ink-black);
+  padding: 2px 8px;
+  font-size: 0.85em;
+}
+
+.eink-badge[data-state='unavailable'],
+.eink-badge--warning {
+  border-style: dashed;
+}
+
+.eink-choice-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eink-card {
+  border: var(--line) solid var(--ink-black);
+  padding: var(--gap);
+  display: flex;
+  gap: var(--gap);
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.eink-card__main h3 {
+  margin: 0 0 6px;
+  font-size: 1.1em;
+}
+
+.eink-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .eink-button {
   min-height: 48px;
   min-width: 48px;
@@ -171,241 +470,245 @@ body {
   cursor: pointer;
 }
 
-/* ---------- 顶栏 / 统计 / 页脚 ---------- */
-.eink-topbar {
+.eink-dialog,
+.eink-overlay {
+  position: fixed;
+  inset: 0;
+  /* 墨水屏不做半透明遮罩：整屏不透明白底 + 明显边框 */
+  background: var(--ink-white);
   display: flex;
   align-items: center;
-  gap: var(--gap);
-  border-bottom: var(--line) solid var(--ink-black);
-  padding-bottom: 8px;
+  justify-content: center;
+  padding: var(--gap);
+  overflow: auto;
 }
 
-.eink-topbar__title {
-  flex: 1;
-}
-
-.eink-topbar__subtitle {
-  margin: 0;
-  color: #333;
-}
-
-.eink-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  margin: 0;
-}
-
-/* 固定列数模式：行数恒定，高度不随数值宽度变化 */
-.eink-stats--fixed {
-  display: grid;
-  flex-wrap: nowrap;
-}
-
-.eink-stats--fixed .eink-stats__item {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.eink-stats__item {
-  border: 1px solid var(--ink-black);
-  padding: 4px 10px;
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.eink-stats__item dt {
-  font-size: 0.85em;
-}
-
-.eink-stats__item dd {
-  margin: 0;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-/*
- * 主操作固定在底部、内容单独滚动。
- *
- * 为什么需要：窄屏（6 寸竖屏 439 CSS px）上说明文字换行变多，
- * 会把「开始新游戏」这类主操作挤出首屏 —— 实测 P6Plus 上按钮位于 880~940，
- * 而视口只有 847 高，用户必须先拖动才能开始游戏。墨水屏上主操作绝不该需要滚动。
- */
-.eink-screen--sticky-footer {
-  /* 必须覆盖 .eink-screen 的 flex:1：在列向 flex 容器里 flex-basis（0）会压掉 height，
-     只写 height:100vh 是不生效的 —— 实测计算高度会是内容高度 951px 而不是视口 847px。 */
-  flex: 0 0 auto;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.eink-screen--sticky-footer .eink-screen__content {
-  flex: 1 1 auto;
-  /* 关键：flex 子项默认 min-height:auto 不肯收缩，不加这行就不会出现滚动 */
-  min-height: 0;
-  overflow-y: auto;
+.eink-dialog__panel,
+.eink-overlay__panel {
+  border: 4px solid var(--ink-black);
+  padding: calc(var(--gap) * 1.5);
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  max-width: 720px;
+  width: 100%;
 }
 
-.eink-screen--sticky-footer .eink-footer {
-  flex: 0 0 auto;
-  margin-top: 0;
-}
-
-.eink-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  align-items: center;
-  border-top: var(--line) solid var(--ink-black);
-  padding-top: 8px;
-  margin-top: auto;
-}
-
-/* ---------- 卡片 / 网格 ---------- */
-.eink-card {
-  border: var(--line) solid var(--ink-black);
-  padding: var(--gap);
+.eink-dialog__actions {
   display: flex;
   gap: var(--gap);
   flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
 }
 
-.eink-card__main h3 {
-  margin: 0 0 6px;
-  font-size: 1.1em;
-}
-
-.eink-card__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+/* ------------------------------------------------------------------ 4 首页 */
 
 /*
  * 游戏卡片网格。最小列宽取 180px：
- * 原先 220px 在 439 宽竖屏（内容约 415px）下 auto-fill 只能算出**一列**，
- * 4 款游戏就排成 4 行、把页脚顶出屏幕（用户实测反馈）。
- * 180px 在同样宽度下能排两列。
- * 用 auto-fit 而不是 auto-fill：auto-fill 会保留空轨道，宽屏上 4 款游戏会挤在最左（实测 6 列只占 4 列）；
- * auto-fit 会把空轨道折叠掉，卡片按实际数量铺满一行。
+ * 原先 220px 在 439 宽竖屏（内容约 415px）下 auto-fill 只能算出一列，
+ * 4 款游戏就排成 4 行、把页脚顶出屏幕（用户实测反馈）。180px 同宽下能排两列。
+ * 用 auto-fit 而不是 auto-fill：auto-fill 会保留空轨道，宽屏上 4 款游戏会挤在最左；
+ * auto-fit 折叠空轨道，卡片按实际数量铺满一行。
+ */
+/*
+ * 方块的尺寸档位用自定义属性表达（见「1 变量」），不给 .eink-grid / .eink-tile 写多份选择器。
  */
 .eink-grid {
   list-style: none;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--gap);
+  gap: var(--tile-gap, var(--gap));
   padding: 0;
   margin: 0;
 }
 
+
 /*
- * 卡片：紧凑两行布局（图标+标题一行，进度与「已通关」一行）。
- * 原先是竖排三行 + min-height:140px，一屏放不下 4 款游戏。
+ * 首页方块（用户要求）：**图标在左、游戏名在图标右侧水平且垂直居中**，没有进度行。
+ *
+ * 高度由 min-height 决定（图标 + 内边距比它矮），因此所有方块严格等高：
+ * 439×847 默认字号 92px、1.5× 字号 74px（见媒体查询）、1248×903 也是 92px。
+ * 之前用两行网格 'host title' / 'meta done' 排，进度行会跑到图标下面、与标题左边缘不对齐，
+ * 用户反馈"文字不居中"；现改为一行 flex，标题占满图标右侧的剩余空间并居中。
  */
 .eink-tile {
   width: 100%;
-  min-height: 92px;
+  min-height: var(--tile-min-height, 92px);
   border: var(--line) solid var(--ink-black);
   background: var(--ink-white);
   color: var(--ink-black);
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    'host title'
-    'meta done';
+  display: flex;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 2px;
-  padding: 10px;
+  gap: 8px;
+  padding: var(--tile-padding, 10px);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.eink-tile__host {
-  grid-area: host;
-  /* 图标原本按正文字号渲染，行高把卡片顶得很高（26px 字号下每张卡 146px）。 */
-  font-size: 1.15em;
-  line-height: 1;
+.eink-game-icon {
+  /* 图标固定尺寸，不参与压缩（宽度由 SVG 自身决定） */
+  flex: 0 0 auto;
 }
 
+/*
+ * 标题：占满图标右侧的剩余空间，并在其中水平 + 垂直居中。
+ * 单行 nowrap + 省略号：长短标题都是一行高度，方块因此严格等高。
+ * 这组属性原先是被 6 条重复规则互相覆盖、最后靠内联样式救回来的，现在只在这里写一次。
+ */
 .eink-tile__title {
-  grid-area: title;
-  /* 大字号下卡片会被行高撑大：4 行就顶出屏幕（真机 26px 字号实测卡高 146px）。
-     显式收紧行高，并把次要信息缩小一档，卡片回落到 ~95px。 */
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 1.1em;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 「继续上一局」细栏：原来是一张全宽大卡（标题 + 统计 + 两个大按钮），小屏上占近三行。
+ * 压成一条细栏，整栏可点即继续；标题与 meta 都可收缩（min-width:0）并省略号截断，
+ * 因此窄屏 + 大字号下也绝不横向溢出屏幕。
+ */
+.eink-continue {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eink-continue__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.2;
 }
 
-.eink-tile__meta {
-  grid-area: meta;
+.eink-continue__meta {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.85em;
   line-height: 1.2;
 }
 
-/*
- * 大字号档位下收起卡片上的「进度 x/y」一行。
- *
- * 原因：卡片高度随正文字号放大（1.5× 档每张 123px），7 款游戏排 4 行就超出可用高度 ——
- * 多出来的正是「继续上一局」卡片占的那 ~200px。实测 439×847、1.5× 档：有 3 个按钮在屏外。
- * 进度并非丢失：详情页、结果页与「继续上一局」卡片都有它，而字号档位本身就是
- * 「优先可读性」的选择。只收这一行，卡片即回落到 ~85px，4 行重新放得下。
- */
-/*
- * 大字号档位**不再隐藏进度行**（用户反馈：竖屏看不到进度）。
- * 当初隐藏它是为了让 7 款游戏在一屏放下；现在首页是**分页**，
- * 空间由每页数量自适应解决，不需要再牺牲信息。
- */
-html[data-font-scale='1.25'] .eink-tile__meta,
-html[data-font-scale='1.5'] .eink-tile__meta {
-  display: block;
-}
-
-/* 同一档位下再收紧网格间距与卡片最小高度，让 4 行 / 2 行都真正放得下 */
-html[data-font-scale='1.25'] .eink-grid,
-html[data-font-scale='1.5'] .eink-grid {
+/* 「全部游戏」标题行 + 翻页控件：同一行（标题占满、翻页靠右），不额外占一行高度 */
+.eink-section__head {
+  display: flex;
+  align-items: baseline;
   gap: 8px;
 }
 
-html[data-font-scale='1.25'] .eink-tile,
-html[data-font-scale='1.5'] .eink-tile {
-  min-height: 82px;
-  padding: 8px;
+.eink-section__head h2 {
+  flex: 1 1 auto;
+  margin: 0;
 }
 
-.eink-tile__done {
-  grid-area: done;
-  justify-self: end;
-  font-size: 0.85em;
-  line-height: 1.2;
+.eink-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.eink-tile__host {
-  font-size: 2em;
+/*
+ * 翻页是辅助控件，不能像主按钮那样大：0.8em 字号 + 1px 细边 + 紧内边距，
+ * 1.5× 字号档下高度约 23px（主按钮 60px），拇指既点得到又不会抢主操作的位置。
+ * nowrap 不能省：窄屏 + 大字号下按钮会被挤压，文字折行会让高度翻倍到 ~47px。
+ */
+.eink-pager__btn {
+  font: inherit;
+  font-size: 0.8em;
   line-height: 1;
+  padding: 0 6px;
+  border: 1px solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.eink-tile__title {
-  font-weight: 700;
-  font-size: 1.1em;
+.eink-pager__btn[disabled] {
+  border-style: dotted;
+  color: #444;
+  cursor: default;
 }
 
-.eink-tile__meta,
-.eink-tile__done {
+.eink-pager__info {
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ 5 详情 */
+
+/*
+ * 玩法说明：默认收起（固定长度约 6 行 + 右下角按钮），超出部分由「阅读全部」展开。
+ * 说明区 position: relative，右下角的「…」与按钮**覆盖**在文字上 —— 墨水屏没有渐变可用，
+ * 硬截断 + 显式省略号是唯一诚实的表达。字号 0.9em（18px 基准下 16.2px）。
+ */
+.eink-rules {
+  position: relative;
   font-size: 0.9em;
 }
 
-.eink-tile__done {
-  border: 1px solid var(--ink-black);
-  padding: 0 6px;
+.eink-rules--clamped {
+  max-height: 7.8em;
+  overflow: hidden;
 }
 
-/* ---------- 棋盘 ---------- */
+.eink-rules[data-expanded='no'] {
+  /* 给右下角的按钮让出位置，避免压住正文 */
+  padding-bottom: 1.9em;
+  overflow: hidden;
+}
+
+.eink-rules[data-expanded='no'] .eink-text:last-of-type {
+  margin-bottom: 0;
+}
+
+.eink-rules__foot {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--ink-white);
+  padding-left: 6px;
+}
+
+.eink-rules__ellipsis {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.eink-rules__more {
+  font: inherit;
+  font-size: 0.95em;
+  padding: 1px 8px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ 6 对局 */
+
 /*
  * 游戏页：整体固定为视口高、不滚动；只有棋盘区可收缩，控制区永远留在首屏内。
  * 教训：竖屏（439×847）下「撤销/重新开始/菜单」原本位于 844~904，完全在屏幕外。
@@ -462,59 +765,43 @@ html[data-font-scale='1.5'] .eink-tile {
 /*
  * 线宽层次（黑白屏上靠线宽建立结构层次，不用灰度）：
  *   格子线 1px  <  宫线 5px  =  外框 5px      → 细:粗 = 1:5
- *
- * 这些值**不跟随「加粗线条」设置**：该设置只影响字形笔画与界面控件边框（--line）。
- * 原因：若棋盘线跟着设置走，加粗模式下格子线变 2px、与宫线只剩 2 倍差距，层次就没了。
- *
- * 注意：组边界加粗会叠加相邻格自身的 1px，所以视觉宽度比设定值再多 1px。
- * 外框不细于宫线，否则棋盘看起来是散的。
+ * 这些值不跟随「加粗线条」设置（该设置只影响 --line 与字形笔画）；
+ * 组边界加粗会叠加相邻格自身的 1px，所以视觉宽度比设定值多 1px；外框不细于宫线，否则棋盘看起来是散的。
+ * 外框宽度另有一份内联值来自 BOARD_FRAME_PX（=5），两边必须一致，否则布局按 3px 算、实际画 5px 会裁掉边框。
  */
 .eink-board {
   display: grid;
-  border: 5px solid var(--ink-black);
+  border: var(--board-frame-line) solid var(--ink-black);
   touch-action: manipulation;
+  /*
+   * 墙壁纹理：45° 斜纹，**画在棋盘容器上、格子留空**（而不是每个墙格各画一份）：
+   * 渐变在每个元素里都从头开始，逐格绘制会在交界处出现错位的接缝；画在容器上则是连续的一片。
+   * 只用纯黑白（1-bit 快刷是 1-bit，灰阶会被压平或起噪点）。
+   */
+  background-image: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 6px);
 }
 
-/* 组边界（如数独 3×3 宫） */
-.eink-board__cell[data-sep-right='yes'] {
-  border-right-width: 5px;
-}
-
-.eink-board__cell[data-sep-bottom='yes'] {
-  border-bottom-width: 5px;
+/* 「加粗线条」下让斜纹更实，远看更像一堵墙 */
+html[data-bold-lines='on'] .eink-board {
+  background-image: repeating-linear-gradient(45deg, #000 0 3px, #fff 3px 7px);
 }
 
 .eink-board__cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--ink-black);
+  border: var(--board-grid-line) solid var(--ink-black);
   font-size: calc(var(--cell, 40px) * 0.66);
   line-height: 1;
 }
 
-/*
- * 墙壁纹理：45° 斜纹。
- *
- * 关键在于**把纹理画在棋盘容器上、格子留空**（而不是每个墙格各画一份）：
- * 渐变在每个元素里都从头开始，逐格绘制会在格子交界处出现错位的接缝；
- * 画在容器上则是连续的一片，同一堵墙看不出格子边界。
- *
- * 只用纯黑白：墨水屏快刷是 1-bit，灰阶要靠抖动，运动中会被压平或起噪点。
- */
-/*
- * 墙壁纹理：45° 斜纹。
- *
- * 关键在于**把纹理画在棋盘容器上、格子留空**（而不是每个墙格各画一份）：
- * 渐变在每个元素里都从头开始，逐格绘制会在格子交界处出现错位的接缝；
- * 画在容器上则是连续的一片，同一堵墙看不出格子边界。
- */
-.eink-board {
-  background-image: repeating-linear-gradient(
-    45deg,
-    #000 0 2px,
-    #fff 2px 6px
-  );
+/* 组边界（如数独 3×3 宫）：与宫线同宽，比格子线粗一档 */
+.eink-board__cell[data-sep-right='yes'] {
+  border-right-width: var(--board-frame-line);
+}
+
+.eink-board__cell[data-sep-bottom='yes'] {
+  border-bottom-width: var(--board-frame-line);
 }
 
 /* 墙格透出容器的斜纹 */
@@ -529,20 +816,29 @@ html[data-font-scale='1.5'] .eink-tile {
   font-variant-numeric: tabular-nums;
 }
 
-/* 通用格子纹理：全部纯黑白（快刷是 1-bit，灰阶会被抖动压平） */
+/* 通用格子纹理：全部纯黑白 */
 .eink-board__cell[data-kind='hidden'] {
   background-image: repeating-linear-gradient(45deg, #000 0 1px, #fff 1px 5px);
 }
+
 .eink-board__cell[data-kind='mine'] {
   background: var(--ink-black);
   color: var(--ink-white);
 }
+
+/* 旗标格：白底 + 加粗字形（不放进下面那组白底列表，免得同一选择器出现两次） */
 .eink-board__cell[data-kind='flag'] {
+  background: var(--ink-white);
   font-weight: 700;
 }
-/* 当前选中格：更重的内描边（靠线宽区分，不用灰度） */
+
+/*
+ * 当前选中格：3px 内圈（靠线宽区分，不用灰度）。
+ * 用 outline 而不是 inset box-shadow：效果一样是纯黑硬边，但不引入阴影。
+ */
 .eink-board__cell[data-selected='yes'] {
-  box-shadow: inset 0 0 0 3px var(--ink-black);
+  outline: 3px solid var(--ink-black);
+  outline-offset: -4px;
 }
 
 /*
@@ -558,9 +854,7 @@ html[data-font-scale='1.5'] .eink-tile {
   font-weight: 400;
 }
 
-/* 玩家填入不额外标记，靠字号/字重即可分辨（避免给大量格子加边框或纹理） */
-
-/* 其余格子铺白，遮住容器的纹理 */
+/* 其余格子铺白，遮住容器的纹理（玩家填入不额外标记，靠字号/字重即可分辨） */
 .eink-board__cell[data-kind='floor'],
 .eink-board__cell[data-kind='goal'],
 .eink-board__cell[data-kind='box'],
@@ -570,26 +864,20 @@ html[data-font-scale='1.5'] .eink-tile {
 .eink-board__cell[data-kind='number'],
 .eink-board__cell[data-kind='tile'],
 .eink-board__cell[data-kind='given'],
-.eink-board__cell[data-kind='flag'],
 .eink-board__cell[data-kind='empty'] {
   background: var(--ink-white);
 }
 
-/* 「加粗线条」设置下让斜纹更实，远看更像一堵墙 */
-html[data-bold-lines='on'] .eink-board {
-  background-image: repeating-linear-gradient(
-    45deg,
-    #000 0 3px,
-    #fff 3px 7px
-  );
-}
-
-/* ---------- 控制区 ---------- */
+/*
+ * 控制区：横屏一行（方向盘靠左、操作靠右）；竖屏改上下两段、都居中 —— 由 --controls-* 变量切换，
+ * 这样 .eink-controls 只在基础段落写一次（旧文件在竖屏媒体查询里又抄了一份，结果两份互相覆盖）。
+ */
 .eink-controls {
   display: flex;
   gap: var(--gap);
   align-items: center;
-  justify-content: space-between;
+  justify-content: var(--controls-justify, space-between);
+  flex-direction: var(--controls-direction, row);
   flex-wrap: wrap;
 }
 
@@ -625,216 +913,13 @@ html[data-bold-lines='on'] .eink-board {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: var(--controls-actions-justify, flex-start);
+  width: var(--controls-actions-width, auto);
 }
 
-/* ---------- 列表 / 关卡 ---------- */
-.eink-levels,
-.eink-list {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 8px;
-  padding: 0;
-  margin: 0;
-}
+/* ------------------------------------------------------------------ 7 测试页 */
 
-.eink-levels__item,
-.eink-list__item {
-  border: 1px solid var(--ink-black);
-  padding: 6px 10px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  min-height: 48px;
-}
-
-.eink-levels__item[data-done='yes'] {
-  border-width: 2px;
-}
-
-.eink-levels__index {
-  font-weight: 700;
-  min-width: 2ch;
-}
-
-.eink-levels__meta {
-  font-size: 0.85em;
-  color: #333;
-}
-
-/* 页脚里放「翻页 + 主操作」：宽屏同行、窄屏自动换行，保证翻页按钮永远无需滚动 */
-.eink-footer--split {
-  justify-content: space-between;
-  row-gap: var(--gap);
-}
-
-.eink-footer__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  align-items: center;
-}
-
-.eink-pager {
-  display: flex;
-  gap: var(--gap);
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* ---------- 对话框 / 暂停层 ---------- */
-.eink-dialog,
-.eink-overlay {
-  position: fixed;
-  inset: 0;
-  /* 墨水屏不做半透明遮罩：整屏不透明白底 + 明显边框 */
-  background: var(--ink-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--gap);
-  overflow: auto;
-}
-
-.eink-dialog__panel,
-.eink-overlay__panel {
-  border: 4px solid var(--ink-black);
-  padding: calc(var(--gap) * 1.5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-  max-width: 720px;
-  width: 100%;
-}
-
-.eink-dialog__actions {
-  display: flex;
-  gap: var(--gap);
-  flex-wrap: wrap;
-}
-
-/* ---------- 其它 ---------- */
-.eink-badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 0;
-}
-
-.eink-badge {
-  border: 1px solid var(--ink-black);
-  padding: 2px 8px;
-  font-size: 0.85em;
-}
-
-.eink-badge[data-state='unavailable'],
-.eink-badge--warning {
-  border-style: dashed;
-}
-
-.eink-choice-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* 提示与保存状态占用固定高度：这两行会随交互出现/消失，
-   如果让它们改变布局，下面的方向键就会被挤出首屏（墨水屏上不该需要滚动）。 */
-/*
- * 状态条：默认压缩成一行（提示与保存状态并排）。
- * 原先是两行 84px，竖屏下白白吃掉本可以给棋盘的高度。
- * 只有保存失败时需要「重试/导出」按钮，才放开换行 —— 那种情况下绝不能把按钮挤没。
- */
-/*
- * 固定高度，**不能用 min-height**：
- * 提示那一行的实际高度是 46px（22px 字号 × 1.5 行高 + 边距），
- * 用 min-height:44 拦不住 —— 提示出现时状态条长高 2px，棋盘区被挤小、
- * 居中的棋盘就跟着上移（实测棋盘 top 216 → 215）。
- * 墨水屏上这种位移很显眼，必须让高度恒定的那一块真正恒定。
- */
-.eink-statusstrip {
-  height: 48px;
-  min-height: 48px;
-  max-height: 48px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.eink-statusstrip > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.eink-statusstrip[data-expanded='yes'] {
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  flex-direction: column;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  white-space: normal;
-  overflow: visible;
-}
-
-.eink-save {
-  margin: 0;
-  font-size: 0.9em;
-}
-
-.eink-save--failed {
-  border: var(--line) dashed var(--ink-black);
-  padding: 6px 10px;
-  font-weight: 600;
-}
-
-.eink-kv {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.eink-kv__row {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px dotted var(--ink-black);
-  padding: 2px 0;
-}
-
-.eink-kv__row dt {
-  min-width: 12ch;
-  color: #333;
-}
-
-.eink-kv__row dd {
-  margin: 0;
-  font-weight: 600;
-  word-break: break-all;
-}
-
-.eink-diagnostics__raw pre {
-  white-space: pre-wrap;
-  word-break: break-all;
-  border: 1px solid var(--ink-black);
-  padding: 8px;
-  font-size: 0.85em;
-  margin: 0;
-}
-
-.eink-result-details {
-  margin: 0;
-  padding-left: 1.2em;
-}
-
-
-/* ---------- 刷新测试页 ---------- */
-/* 运动区域：我们请求刷新的那个矩形。给它一圈粗边框，方便肉眼确认边界在哪。 */
+/* 刷新测试页：运动区域就是我们要请求刷新的矩形，给它一圈粗边框便于肉眼确认边界 */
 .eink-refresh-region {
   /* align-self/width 必须显式写：父级是 flex 列，否则这个框会被拉伸到整屏宽，
      而测试的意义正是「框内动、框外不动」——框太大就分不出来了。 */
@@ -870,7 +955,7 @@ html[data-bold-lines='on'] .eink-board {
   font-weight: 700;
 }
 
-/* 参照区：内容完全静止。变淡/发灰就说明整屏被反复驱动过。 */
+/* 参照区：内容完全静止。变淡/发灰就说明整屏被反复驱动过 */
 .eink-refresh-stripes {
   display: flex;
   height: 40px;
@@ -900,8 +985,6 @@ html[data-bold-lines='on'] .eink-board {
   margin: 2px 0 4px;
 }
 
-
-/* ---------- 连续运动测试页 ---------- */
 .eink-motion-track {
   position: relative;
   border: 4px solid #000;
@@ -917,7 +1000,7 @@ html[data-bold-lines='on'] .eink-board {
   background: #000;
 }
 
-/* 用 transform 移动：只触发合成，不触发布局，才谈得上「连续」 */
+/* 用 transform 移动：只触发合成、不触发布局，才谈得上「连续」 */
 .eink-motion-dot {
   position: absolute;
   top: 8px;
@@ -940,7 +1023,7 @@ html[data-bold-lines='on'] .eink-board {
   background: #fff;
 }
 
-/* 连续灰度渐变：中间灰最容易被快刷压平或抖动 */
+/* 连续灰度渐变：中间灰最容易被快刷压平或抖动（测试页专用，运行时由内联样式给灰阶） */
 .eink-motion-gradient {
   flex: 1 1 auto;
   border: 2px solid #000;
@@ -970,45 +1053,37 @@ html[data-bold-lines='on'] .eink-board {
   flex: 1 1 auto;
 }
 
+/* ------------------------------------------------------------------ 8 媒体查询 */
 
-/* ---------- 竖屏：控制区居中 ---------- */
 /*
+ * 竖屏：控制区居中。
  * 横屏时 .eink-controls 用 space-between 把方向盘放左、操作放右很合适；
- * 但竖屏宽度只有 400 多，方向盘会被挤到最左边、右边留一大片空白、拇指也够不着对侧。
- * 竖屏改为上下两段、都水平居中。
+ * 竖屏宽度只有 400 多，方向盘会被挤到最左边、右边留一大片空白、拇指也够不着对侧。
  */
 @media (orientation: portrait) {
-  .eink-controls {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--gap);
+  :root {
+    --controls-direction: column;
+    --controls-justify: center;
+    --controls-actions-justify: center;
+    --controls-actions-width: 100%;
   }
 
-  /* 游戏自定义按钮（数独数字键、扫雷标记模式等）：可换行、居中 */
-.eink-controls__game {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  align-items: center;
-  justify-content: center;
-}
-
-.eink-controls__actions {
-    justify-content: center;
-    width: 100%;
+  /* 大字号档在竖屏再收紧一档：卡片高度与行距都压小，尽量一屏放下当前页 */
+  html[data-font-scale='1.25'],
+  html[data-font-scale='1.5'] {
+    --tile-gap: 6px;
+    --tile-min-height: 74px;
   }
 }
-
 
 /*
  * 极矮横屏（BOOX P6Plus 横屏实测 879×407）。
  *
  * 实测构成：顶栏 101px + 统计栏 48 + 状态条 48 + 方向盘 214（每键 66×3 行）= 423 > 视口 407，
  * 棋盘区被压成 0，方向盘最后一行「下」溢出 64px —— 用户无法向下移动。
- *
- * 处理：这一档高度下收紧顶栏与方向盘按钮，把空间让给棋盘与最后一行按钮。
- * 状态条必须保留（它承载「走不通」的文字反馈），只压缩它的高度。
+ * 处理：收紧顶栏与方向盘按钮；状态条 48 → 28；统计栏整体隐藏（黑子/步数这类信息在竖屏与
+ * 正常横屏都能看，这一档棋盘才是主角）；副标题（「难度 · 已过关」）隐藏；统计项与间距压到最小。
+ * 状态条必须保留：它承载「走不通」的文字反馈。这一档是**真机验证过**的，不要改数值。
  */
 @media (orientation: landscape) and (max-height: 520px) {
   .eink-screen--game .eink-topbar {
@@ -1016,33 +1091,11 @@ html[data-bold-lines='on'] .eink-board {
     padding-bottom: 2px;
   }
 
-  .eink-screen--game .eink-dpad__button {
-    /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
-    max-height: 44px;
-  }
-
-  .eink-screen--game .eink-statusstrip {
-    height: 36px;
-    min-height: 36px;
-    max-height: 36px;
-  }
-
-  .eink-screen--game .eink-controls__actions .eink-button {
-    max-height: 48px;
-  }
-
-}
-
-/*
- * 极矮横屏：继续为棋盘腾高度（实测 879×407）。
- *
- * 构成：顶栏 101 + 统计 48 + 状态条 48 + 方向盘 214 ≈ 423 > 视口 407 → 棋盘区几乎为 0。
- * 方向盘按钮 48px 是触摸下限不能再压，所以从辅助信息与控制区间距里省：
- * 隐藏副标题（「难度 · 已过关」这类辅助信息）、压缩统计项内边距、状态条 36 → 32px、
- * 收紧控制区与方向盘间距。全部只作用于这一档高度，其它档位零影响。
- */
-@media (orientation: landscape) and (max-height: 520px) {
   .eink-screen--game .eink-topbar__subtitle {
+    display: none;
+  }
+
+  .eink-screen--game .eink-stats {
     display: none;
   }
 
@@ -1052,369 +1105,25 @@ html[data-bold-lines='on'] .eink-board {
   }
 
   .eink-screen--game .eink-statusstrip {
-    height: 32px;
-    min-height: 32px;
-    max-height: 32px;
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
   }
 
   .eink-screen--game .eink-controls {
     gap: 4px;
   }
 
+  .eink-screen--game .eink-controls__actions .eink-button {
+    max-height: 48px;
+  }
+
   .eink-screen--game .eink-dpad {
     gap: 2px;
   }
-}
 
-
-/*
- * 大字号档位的首页网格：游戏数量增加后仍要尽量一屏放下。
- * 每多一款游戏就多一行，而大字号档每行高 ~90px —— 9 款时最后一张卡会被挤出屏幕。
- * 这里再收紧一档（卡片高度与行距），把 5 行压进可用高度。
- * 若将来游戏更多，最终仍会需要滚动 —— 那时应当放宽为「可滚动即合格」，
- * 而不是继续无底线压小卡片（可读性优先于"全塞下"）。
- */
-@media (orientation: portrait) {
-  html[data-font-scale='1.25'] .eink-grid,
-  html[data-font-scale='1.5'] .eink-grid {
-    gap: 6px;
+  .eink-screen--game .eink-dpad__button {
+    /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
+    max-height: 44px;
   }
-
-  html[data-font-scale='1.25'] .eink-tile,
-  html[data-font-scale='1.5'] .eink-tile {
-    min-height: 74px;
-  }
-}
-
-/*
- * 极矮横屏：把棋盘区从"几乎为 0"救回来。
- *
- * 上一轮的账（879×407）：顶栏 68 + 统计 44 + 状态条 32 + 控制区 148 ≈ 292，加间距后棋盘区只剩 44px。
- * 方向盘按钮 48px 是触摸下限不能再压，因此这一档继续从**信息密度**里省：
- * 统计栏整体隐藏（黑子/步数/用时这类信息在竖屏与正常横屏都能看，而这一档棋盘才是主角），
- * 状态条再压到 28px（必须保留：它承载「走不通」的文字反馈）。
- */
-@media (orientation: landscape) and (max-height: 520px) {
-  .eink-screen--game .eink-stats {
-    display: none;
-  }
-
-  .eink-screen--game .eink-statusstrip {
-    height: 28px;
-    min-height: 28px;
-    max-height: 28px;
-  }
-}
-
-
-/*
- * 「继续上一局」细栏：原来是一张全宽大卡（标题 + 统计 + 两个大按钮），
- * 在小屏上占近三行高度。压成一条 40px 上下的细栏，整栏可点即继续。
- */
-.eink-continue {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: var(--line) solid var(--ink-black);
-  background: var(--ink-white);
-  color: var(--ink-black);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.eink-continue__title {
-  line-height: 1.2;
-}
-
-.eink-continue__meta {
-  margin-left: auto;
-  font-size: 0.85em;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-/*
- * 方块高度必须**完全一致**。
- * 此前用 min-height，遇到「数字华容道」这类换行成两行的标题就会比邻居高一格，
- * 一排方块看起来参差不齐。这里把标题固定成两行高度（并把超长标题裁到两行），
- * 于是每张卡的高度只由字号档位决定，彼此恒等。
- */
-.eink-tile__title {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 2.4em;
-}
-
-/*
- * 首页方块的最终形态（用户反馈：文字不居中）。
- *
- * 从「图标左、文字右」的两列网格改成**竖排居中**：图标在上，标题与进度居中排布。
- * 图标改用自绘 SVG（GameIcon），因此不再受符号字体覆盖差异影响。
- */
-.eink-tile {
-  display: flex;
-
-.eink-game-icon {
-  flex: 0 0 auto;
-}
-
-.eink-tile__done {
-  font-size: 0.8em;
-  line-height: 1.2;
-}
-
-/*
- * 「继续上一局」细栏此前会**溢出屏幕**：meta 用了 nowrap，窄屏 + 大字号下整行超出。
- * 现在标题与 meta 都可收缩（min-width: 0）并省略号截断，栏内绝不横向溢出。
- */
-.eink-continue {
-  min-width: 0;
-}
-
-.eink-continue__title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.eink-continue__meta {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 「全部游戏」标题行 + 翻页控件（用户要求：预留翻页而不是滑动） */
-.eink-section__head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.eink-section__head h2 {
-  flex: 1 1 auto;
-  margin: 0;
-}
-
-.eink-pager {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.eink-pager__btn {
-  font: inherit;
-  padding: 2px 8px;
-  border: var(--line) solid var(--ink-black);
-  background: var(--ink-white);
-  color: var(--ink-black);
-  cursor: pointer;
-}
-
-.eink-pager__btn[disabled] {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.eink-pager__info {
-  font-size: 0.85em;
-  white-space: nowrap;
-}
-
-
-/*
- * 方块布局（用户要求）：**图标在左、文字在右**。
- *
- * 上一轮我理解成"整体居中"是错的 —— 用户指的是原来的排版歪：
- * 旧网格是 'host title' / 'meta done'，于是「进度」那行落在了**图标下面**、
- * 与标题左边缘不对齐，整张卡看着不居中。
- * 现在改成 'host title done' / 'host meta meta'：图标跨两行居左，
- * 标题与进度都从同一左边缘起排，右上角放「已通关」徽标。
- */
-.eink-grid__item .eink-tile {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas:
-    'host title done'
-    'host meta meta';
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 2px;
-  text-align: left;
-  padding: 10px;
-}
-
-/*
- * 标题固定为**两行高度**：长短不一的标题（「数独」vs「数字华容道」）不能让卡片高矮不一。
- * 恢复"图标左文字右"时我曾把这里写成 min-height: 0，于是会换行的标题把卡片撑高，
- * 真机 26px 字号下出现 84/119 两种高度 ✗ —— 预留两行即等高。
- */
-.eink-grid__item .eink-tile__title {
-  grid-area: title;
-  min-height: 2.4em;
-}
-
-.eink-grid__item .eink-tile__meta {
-  grid-area: meta;
-}
-
-.eink-grid__item .eink-tile__done {
-  grid-area: done;
-  justify-self: end;
-  align-self: start;
-}
-
-.eink-grid__item .eink-game-icon {
-  grid-area: host;
-}
-
-/* 翻页按钮在竖屏下太大（26px 字号继承后像主按钮）——缩到辅助字号与紧凑内边距 */
-.eink-pager__btn {
-  font-size: 0.8em;
-  line-height: 1.2;
-  padding: 1px 6px;
-}
-
-.eink-pager__info {
-  font-size: 0.8em;
-}
-
-
-/* 进度行始终占位：没有进度的玩法留空，但这一行的高度要在 —— 否则卡片高矮不一 */
-.eink-grid__item .eink-tile__meta {
-  min-height: 1.2em;
-}
-
-/*
- * 方块最终形态（用户要求）：**图标在左、游戏名在右且上下居中**，进度行删除。
- *
- * 因此卡片只需要一行：图标 + 标题。高度由「图标 + 内边距」决定，
- * 标题固定一行高度（超长省略），于是所有卡片严格等高。
- */
-.eink-grid__item .eink-tile {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 0;
-  padding: 10px 12px;
-  text-align: left;
-}
-
-/*
- * 标题：在**图标右侧的剩余空间里水平 + 垂直居中**（用户反馈"标题偏左上"）。
- *
- * 两个细节：
- *  1) 之前用 text-align:left，图标右侧还有一百多像素空着，字贴着左边 → 看着偏左；
- *  2) 之前给标题留了两行高度（min-height:2.4em）以便长短标题等高，但单行文字会贴在
- *     这个高盒子的**顶部** → 看着偏上。现在标题不再换行（nowrap + 省略号），
- *     一行高度就是自身高度，因此去掉预留、用 flex 居中即可，卡片仍然等高。
- */
-.eink-grid__item .eink-tile__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 进度行与「已通关」徽标已按用户要求删除，这里只保留必要的占位规则以防旧结构残留 */
-.eink-grid__item .eink-tile__meta,
-.eink-grid__item .eink-tile__done {
-  display: none;
-}
-
-/*
- * 首页方块标题的**最终规则（放在文件末尾以确保生效）**：
- * 之前的多次修改被后面同选择器的旧规则覆盖过，这里明确置于最后。
- *
- * 目标：图标在左、标题在图标右侧的剩余空间里**水平与垂直都居中**。
- */
-.eink-grid__item .eink-tile__title {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  line-height: 1.25;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 玩法说明：固定长度（约 6 行），超出部分收起，由「阅读全部」展开 */
-.eink-rules--clamped {
-  max-height: 7.8em;
-  overflow: hidden;
-}
-
-.eink-rules__more {
-  align-self: flex-start;
-  margin-top: 4px;
-  font: inherit;
-  font-size: 0.9em;
-  padding: 2px 10px;
-  border: var(--line) solid var(--ink-black);
-  background: var(--ink-white);
-  color: var(--ink-black);
-  cursor: pointer;
-}
-
-
-/*
- * 玩法说明（用户要求：默认收起、右下角按钮、收起时末尾加 …、字号小一点）
- * 说明区本身 position: relative，右下角的「…」与按钮**覆盖**在文字上。
- */
-.eink-rules {
-  position: relative;
-  font-size: 0.9em;
-}
-
-.eink-rules[data-expanded='no'] {
-  /* 给右下角的按钮让出位置，避免压住正文 */
-  padding-bottom: 1.9em;
-  overflow: hidden;
-}
-
-.eink-rules[data-expanded='no'] .eink-text:last-of-type {
-  margin-bottom: 0;
-}
-
-.eink-rules__foot {
-  position: absolute;
-  right: 0;
-  bottom: 2px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--ink-white);
-  padding-left: 6px;
-}
-
-.eink-rules__ellipsis {
-  font-weight: 700;
-  letter-spacing: 0.1em;
-}
-
-.eink-rules__more {
-  font: inherit;
-  font-size: 0.95em;
-  padding: 1px 8px;
-  border: var(--line) solid var(--ink-black);
-  background: var(--ink-white);
-  color: var(--ink-black);
-  cursor: pointer;
 }

@@ -201,28 +201,8 @@ export function LibraryScreen({
                 <li key={entry.game.id} className="eink-grid__item">
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <GameIcon namespace={entry.game.i18nNamespace} />
-                    {/*
-                      Title is centered inside the space left of the icon via inline style:
-                      styles.css has several legacy rules for the same selector that override
-                      each other (display / min-height), which silently won three times.
-                      TODO: clean up those duplicate CSS rules and move this back to classes.
-                    */}
-                    <span
-                      className="eink-tile__title"
-                      style={{
-                        flex: '1 1 auto',
-                        minWidth: 0,
-                        minHeight: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textAlign: 'center' as const,
-                        lineHeight: 1.25,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
+                    {/* 标题在图标右侧的剩余空间里水平 + 垂直居中：样式见 styles.css 的 .eink-tile__title */}
+                    <span className="eink-tile__title">
                       {i18n.t(`${entry.game.i18nNamespace}.title`)}
                     </span>
 
