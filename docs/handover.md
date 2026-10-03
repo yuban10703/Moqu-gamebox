@@ -14,6 +14,8 @@
 | 真机 | `tools/device/verify-device.sh 10.1.1.69:5555 9333` 全绿（9 款审计，退出码可信）|
 | 构建 | Onyx SDK **默认内置**（3.4MB；排除后 2.5MB）|
 
+**先看一眼状态**：`npm run status`（游戏数 / 测试数 / 套件数 / 真机入口 / 元检查 / 工作区 / 最近提交）。
+
 **接手只需两步**：① 按第 5 节装一次 Playwright；② `npm run verify`。
 真机再加一条 `tools/device/verify-device.sh`（需要设备在同一网络）。
 

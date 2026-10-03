@@ -25,7 +25,8 @@
     "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs && node tools/scripts/explore-flows.mjs && node tools/scripts/explore-maxscale.mjs && node tools/scripts/explore-landscape.mjs",
     "verify": "node tools/scripts/verify-all.mjs",
     "check:docs": "node tools/scripts/check-docs.mjs",
-    "check:games": "node tools/scripts/check-games.mjs"
+    "check:games": "node tools/scripts/check-games.mjs",
+    "status": "node tools/scripts/status.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
