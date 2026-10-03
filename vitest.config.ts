@@ -16,6 +16,9 @@ export default defineConfig({
       '@eink/gomoku': pkg('games/gomoku/src/index.ts'),
       '@eink/fifteen': pkg('games/fifteen/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
+      '@eink/snake': pkg('games/snake/src/index.ts'),
+      '@eink/tetris': pkg('games/tetris/src/index.ts'),
+      '@eink/match3': pkg('games/match3/src/index.ts'),
     },
   },
   test: {

@@ -1,0 +1,159 @@
+/**
+ * 字典校验：中英「基础 key 集合」必须完全一致（与 check-i18n 共用同一份规则），
+ * 并且游戏实际产出的每个 labelKey 都能取到文案 —— 否则界面上会出现 ⟦key⟧ 占位符。
+ */
+import { describe, expect, it } from 'vitest'
+import { baseKeys, compareDicts, coreDictEn, coreDictZh, createI18n } from '@eink/core'
+import { snakeEn, snakeGlyph, snakeZh } from '../src/i18n.js'
+import { snakeGame } from '../src/index.js'
+import {
+  INITIAL_LENGTH,
+  NO_FOOD,
+  createState,
+  decodeState,
+  encodeState,
+  reduceState,
+  type SnakeState,
+} from '../src/rules.js'
+import { difficultySpec } from '../src/meta.js'
+import { CELL_LABEL_KEYS, buildControls, buildView } from '../src/view.js'
+import { SEED, hamiltonianCycle, stateWith } from './helpers.js'
+
+const SIZE = 12
+
+const zh = { ...coreDictZh, ...snakeZh }
+const en = { ...coreDictEn, ...snakeEn }
+const i18nZh = createI18n('zh-CN', { 'zh-CN': zh, 'en-US': en })
+const i18nEn = createI18n('en-US', { 'zh-CN': zh, 'en-US': en })
+
+function sampleStates(): SnakeState[] {
+  const moved = reduceState(createState(SEED, 'challenging'), { type: 'move', dir: 'down' })
+  const dead = reduceState(stateWith('skilled', { body: [5, 6, 7], food: 100 }), {
+    type: 'move',
+    dir: 'up',
+  })
+  const score = (SIZE * SIZE - INITIAL_LENGTH) / difficultySpec('skilled').growth
+  const won = stateWith('skilled', {
+    body: hamiltonianCycle(SIZE),
+    food: NO_FOOD,
+    score,
+    cursor: 1 + score,
+  })
+  return [createState(SEED, 'starter'), createState(SEED, 'skilled'), moved, dead, won]
+}
+
+describe('中英字典对齐', () => {
+  it('没有缺失、多余或复数形式不完整的 key', () => {
+    expect(compareDicts({ 'zh-CN': snakeZh, 'en-US': snakeEn })).toEqual([])
+    // 与核心字典合并后也不允许出现冲突
+    expect(compareDicts({ 'zh-CN': zh, 'en-US': en })).toEqual([])
+  })
+
+  it('两边基础 key 集合完全一致且非空', () => {
+    const zhBase = [...baseKeys(snakeZh)].sort()
+    const enBase = [...baseKeys(snakeEn)].sort()
+    expect(zhBase).toEqual(enBase)
+    expect(zhBase.length).toBeGreaterThanOrEqual(20)
+    // 所有 key 都落在本游戏的命名空间里，避免污染别的游戏
+    expect(zhBase.every((key) => key.startsWith('snake.'))).toBe(true)
+  })
+
+  it('复数形式齐备（英文有 __one/__other，中文只用 __other）', () => {
+    for (const key of ['snake.result.moves', 'snake.result.score', 'snake.result.length', 'snake.solved.best']) {
+      expect(snakeEn[`${key}__other`], key).toBeDefined()
+      expect(snakeZh[`${key}__other`], key).toBeDefined()
+    }
+    for (const key of ['snake.result.moves', 'snake.solved.best']) {
+      expect(snakeEn[`${key}__one`], key).toBeDefined()
+    }
+    // 壳层对「最佳成绩」用 t(key, {count})，所以普通 key 也必须存在
+    expect(snakeZh['snake.solved.best']).toBeDefined()
+    expect(snakeEn['snake.solved.best']).toBeDefined()
+  })
+
+  it('关键流程文案（壳层按命名空间取的那些）都能解析', () => {
+    const keys = [
+      'snake.title',
+      'snake.rules.body',
+      'snake.rules.body2',
+      'snake.rules.restart',
+      'snake.blocked',
+      'snake.dpad.label',
+      'snake.won.title',
+      'snake.lost.title',
+      'snake.solved.best',
+      'snake.stat.score',
+      'snake.stat.length',
+      'snake.stat.moves',
+      // 本作没有关卡；这两个键只是壳层按命名空间取键时的兜底（见 i18n.ts 注释）
+      'snake.level.label',
+      'snake.level.position',
+      'shell.game.undo',
+      'shell.game.restart',
+      ...snakeGame.difficulties.map((spec) => spec.labelKey),
+      ...Object.values(CELL_LABEL_KEYS),
+    ]
+    for (const key of keys) {
+      expect(i18nZh.t(key), key).not.toContain('⟦')
+      expect(i18nEn.t(key), key).not.toContain('⟦')
+    }
+    expect(i18nZh.missingKeys()).toEqual([])
+    expect(i18nEn.missingKeys()).toEqual([])
+  })
+
+  it('难度 id 与其它游戏一致（壳层 prop 直接传 id），labelKey 落在本命名空间', () => {
+    expect(snakeGame.difficulties.map((spec) => spec.id)).toEqual([
+      'starter',
+      'skilled',
+      'challenging',
+    ])
+    expect(
+      snakeGame.difficulties.every((spec) => spec.labelKey.startsWith('snake.difficulty.')),
+    ).toBe(true)
+  })
+
+  it('首页方块字形是单个汉字（供只显示单字的入口使用）', () => {
+    expect([...snakeGlyph]).toHaveLength(1)
+  })
+})
+
+describe('游戏产出的每个 key 都能取到文案', () => {
+  it('stats / controls / result 里的 labelKey 在 zh 与 en 都能取到', () => {
+    for (const state of sampleStates()) {
+      const view = buildView(state)
+      const controls = buildControls(state)
+      const keys = [
+        ...view.stats.map((stat) => stat.labelKey),
+        ...controls.map((control) => control.labelKey),
+        ...(view.result ? [view.result.titleKey] : []),
+        ...(view.result?.details ?? []).map((detail) => `${detail.key}__other`),
+      ]
+      for (const key of keys) {
+        expect(i18nZh.t(key), key).not.toContain('⟦')
+        expect(i18nEn.t(key), key).not.toContain('⟦')
+      }
+      // 带 params 的明细走 plural()，中英都必须能解析
+      for (const detail of view.result?.details ?? []) {
+        const count = Number(detail.params?.count ?? 0)
+        expect(i18nZh.plural(detail.key, count, detail.params)).not.toContain('⟦')
+        expect(i18nEn.plural(detail.key, count, detail.params)).not.toContain('⟦')
+      }
+    }
+    expect(i18nZh.missingKeys()).toEqual([])
+    expect(i18nEn.missingKeys()).toEqual([])
+  })
+
+  it('非法提示 key 可解析（掉头/结束后按键时的文字反馈）', () => {
+    expect(snakeGame.illegalNoticeKey).toBe('snake.blocked')
+    expect(i18nZh.t(snakeGame.illegalNoticeKey!)).not.toContain('⟦')
+    expect(i18nEn.t(snakeGame.illegalNoticeKey!)).not.toContain('⟦')
+  })
+
+  it('存档经 JSON 往返后仍能渲染（decode 与 view 不依赖 undefined 字段）', () => {
+    for (const state of sampleStates()) {
+      const restored = decodeState(JSON.parse(JSON.stringify(encodeState(state))))
+      expect(restored).toEqual(state)
+      expect(buildView(restored).board?.cells).toHaveLength(SIZE * SIZE)
+    }
+  })
+})

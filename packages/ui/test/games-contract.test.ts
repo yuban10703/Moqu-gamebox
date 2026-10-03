@@ -14,10 +14,13 @@ import { fifteenGame } from '@eink/fifteen'
 import { gomokuGame } from '@eink/gomoku'
 import { lightsoutGame } from '@eink/lightsout'
 import { klotskiGame } from '@eink/klotski'
+import { match3Game } from '@eink/match3'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
+import { snakeGame } from '@eink/snake'
 import { sokobanGame } from '@eink/sokoban'
 import { sudokuGame } from '@eink/sudoku'
+import { tetrisGame } from '@eink/tetris'
 import {
   BOARD_FRAME_PX,
   DEFAULT_LAYOUT,
@@ -37,6 +40,9 @@ const GAMES: Array<GameDef<any, any>> = [
   memoryGame as GameDef<any, any>,
   lightsoutGame as GameDef<any, any>,
   klotskiGame as GameDef<any, any>,
+  snakeGame as GameDef<any, any>,
+  tetrisGame as GameDef<any, any>,
+  match3Game as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {

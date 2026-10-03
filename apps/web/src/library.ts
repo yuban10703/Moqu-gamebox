@@ -24,6 +24,9 @@ import {
 import { memoryEn, memoryGame, memoryZh } from '@eink/memory'
 import { minesweeperEn, minesweeperGame, minesweeperZh } from '@eink/minesweeper'
 import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
+import { snakeEn, snakeGame, snakeZh } from '@eink/snake'
+import { tetrisEn, tetrisGame, tetrisZh } from '@eink/tetris'
+import { match3En, match3Game, match3Zh } from '@eink/match3'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -132,9 +135,37 @@ export const library: GameLibrary = {
         total: game2048.difficulties.length,
       }),
     }),
+    defineGame({
+      game: snakeGame,
+      cellLabelKey: (kind) => `snake.cell.${kind}`,
+      rulesKeys: ['snake.rules.body', 'snake.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: snakeGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: snakeGame.difficulties.length,
+      }),
+    }),
+    defineGame({
+      game: tetrisGame,
+      cellLabelKey: (kind) => `tetris.cell.${kind}`,
+      rulesKeys: ['tetris.rules.body', 'tetris.rules.body2', 'tetris.rules.difficulty'],
+      defaultDifficulty: 'starter',
+      // 无关卡：不传 levels（否则标题变成「· 第 1/3 局」）；本作没有胜利条件，也不传 progressFor
+    }),
+    defineGame({
+      game: match3Game,
+      cellLabelKey: (kind) => `match3.cell.${kind}`,
+      rulesKeys: ['match3.rules.body', 'match3.rules.body2', 'match3.rules.body3'],
+      defaultDifficulty: 'starter',
+      // 无关卡：内容 id 就是难度档，进度按「已通关难度 / 3」算（包内 progressFor 的口径）
+      progressFor: (completed) => ({
+        done: match3Game.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: match3Game.difficulties.length,
+      }),
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En },
   },
 }

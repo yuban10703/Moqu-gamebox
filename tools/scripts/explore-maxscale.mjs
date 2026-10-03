@@ -77,10 +77,22 @@ await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
 await page.waitForSelector('text=墨水屏游戏盒子')
 // 制造一份存档，让「继续」入口存在（更接近真实使用）
 const click = async (re, optional = false) => {
-  // 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它
-  {
+  /*
+   * 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它。
+   * 首页**会翻页**（游戏多了以后一页放不下）：只看当前页会漏掉后面的游戏，
+   * 「逐款巡检」就退化成只查第一页 —— 新加的游戏等于没验。先回第 1 页再逐页往后找。
+   */
+  for (let back = 0; back < 12; back++) {
+    const prev = page.locator('button[data-page="prev"]:not([disabled])').first()
+    if (!(await prev.count())) break
+    await prev.click(); await page.waitForTimeout(120)
+  }
+  for (let hop = 0; hop < 12; hop++) {
     const tile = page.locator('.eink-tile', { hasText: re }).first()
     if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click(); await page.waitForTimeout(180)
   }
   const b = page.getByRole('button', { name: re }).first()
   if (!(await b.count())) { if (optional) return false; throw new Error(`找不到「${re}」：${(await page.evaluate(() => document.body.innerText)).replace(/\n+/g, ' ').slice(0, 70)}`) }
@@ -107,7 +119,23 @@ check('已切到最大字号档位', rootFont === '26px', rootFont)
 console.log('\n[首页 · 最大字号]')
 await audit('首页')
 
-const titles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent.trim()))
+/*
+ * 收集**全部**游戏标题：首页会翻页（12 款一页放不下），只取当前页会漏掉后面的游戏，
+ * 「逐款巡检」就变成只查第一页。逐页翻到底再汇总。
+ */
+const collectTitles = async () => {
+  const seen = []
+  for (let hop = 0; hop < 12; hop++) {
+    const batch = await page.evaluate(() => [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent.trim()))
+    for (const title of batch) if (!seen.includes(title)) seen.push(title)
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click()
+    await page.waitForTimeout(200)
+  }
+  return seen
+}
+const titles = await collectTitles()
 console.log(`\n[逐款游戏 · 最大字号]（${titles.length} 款）`)
 for (const title of titles) {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })

@@ -5,8 +5,8 @@
 | 项 | 值 |
 |---|---|
 | 提交数 | 72（工作区干净）|
-| 游戏 | **9 款** |
-| 单元测试 | **675**（`npm run check`）|
+| 游戏 | **12 款** |
+| 单元测试 | **972**（`npm run check`；另有 1 个按需套件 dump-levels 默认跳过）|
 | 探索套件 | 5 个（`npm run explore`），断言数见运行输出 |
 | 一键验证 | `npm run verify` 全绿 |
 | 文档核对 | `npm run check:docs`（并入 `npm run check`）：命令/路径/游戏数与现实不符即失败 |
@@ -33,7 +33,7 @@ npm workspaces monorepo，TypeScript 严格模式，**DOM/SVG 优先（无 Canva
 packages/core          纯函数内核：GameDef 契约、种子随机、存档协议、布局计算、i18n、诊断
 packages/platform      平台适配：IndexedDB（Web）/ 原生 SQLite（Android）、Onyx 刷新、备份导入导出
 packages/ui            React 壳层：屏幕、组件、样式（styles.css 是唯一的样式来源）
-packages/games/*       9 款游戏，每款一个独立包（见下）
+packages/games/*       12 款游戏，每款一个独立包（见下）
 apps/web               网页版入口 + library.ts（**游戏注册表，唯一一处登记**）
 apps/android           BOOX WebView 壳 + Onyx SDK（反射调用；**默认打进 APK**，见下）
 tools/scripts          verify-all / 5 个探索套件 / 静态服务 / i18n 扫描 / 构建与部署脚本
@@ -65,7 +65,7 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 2. **无动画/过渡**（`styles.css` 里全局禁用），状态变化靠重绘。
 3. **确定性**：游戏内随机一律 `createRng(seed + 游标)`，**禁止 `Math.random`**（测试会抓）。
 4. **`decode` 必须接受游戏自己产生的一切状态**：曾因"填入必须等于解"的过严校验，导致玩家填错一个数字后存档再也打不开。
-   守线：`packages/ui/test/games-contract.test.ts`（9 款 × 各难度 × 随机 60 步合法动作，每步 encode→decode 往返）。
+   守线：`packages/ui/test/games-contract.test.ts`（12 款 × 各难度 × 随机 60 步合法动作，每步 encode→decode 往返）。
 5. **`minCell` 是硬下限**：可用区不足时宁可棋盘被裁几像素，也不能让格子坍缩（真机曾坍缩到 1px）。
 6. **出现/消失的元素高度必须恒定**（用 `height` 不用 `min-height`），否则画面会位移。
 7. **固定视口高的页面必须写 `flex: 0 0 auto`** 覆盖 `.eink-screen` 的 `flex:1`；长内容用

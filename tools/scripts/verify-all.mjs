@@ -23,7 +23,9 @@ const rows = []
 function run(title, command, args = []) {
   process.stdout.write(`\n▶ ${title}\n`)
   // npm/npx 在本机是 shell 脚本，必须经 shell 调用，否则 spawn 直接失败且没有任何输出
-  const r = spawnSync(command, args, { cwd: ROOT, stdio: 'inherit', shell: true, env: process.env })
+  // WEB_URL 显式下发：套件默认端口写的是 8899，改端口（VERIFY_PORT）时必须跟着改，
+  // 否则会静默去测另一个服务（本轮踩过：explore-data 测到了另一棵工作区的旧构建）
+  const r = spawnSync(command, args, { cwd: ROOT, stdio: 'inherit', shell: true, env: { ...process.env, WEB_URL: URL_ } })
   rows.push({ title, ok: r.status === 0 })
   return r.status === 0
 }

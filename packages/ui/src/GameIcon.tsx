@@ -79,6 +79,30 @@ const SHAPES: Record<string, ReactNode> = {
       <rect x="10" y="5" width="11" height="11" />
     </>
   ),
+  // 贪吃蛇：折线蛇身 + 实心蛇头
+  snake: (
+    <>
+      <path d="M5 19h8a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h6" />
+      <circle cx="5" cy="19" r="2.4" fill="currentColor" />
+    </>
+  ),
+  // 俄罗斯方块：已固定的两行（带细分线）+ 正在下落的一块
+  tetris: (
+    <>
+      <rect x="3" y="6" width="18" height="6" />
+      <path d="M9 6v6M15 6v6" strokeWidth="1" />
+      <rect x="9" y="12" width="6" height="6" />
+    </>
+  ),
+  // 消消乐：三连（三枚实心棋子连成一线，与五子棋的「棋盘 + 单子」区分开）
+  match3: (
+    <>
+      <path d="M3 12h18" strokeWidth="1" />
+      <circle cx="6" cy="12" r="3" fill="currentColor" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
+      <circle cx="18" cy="12" r="3" fill="currentColor" />
+    </>
+  ),
 }
 
 /** 未知命名空间回退到一个中性方块，绝不返回空（空图标比通用图标更糟） */

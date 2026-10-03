@@ -16,7 +16,12 @@ const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 import { readFileSync, existsSync } from 'node:fs'
 
-const PAGE_URL = 'http://127.0.0.1:8899/'
+/*
+ * 必须和其余四个套件一样尊重 WEB_URL：这里原先硬编码 8899，
+ * 而 verify-all 的端口是可用 VERIFY_PORT 改的 —— 一旦改端口（或多份工作区并存），
+ * 本套件会**静默地去测另一个服务**，结论完全无效（本轮实际踩到：测到了另一棵工作区的旧构建）。
+ */
+const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8899/'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
@@ -296,7 +301,8 @@ const openDetail = async (title) => {
 }
 
 // 只有难度选择、没有关卡的玩法：不应出现「关卡」，应出现「历史记录」
-for (const title of ['数独', '扫雷', '关灯游戏', '记忆配对', '五子棋', '数字华容道', '2048']) {
+// 新增的无关卡玩法（贪吃蛇 / 俄罗斯方块 / 消消乐）也必须在名单里，否则等于没验
+for (const title of ['数独', '扫雷', '关灯游戏', '记忆配对', '五子棋', '数字华容道', '2048', '贪吃蛇', '俄罗斯方块', '消消乐']) {
   const info = await openDetail(title)
   const hasLevels = info.headings.includes('关卡')
   const hasHistory = info.headings.includes('历史记录')

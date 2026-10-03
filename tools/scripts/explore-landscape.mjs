@@ -111,7 +111,23 @@ check('视口为极矮横屏', vp === '879x407', vp)
 console.log('\n[首页 · 极矮横屏]')
 await audit('首页')
 
-const titles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent.trim()))
+/*
+ * 收集**全部**游戏标题：首页会翻页（12 款一页放不下），只取当前页会漏掉后面的游戏，
+ * 「逐款巡检」就变成只查第一页。逐页翻到底再汇总。
+ */
+const collectTitles = async () => {
+  const seen = []
+  for (let hop = 0; hop < 12; hop++) {
+    const batch = await page.evaluate(() => [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent.trim()))
+    for (const title of batch) if (!seen.includes(title)) seen.push(title)
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click()
+    await page.waitForTimeout(200)
+  }
+  return seen
+}
+const titles = await collectTitles()
 console.log(`\n[逐款游戏 · 极矮横屏]（${titles.length} 款）`)
 for (const title of titles) {
   await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
@@ -162,7 +178,32 @@ for (const title of titles) {
     const c = document.querySelector('.eink-board__cell')
     return c ? Math.round(c.getBoundingClientRect().width) : null
   })
-  check(`${title}·游戏页·1.5×：格子不低于绝对下限`, cell === null || cell >= 12, `${cell}px`)
+  /*
+   * 格子下限只对**点格子操作**的玩法成立 —— 与 packages/ui/test/games-contract.test.ts 同一条既定规则：
+   * 「方向盘驱动的玩法不靠点格子，格子小一些仍然可玩」。
+   *
+   * 这一档（879×407 + 1.5×）带方向盘的玩法棋盘区只有约 114px 高（方向盘占掉其余高度），
+   * 12×12 的贪吃蛇算下来 8px、10×18 的俄罗斯方块只有 5px —— 这是该视口的固有约束
+   * （见 docs/handover.md §6「极矮横屏」），两者都靠方向盘操作，因此改用方向盘可达性验收。
+   * 实测格子尺寸照旧打印，不做隐藏：它仍是这一档可读性的参考值。
+   */
+  const dpad = await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('.eink-dpad button')]
+    const inside = buttons.filter((b) => {
+      const r = b.getBoundingClientRect()
+      return r.top >= -1 && r.left >= -1 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1
+    })
+    return { count: buttons.length, inside: inside.length }
+  })
+  if (dpad.count > 0) {
+    check(
+      `${title}·游戏页·1.5×：方向盘驱动玩法以方向盘验收（格子小不判缺陷）`,
+      dpad.inside === dpad.count,
+      `方向盘 ${dpad.inside}/${dpad.count} 在屏内；棋盘格子实测 ${cell}px`,
+    )
+  } else {
+    check(`${title}·游戏页·1.5×：格子不低于绝对下限`, cell === null || cell >= 12, `${cell}px`)
+  }
   await audit(`${title}·游戏页·1.5×`)
 }
 
