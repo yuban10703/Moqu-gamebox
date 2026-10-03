@@ -5,7 +5,7 @@
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView } from '@eink/core'
 import { SUDOKU_CELLS, SUDOKU_SIZE } from './solver.js'
-import { clueCount, filledCount, isSolved, type SudokuState } from './rules.js'
+import { CHALLENGE_DIFFICULTY, clueCount, filledCount, isSolved, type SudokuState } from './rules.js'
 
 /**
  * 填错（合法但不符合唯一解）的标记。
@@ -34,8 +34,14 @@ export function buildBoard(state: SudokuState): BoardView {
       index,
       kind,
       glyph: cellGlyph(state, index),
-      // 填错：合法但与唯一解不符。呈现交给壳层（格子上画 1px 的叉），不塞进文字
-      ...(cellKindAt(state, index) === 'tile' && state.filled[index] !== 0 && state.filled[index] !== state.solution[index]
+      /*
+       * 填错：合法但与唯一解不符 → 交给壳层在格子上画 1px 的叉。
+       * **挑战档不打标记**（用户要求）：那一档是纯数独，填什么都由玩家自己判断。
+       */
+      ...(state.difficulty !== CHALLENGE_DIFFICULTY &&
+      cellKindAt(state, index) === 'tile' &&
+      state.filled[index] !== 0 &&
+      state.filled[index] !== state.solution[index]
         ? { wrong: true }
         : {}),
       // 题目给定 vs 玩家填入：字号 + 字重双重区分（见 styles.css）。

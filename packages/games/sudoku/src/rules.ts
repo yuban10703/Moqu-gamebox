@@ -8,6 +8,9 @@ import { IllegalActionError } from '@eink/core'
 import { SUDOKU_CELLS, SUDOKU_SIZE, boxOf, colOf, rowOf, type Grid } from './solver.js'
 import { SUDOKU_ID, type DifficultyId } from './generate.js'
 
+/** 挑战档：不加任何辅助 —— 不拦冲突、不打标记 */
+export const CHALLENGE_DIFFICULTY: DifficultyId = 'challenging'
+
 export type SudokuAction =
   /** 点第 index 个格子（行优先）。点给定格也允许，只改选中项 */
   | { type: 'select'; index: number }
@@ -109,8 +112,13 @@ export function reduceSudoku(state: SudokuState, action: SudokuAction): SudokuSt
       if (index === null) throw illegal('sudoku.illegal.noselect')
       if (state.given[index] !== 0) throw illegal(`sudoku.illegal.given:${index}`)
       if (state.filled[index] !== 0) throw illegal(`sudoku.illegal.occupied:${index}`)
-      if (!legalDigitsAt(state, index).includes(value)) {
-        // 行/列/宫冲突：明确拒绝，而不是让盘面进入矛盾态
+      if (state.difficulty !== CHALLENGE_DIFFICULTY && !legalDigitsAt(state, index).includes(value)) {
+        /*
+         * 行/列/宫冲突：明确拒绝，而不是让盘面进入矛盾态。
+         * **挑战档例外**：那一档要的是纯数独 —— 什么数字都能填，由玩家自己负责一致性
+         * （用户要求："挑战难度不加标记，什么数字都可以填进去"）。
+         * 注意过关判定仍逐格比对唯一解，所以乱填不会被判过关。
+         */
         throw illegal(`sudoku.illegal.conflict:${index}=${value}`)
       }
       const filled = state.filled.slice()
