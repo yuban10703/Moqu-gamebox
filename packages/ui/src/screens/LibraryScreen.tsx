@@ -202,10 +202,10 @@ export function LibraryScreen({
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <GameIcon namespace={entry.game.i18nNamespace} />
                     {/*
-                      标题用内联样式定死"在图标右侧的剩余空间里水平+垂直居中"。
-                      原因：styles.css 里同一选择器有多轮历史规则互相覆盖（display/min-height 等），
-                      已连续被旧规则盖住三次；这里先用内联样式保证效果，
-                      后续应把 CSS 里的重复规则清掉再改回类样式。
+                      Title is centered inside the space left of the icon via inline style:
+                      styles.css has several legacy rules for the same selector that override
+                      each other (display / min-height), which silently won three times.
+                      TODO: clean up those duplicate CSS rules and move this back to classes.
                     */}
                     <span
                       className="eink-tile__title"
@@ -216,7 +216,7 @@ export function LibraryScreen({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        textAlign: 'center',
+                        textAlign: 'center' as const,
                         lineHeight: 1.25,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
