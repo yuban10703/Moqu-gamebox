@@ -199,6 +199,14 @@ export function GameScreen({
    * 方向键的动作名仍由游戏决定（走 onMove → session.runControl），因此数字华容道这类
    * 自定义动作名的玩法也一并支持。
    */
+  /*
+   * 滑动只在**纯方向键玩法**上启用（2048 / 推箱子：它们没有格子点击玩法，关掉方向键后只能靠滑动）。
+   *
+   * 为什么点击类玩法必须禁用：真机实测反馈"点到的不是我想点的那块 / 完全乱了" ——
+   * 墨水屏触摸本身有抖动，24px 的阈值太松，一次轻点很容易被判成滑动，
+   * 于是棋子被意外移动/换选。华容道、数独、扫雷这些玩法本身就能点，根本不需要滑动。
+   */
+  const swipeEnabled = entry.game.selectAction === undefined
   const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null)
   const onBoardPointerDown = (event: ReactPointerEvent): void => {
     swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId }
@@ -352,11 +360,15 @@ export function GameScreen({
           <div
             className="eink-board-area"
             ref={boardAreaRef}
-            onPointerDown={onBoardPointerDown}
-            onPointerUp={onBoardPointerUp}
-            onPointerCancel={onBoardPointerCancel}
-            /* 棋盘上滑动用于操作，因此不让它触发页面滚动/缩放（格子点击不受影响） */
-            style={{ touchAction: 'none' }}
+            {...(swipeEnabled
+              ? {
+                  onPointerDown: onBoardPointerDown,
+                  onPointerUp: onBoardPointerUp,
+                  onPointerCancel: onBoardPointerCancel,
+                  /* 只有启用滑动的玩法才需要屏蔽页面滚动/缩放；点击类玩法保持默认，轻点更可靠 */
+                  style: { touchAction: 'none' as const },
+                }
+              : {})}
           >
             {session.view.board && boardLayout ? (
               <Board

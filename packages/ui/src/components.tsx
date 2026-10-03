@@ -280,17 +280,6 @@ export function Board({
     return row > 0 && board.cells[index - board.cols]?.mergeBottom === true
   }
 
-  // 被整块标签覆盖的格子：这些格子的选中态交给标签，避免逐格画框
-  const labelIndexes = new Set((board.labels ?? []).flatMap((label) => {
-    const row = Math.floor(label.index / board.cols)
-    const col = label.index % board.cols
-    const out: number[] = []
-    for (let r = 0; r < label.rows; r++) for (let c = 0; c < label.cols; c++) {
-      out.push((row + r) * board.cols + (col + c))
-    }
-    return out
-  }))
-
   const isGroupRight = (index: number): boolean => {
     if (!groups) return false
     const col = index % board.cols
@@ -305,11 +294,17 @@ export function Board({
   return (
     <div
       className="eink-board"
-      style={style}
+      style={
+        /*
+         * 有整块标签时**必须**让棋盘成为定位祖先，否则标签会相对更外层祖先定位而整体跑偏 ——
+         * 实测后果极其严重：看到的棋子和能点的格子是两套位置，用户反馈"点到的不是我想点的那块 / 完全乱了"。
+         * 用内联样式而不是类选择器：本项目 styles.css 里同选择器多次出现层叠打架（已踩过三次）。
+         */
+        style
+      }
       role="grid"
       aria-rowcount={board.rows}
       aria-colcount={board.cols}
-      {...((board.labels?.length ?? 0) > 0 ? { 'data-labels': 'yes' } : {})}
     >
       /*
 
@@ -326,7 +321,7 @@ export function Board({
           data-kind={cellView.kind}
           {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
           {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
-          {...(cellView.selected && !labelIndexes.has(cellView.index) ? { 'data-selected': 'yes' } : {})}
+          {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
           {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
           {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
           {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}
@@ -359,38 +354,6 @@ export function Board({
         </div>
       ))}
 
-      {/*
-        整块文字覆盖层（华容道用）：在一整块棋子上居中显示全名。
-        绝对定位于棋盘容器内、且 pointer-events: none —— 点击仍然落到下面的格子上。
-      */}
-      {(board.labels ?? []).map((label) => {
-        const row = Math.floor(label.index / board.cols)
-        const col = label.index % board.cols
-        // 竖长的棋子（1×2）排竖排：靠 flex 方向而不是 writing-mode，行为更可预期
-        const flow = label.cols >= label.rows ? 'row' : 'column'
-        const size = label.cols >= label.rows ? cell * 0.5 : cell * 0.62
-        return (
-          <span
-            key={`label-${label.index}`}
-            className="eink-board__label"
-            data-invert={label.invert ? 'yes' : 'no'}
-            data-selected={label.selected ? 'yes' : 'no'}
-            data-flow={flow}
-            aria-hidden="true"
-            style={{
-              left: col * cell,
-              top: row * cell,
-              width: label.cols * cell,
-              height: label.rows * cell,
-              fontSize: size,
-            }}
-          >
-            {[...label.text].map((char, i) => (
-              <span key={i}>{char}</span>
-            ))}
-          </span>
-        )
-      })}
     </div>
   )
 }

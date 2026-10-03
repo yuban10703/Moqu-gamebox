@@ -8,7 +8,7 @@
  *   同一块的所有格字形相同 —— 靠「同一字形 + 连续矩形」表达形状，不靠灰阶；
  * - 选中的块：它的**每个格**都标 `selected: true`（壳层加粗内描边）。
  */
-import type { BoardLabel, BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
+import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
 import {
   CELLS,
   COLS,
@@ -73,7 +73,12 @@ export function buildBoard(state: KlotskiState): BoardView {
       const col = index % COLS
       if (col + 1 < COLS && grid[index + 1] === owner) cell.mergeRight = true
       if (row + 1 < ROWS && grid[index + COLS] === owner) cell.mergeBottom = true
-      // 选中态由整块标签承载（见下方 labels）：逐格画框会把一块棋子又切成小方块
+      /*
+       * 选中态**按格标记**（不是覆盖层）：按格标记天然与点击区域对齐，
+       * 而覆盖层与网格是两套坐标系，真机实测整体错位（用户反馈"点到的不是我想点的那块"）。
+       * 同块之间已经没有格线，所以一块的两三格同时反白会连成**一整块黑**，不会看成多个小方块。
+       */
+      if (state.selected === owner) cell.selected = true
     } else if (EXIT_CELLS.includes(index)) {
       // 出口：空着的时候画圆环，被块压住时让位给块本身
       cell.kind = 'goal'
@@ -81,30 +86,26 @@ export function buildBoard(state: KlotskiState): BoardView {
     cells.push(cell)
   }
   /*
-   * 整块文字的覆盖层：一块棋子只写**一个**标签（全名），居中铺满整块。
-   * 这样 2×2 的曹操是一整块黑底白字，而不是四个「曹」。
+   * 名字写在**锚格内部**（该块最左上那一格），一块只写一次。
+   *
+   * 为什么不用覆盖层：绝对定位的覆盖层与格子网格是**两套坐标系**，实测在真机上整体错位
+   * （棋盘元素在 (30,211)、格子在 (172,259)），用户看到的名字位置与可点区域对不上 ——
+   * 反馈"点到的不是我想点的那块 / 完全乱了"。写进格子内部就不存在对齐问题。
+   * 字号缩小到 0.42 倍格子，两字名（张飞/关羽…）也能放进一格。
    */
   const anchorOf = new Map<string, number>()
   for (let index = 0; index < CELLS; index++) {
     const owner = grid[index]
     if (owner && !anchorOf.has(owner)) anchorOf.set(owner, index)
   }
-  const labels: BoardLabel[] = []
-  for (const piece of level.pieces) {
-    const anchor = anchorOf.get(piece.id)
-    if (anchor === undefined) continue
-    const name = pieceName(piece.glyph)
-    labels.push({
-      index: anchor,
-      text: name,
-      cols: piece.width,
-      rows: piece.height,
-      ...(piece.width === 2 && piece.height === 2 ? { invert: true } : {}),
-      ...(state.selected === piece.id ? { selected: true } : {}),
-    })
+  for (const [owner, anchor] of anchorOf) {
+    const piece = pieceOf(level, owner)
+    if (!piece) continue
+    cells[anchor]!.glyph = pieceName(piece.glyph)
+    cells[anchor]!.textScale = 0.42
   }
   // 刻意不设 groups：4×5 的棋盘没有分组结构
-  return { kind: 'grid', cols: COLS, rows: ROWS, cells, labels }
+  return { kind: 'grid', cols: COLS, rows: ROWS, cells }
 }
 
 /**

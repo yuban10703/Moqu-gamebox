@@ -916,9 +916,18 @@ html[data-bold-lines='on'] .eink-board {
  * 当前选中格：3px 内圈（靠线宽区分，不用灰度）。
  * 用 outline 而不是 inset box-shadow：效果一样是纯黑硬边，但不引入阴影。
  */
+/*
+ * 选中格：**整格反白**（黑底白字），不画细框。
+ *
+ * 三种方案都在真机上验证过：
+ *  · 3px 细框 → dpr 1.875 下落半像素，渲染成破碎斜纹；
+ *  · 覆盖层/标注 → 与格子网格是两套坐标系，实测整体错位（用户："点到的不是我想点的那块"）；
+ *  · 整格反白 → 按格标记天然与点击对齐；同块之间已无格线，一块多格反白会连成一整块黑。
+ */
 .eink-board__cell[data-selected='yes'] {
-  outline: 3px solid var(--ink-black);
-  outline-offset: -4px;
+  background: var(--ink-black);
+  color: var(--ink-white);
+  outline: none;
 }
 
 /*
