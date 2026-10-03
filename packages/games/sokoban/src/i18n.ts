@@ -7,8 +7,8 @@ import type { Dict } from '@eink/core'
 export const sokobanZh: Dict = {
   'sokoban.title': '推箱子',
   'sokoban.rules.body':
-    '用方向按钮把每个箱子推到目标点上。只能推、不能拉，墙和其它箱子都会挡住去路。',
-  'sokoban.rules.body2': '撤销与重开会记录在本局统计里；重开后不能撤销回重开之前。',
+    '用方向按钮把箱子推到目标点上，只能推不能拉。',
+  'sokoban.rules.body2': '墙和其它箱子会挡住去路；撤销与重开都会记进本局统计。',
   'sokoban.rules.restart': '重开本关会清空当前进度。',
   'sokoban.stat.moves': '步数',
   'sokoban.stat.pushes': '推箱次数',
@@ -45,9 +45,9 @@ export const sokobanZh: Dict = {
 export const sokobanEn: Dict = {
   'sokoban.title': 'Sokoban',
   'sokoban.rules.body':
-    'Use the direction buttons to push every box onto a goal. You can push but not pull; walls and other boxes block the way.',
+    'Push every box onto a target with the direction buttons. You can only push, never pull.',
   'sokoban.rules.body2':
-    'Undos and restarts are counted in this level\u2019s stats; after a restart you cannot undo back past it.',
+    "Walls and other boxes block the way; undo and restart count in this level's stats.",
   'sokoban.rules.restart': 'Restarting clears the current progress of this level.',
   'sokoban.stat.moves': 'Moves',
   'sokoban.stat.pushes': 'Pushes',

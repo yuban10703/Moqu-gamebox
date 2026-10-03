@@ -12,9 +12,9 @@ import type { Dict } from '@eink/core'
 export const memoryZh: Dict = {
   'memory.title': '记忆配对',
   'memory.rules.body':
-    '点开两张牌：符号相同就永久配对；符号不同则两张先保持可见，等你下一次点击时会先把它们盖回去。把所有对子都配对完成即获胜。',
+    '点开两张牌，符号相同即配对。全部配对完成即获胜。',
   'memory.rules.body2':
-    '墨水屏没有动画也没有计时：不匹配的牌不会自动翻回，盖回发生在你下一次点击时，而这一次点击同时算作新一次翻牌。撤销可以退回一次翻牌尝试。',
+    '不匹配的牌不会自动翻回：下一次点击先把它们盖回，同时算作新一次翻牌（墨水屏没有计时器）。',
   'memory.rules.restart': '重开会清空当前进度并重新洗牌；同一难度与同一开局种子依然完全可复现。',
   'memory.illegal.notice': '这里不能这样点',
   'memory.notice.cover': '再点一张扣着的牌，会先把这两张盖回',
@@ -34,9 +34,9 @@ export const memoryZh: Dict = {
 export const memoryEn: Dict = {
   'memory.title': 'Memory Match',
   'memory.rules.body':
-    'Turn over two tiles: matching symbols pair up for good; different symbols stay visible until your next tap, which covers them back first. Pair every tile to win.',
+    'Flip two cards: equal symbols pair up. Pair every card to win.',
   'memory.rules.body2':
-    'E-ink has no animation and no timer: mismatched tiles never flip back on their own. They are covered at your next tap, and that tap also counts as the new flip. Undo takes back one flip attempt.',
+    'Mismatched cards are covered by your next tap, which also counts as a new flip.',
   'memory.rules.restart':
     'Restarting clears the current progress and deals a new layout; the same difficulty and starting seed stay fully reproducible.',
   'memory.illegal.notice': 'That tile cannot be tapped',

@@ -12,9 +12,9 @@ import type { Dict } from '@eink/core'
 export const klotskiZh: Dict = {
   'klotski.title': '华容道',
   'klotski.rules.body':
-    '先点一块棋子选中它，再点它旁边的空格，棋子就会朝那个方向滑一格。棋子不能重叠，也不能滑出棋盘。目标是把曹操（2×2 的大块）挪到棋盘最下面中间的出口。',
+    '先点棋子选中，再点旁边的空格即可朝那个方向滑一格。把曹操（2×2）挪到最下方中间的出口。',
   'klotski.rules.body2':
-    '只有横竖方向能滑，一次一格；每关的初始摆法是固定的，用最少的步数把曹操挪出去。撤销可以退回上一步滑动（选中状态不会退回），重新开始会回到本关的初始摆法。',
+    '棋子不能重叠或滑出棋盘，只能横竖滑一格。撤销退回上一步；重新开始回到本关初始摆法。',
   'klotski.rules.restart': '重新开始会回到本关的初始摆法，且无法撤销回重开之前。',
   'klotski.illegal.notice': '这一步滑不过去',
   'klotski.difficulty.starter': '入门',
@@ -41,9 +41,9 @@ export const klotskiZh: Dict = {
 export const klotskiEn: Dict = {
   'klotski.title': 'Klotski',
   'klotski.rules.body':
-    'Tap a block to select it, then tap the empty square next to it to slide the block one step that way. Blocks can never overlap or leave the board. The goal is to move Cao Cao (the 2×2 block) to the exit in the middle of the bottom row.',
+    'Tap a piece, then an adjacent empty cell to slide it. Move the 2×2 block to the bottom exit.',
   'klotski.rules.body2':
-    'Blocks only slide horizontally or vertically, one square at a time, and every level starts from a fixed classic layout. Undo takes back the last slide (the selection stays), and restart returns to this level’s opening layout.',
+    'Slides are one cell. Undo takes back one; restart resets the level.',
   'klotski.rules.restart':
     'Restarting returns to this level’s opening layout; you cannot undo back past a restart.',
   'klotski.illegal.notice': 'That block cannot slide that way',

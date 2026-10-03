@@ -667,7 +667,7 @@ body {
 }
 
 .eink-rules--clamped {
-  max-height: 7.8em;
+  max-height: 9em;
   overflow: hidden;
 }
 
@@ -1126,4 +1126,16 @@ html[data-bold-lines='on'] .eink-board {
     /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
     max-height: 44px;
   }
+}
+
+/*
+ * 展开时按钮**排在正文下方**（用户反馈：展开后绝对定位的按钮会挡住最后几个字）。
+ * 收起时才用绝对定位覆盖在右下角，与「…」一起表示"还有内容"。
+ */
+.eink-rules__foot--flow {
+  position: static;
+  justify-content: flex-end;
+  margin-top: 4px;
+  background: transparent;
+  padding-left: 0;
 }

@@ -12,9 +12,9 @@ import type { Dict } from '@eink/core'
 export const gomokuZh: Dict = {
   'gomoku.title': '五子棋',
   'gomoku.rules.body':
-    '点击棋盘上的空格落子：你是黑方，先手。横、竖、两条斜线任意一个方向先连成五子即获胜；棋盘下满仍无人成五则为平局。',
+    '点空格落子，你执黑先手。横竖斜任意方向先连成五子即获胜。',
   'gomoku.rules.body2':
-    '白方由规则层自动应手：你每落一手，白方立刻回应，因此不需要等待对手。撤销会退回一整回合（你的落子与白方的应手一起退回）。',
+    '白方自动应手，无需等待；撤销退回一整回合（你的落子与白方应手一起）。',
   'gomoku.rules.restart': '重新开始会清空当前对局，回到同一种子下的空棋盘，且无法撤销回重开之前。',
   'gomoku.illegal.notice': '这里不能落子',
   'gomoku.difficulty.starter': '入门',
@@ -38,9 +38,9 @@ export const gomokuZh: Dict = {
 export const gomokuEn: Dict = {
   'gomoku.title': 'Gomoku',
   'gomoku.rules.body':
-    'Tap an empty cell to place a stone: you play black and move first. Connect five stones in a row horizontally, vertically or diagonally to win; a full board with no five in a row is a draw.',
+    'Tap an empty point to place a stone; you are Black and move first. Five in a row wins.',
   'gomoku.rules.body2':
-    'White answers automatically: after every move of yours the reply is played at once, so there is nothing to wait for. Undo takes back a whole turn (your move and the white reply).',
+    'White replies automatically in the same move. Undo takes back a whole round.',
   'gomoku.rules.restart':
     'Restarting clears the current game and returns to an empty board for the same seed; you cannot undo back past a restart.',
   'gomoku.illegal.notice': 'That cell cannot be played',

@@ -40,9 +40,9 @@ export const fifteenZh: Dict = {
 export const fifteenEn: Dict = {
   'fifteen.title': 'Fifteen Puzzle',
   'fifteen.rules.body':
-    'Put the tiles back in order 1, 2, 3…, leaving the blank cell in the bottom-right corner. Tap a tile next to the blank and it slides in; you can also press an arrow key to move the blank in that direction.',
+    'Tap a tile next to the blank to slide it. Put the numbers in order, blank last.',
   'fifteen.rules.body2':
-    'Fewer moves is better, and undo takes back your last slide. There is no losing state: after solving you may keep sliding, and solving again still records a better score.',
+    "Arrow buttons move the blank. Undo and restart are counted in this puzzle's stats.",
   'fifteen.rules.restart':
     'Restarting returns to the opening position for the same seed; you cannot undo back past a restart.',
   'fifteen.illegal.notice': 'The blank cell is against that edge and cannot move',

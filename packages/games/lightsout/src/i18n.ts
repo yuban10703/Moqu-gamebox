@@ -12,9 +12,9 @@ import type { Dict } from '@eink/core'
 export const lightsoutZh: Dict = {
   'lightsout.title': '关灯游戏',
   'lightsout.rules.body':
-    '点一盏灯会同时翻转它自己和上下左右相邻的灯。把棋盘上的灯全部熄灭就过关。边上的格子只影响 3~4 格，角落更少。',
+    '点一盏灯会同时翻转它和上下左右的灯。全部熄灭即过关。',
   'lightsout.rules.body2':
-    '每道谜题都是从全灭局面随机翻转若干次生成的，所以一定存在解法（把翻转再走一遍即可复原）。步数越少越好，撤销可以退回上一步。',
+    '谜题由全灭局面随机翻转生成，所以一定有解；步数越少越好。',
   'lightsout.rules.restart': '重新开始会回到同一种子下的同一道谜题，且无法撤销回重开之前。',
   'lightsout.illegal.notice': '这里不能这样操作',
   'lightsout.difficulty.starter': '入门 5×5',
@@ -36,9 +36,9 @@ export const lightsoutZh: Dict = {
 export const lightsoutEn: Dict = {
   'lightsout.title': 'Lights Out',
   'lightsout.rules.body':
-    'Tapping a light flips it together with the lights directly above, below, left and right. Switch every light off to finish. Edge cells touch only 3–4 cells, and corners even fewer.',
+    'Tapping a lamp flips it and its four neighbours. Turn every lamp off to finish.',
   'lightsout.rules.body2':
-    'Every puzzle is built by flipping from the all-off board, so a solution always exists (repeat the same flips to undo the scramble). Fewer moves is better, and undo takes back your last flip.',
+    'Every puzzle is generated from an all-off board, so a solution always exists.',
   'lightsout.rules.restart':
     'Restarting returns to the same puzzle for the same seed; you cannot undo back past a restart.',
   'lightsout.illegal.notice': 'That action is not allowed here',
