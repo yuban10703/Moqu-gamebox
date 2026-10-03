@@ -1,11 +1,14 @@
 /**
- * 俄罗斯方块规则层：纯函数、无副作用、无 DOM、**无时间依赖**。
+ * 俄罗斯方块规则层：纯函数、无副作用、无 DOM、**无定时器、零时间引用**。
  *
- * 三条硬约束（墨水屏 + 可复现存档）：
+ * 四条硬约束（墨水屏 + 可复现存档）：
  *
- * 1. **没有重力定时器**。规则层不引用时间，也不存在「每隔 N 毫秒自动下落」这回事：
- *    下落完全由玩家按「落」驱动 —— 走一格；已经落到底时再按一次就固化并出新块。
- *    因此规则层里没有 setInterval/Date.now，存档在任何时刻都能原样恢复。
+ * 1. **规则层里没有重力定时器，只有 `tick` 这个动作**。间隔由难度声明（见 DIFFICULTIES.tickMs），
+ *    到点由**壳层会话**派发 `{ type: 'tick' }`，reduce 把它解释成「自动下落一格」——
+ *    和玩家按「落」走的是同一条 `stepDown`：落不动了就固化。因此规则层里没有
+ *    setInterval/Date.now，存档在任何时刻都能原样恢复。
+ *    「落到底不会立刻固化」是明确行为：方块停在堆上之后，**下一个 tick 才固化**，
+ *    这一个间隔就是墨水屏上的「锁定缓冲」，玩家还有整整一格的时间平移/旋转（有测试守住）。
  * 2. **出块顺序只由 seed 决定**：7-bag（每袋 7 种形状各一次，袋内顺序洗牌），
  *    第 k 袋用 `createRng(seed + k*7)` 这条独立随机流。状态里只存「已出块数 cursor」，
  *    于是任意时刻都能算出当前块与下一块，且同一 seed + 同一操作序列双端必然一致。
@@ -14,6 +17,9 @@
  *    - 平移/旋转/下落一格 → 只记「上一步的方块位置」（4 个数字）；
  *    - 固化（含消行）→ 记 `{上一块位置, 出块游标, 分数, 消行数, 已固化块数, 被消掉的行号}`，
  *      棋盘本身由「把整行插回去 + 抹掉这一块自己」逆推出来（见 undoTetris）。
+ * 4. **自动下落不占撤销层级**：tick 产生的记录标成 `auto`，撤销会先连续弹掉它们，
+ *    再弹掉一条玩家操作 —— 按一次撤销退回「你上一次操作之前」，而不是半格。
+ *    自动下落会持续往栈里塞记录，因此撤销栈封顶（MAX_HISTORY_ENTRIES），裁剪时裁到玩家操作上。
  */
 
 import { IllegalActionError, createRng, type GameStatus, type MoveDir } from '@eink/core'
@@ -63,24 +69,36 @@ export interface DifficultyTetris {
   readonly rows: number
   /** 开局预先堆在底部的垃圾行数（每行留一个洞，洞的位置由 seed 决定） */
   readonly garbageRows: number
+  /**
+   * 自动下落的间隔（毫秒/格）。
+   *
+   * 依据（真机实测数据，不是拍的）：
+   * - BOOX 面板能完成的整屏刷新约 **2 次/秒**（≈500ms/次，docs/refresh-adaptation.md），
+   *   低于 ~400ms 的重绘在墨水屏上只会看到跳变与残影（docs/eink-guidelines.md 定的硬下限）；
+   * - 俄罗斯方块比贪吃蛇更需要「看清落点再决定」，而且每次操作都可能要连按几下
+   *   （平移 + 旋转），因此三档都比贪吃蛇的对应档更慢一档：
+   *   入门 1050ms（≈500ms 刷新 + 550ms 决策）、熟练 800ms、挑战 600ms。
+   * - 想更快可以用「落」手动软降：**玩家操作即时生效**，自动下落只负责兜底节奏。
+   */
+  readonly tickMs: number
 }
 
 /**
- * 难度只改**开局条件**，不改规则（离散步进下这是唯一有意义的差异来源）：
- * - 入门：10×18 井（最深，回旋余量最大）、无初始堆叠；
- * - 熟练：10×16 井（更浅，可周转的余量更小）；
- * - 挑战：10×16 井，底部先堆 4 行垃圾（每行一个洞）—— 开局就得先挖洞。
+ * 难度改**开局条件 + 自动下落速度**，不改规则：
+ * - 入门：10×18 井（最深，回旋余量最大）、无初始堆叠、自动下落 1050ms/格；
+ * - 熟练：10×16 井（更浅，可周转的余量更小）、800ms/格；
+ * - 挑战：10×16 井，底部先堆 4 行垃圾（每行一个洞）—— 开局就得先挖洞，600ms/格。
  *
  * 尺寸是反推出来的，不是拍的。竖屏 439×847 下棋盘可用区最紧一档约 **415×420**
  * （真机实测表见 docs/handover.md 第 8 节；同一个口径也写在 games-contract.test.ts 里），
  * 格子 = min(可用宽/列数, 可用高/行数) —— 高度是瓶颈：
  *   10×18 → (420-10)/18 ≈ 22.8px；10×16 → ≈ 25.6px；再高一档 10×19 就只剩 21.6px（低于可读线）。
- * 所以列数固定 10、行数上限 18，难度差异改由「井深 + 初始堆叠」承担。
+ * 所以列数固定 10、行数上限 18，难度差异改由「井深 + 初始堆叠 + 下落速度」承担。
  */
 export const DIFFICULTIES: readonly DifficultyTetris[] = [
-  { id: 'starter', cols: 10, rows: 18, garbageRows: 0 },
-  { id: 'skilled', cols: 10, rows: 16, garbageRows: 0 },
-  { id: 'challenging', cols: 10, rows: 16, garbageRows: 4 },
+  { id: 'starter', cols: 10, rows: 18, garbageRows: 0, tickMs: 1050 },
+  { id: 'skilled', cols: 10, rows: 16, garbageRows: 0, tickMs: 800 },
+  { id: 'challenging', cols: 10, rows: 16, garbageRows: 4, tickMs: 600 },
 ]
 
 export const DIFFICULTY_IDS: readonly DifficultyId[] = DIFFICULTIES.map((spec) => spec.id)
@@ -109,9 +127,12 @@ export interface Cell {
  * 撤销栈的一格。
  * - `piece`：平移/旋转/下落一格之前的位置，撤销 = 把方块放回去；
  * - `lock`：固化 + 消行之前的一切（棋盘由逆操作推回，不存整盘）。
+ *
+ * `auto` 只出现在自动下落（tick）产生的记录上；**撤销会跳过它们**，
+ * 直到弹掉一条玩家操作，见 undoTetris。
  */
 export type HistoryEntry =
-  | { readonly kind: 'piece'; readonly piece: ActivePiece }
+  | { readonly kind: 'piece'; readonly piece: ActivePiece; readonly auto?: true }
   | {
       readonly kind: 'lock'
       readonly piece: ActivePiece
@@ -121,7 +142,14 @@ export type HistoryEntry =
       readonly pieces: number
       /** 本次固化后消掉的整行行号（升序） */
       readonly cleared: readonly number[]
+      readonly auto?: true
     }
+
+/**
+ * 撤销栈上限：自动下落每隔几百毫秒就往栈里压一条记录，不封顶的话存档会随游玩时长无限增长。
+ * 300 条大约相当于最近十几块方块的完整操作，够用；被裁掉的只是更早的撤销层级。
+ */
+export const MAX_HISTORY_ENTRIES = 300
 
 export interface TetrisState {
   readonly difficulty: DifficultyId
@@ -142,6 +170,9 @@ export interface TetrisState {
 export type TetrisAction =
   /** 方向盘语义：left/right 平移一格、up 顺时针旋转、down 下落一格（着地则固化） */
   | { type: 'move'; dir: MoveDir }
+  /** 自动下落一格（由壳层定时器到点派发）；着地则固化 —— 与按「落」完全同一条路径 */
+  | { type: 'tick' }
+  /** 撤销到**玩家上一次操作之前**（自动落下的格子会一并退回，见 undoTetris） */
   | { type: 'undo' }
   /** 重开：回到同一 seed 的初始局面（丢历史） */
   | { type: 'restart' }
@@ -251,8 +282,17 @@ export function statusOf(state: TetrisState): GameStatus {
   return fits(state.board, difficultyOf(state.difficulty), state.piece) ? 'playing' : 'lost'
 }
 
+/** 这条撤销记录是不是自动下落（tick）产生的 */
+export function isAutoEntry(entry: HistoryEntry): boolean {
+  return entry.auto === true
+}
+
+/**
+ * 有没有「玩家操作」可撤 —— 界面据此决定撤销按钮是否可点。
+ * 自动下落不算玩家操作：刚进对局、一步没走时撤销按钮不该亮着。
+ */
 export function canUndo(state: TetrisState): boolean {
-  return state.history.length > 0
+  return state.history.some((entry) => !isAutoEntry(entry))
 }
 
 function fullRows(board: readonly number[], spec: DifficultyTetris): number[] {
@@ -306,11 +346,25 @@ function restoreRows(board: readonly number[], spec: DifficultyTetris, cleared: 
   return out
 }
 
+/**
+ * 压入一条撤销记录，并在超限时裁剪最旧的一段；裁到一条**玩家操作**上，
+ * 保证栈底落在「可撤销边界」（否则最老的那次撤销会变成退回半格）。
+ * 整栈都是自动下落时退回「保留最后 N 条」—— 那时本来也没有可撤销的玩家操作。
+ */
 function withEntry(state: TetrisState, entry: HistoryEntry): TetrisState {
-  return { ...state, history: [...state.history, entry] }
+  const history = [...state.history, entry]
+  if (history.length <= MAX_HISTORY_ENTRIES) return { ...state, history }
+  let cut = history.length - MAX_HISTORY_ENTRIES
+  while (cut < history.length && isAutoEntry(history[cut]!)) cut++
+  if (cut >= history.length) cut = history.length - MAX_HISTORY_ENTRIES
+  return { ...state, history: history.slice(cut) }
 }
 
-function shiftPiece(state: TetrisState, spec: DifficultyTetris, dir: 'left' | 'right'): TetrisState {
+function shiftPiece(
+  state: TetrisState,
+  spec: DifficultyTetris,
+  dir: 'left' | 'right',
+): TetrisState {
   const moved: ActivePiece = { ...state.piece, col: state.piece.col + (dir === 'left' ? -1 : 1) }
   if (!fits(state.board, spec, moved)) {
     throw new IllegalActionError(GAME_TETRIS_ID, `blocked ${dir}`)
@@ -342,16 +396,24 @@ function rotatePiece(state: TetrisState, spec: DifficultyTetris): TetrisState {
   throw new IllegalActionError(GAME_TETRIS_ID, 'rotate blocked')
 }
 
-/** 下落一格；已经落到底（或压在堆上）就固化并出下一块 */
-function stepDown(state: TetrisState, spec: DifficultyTetris): TetrisState {
+/**
+ * 下落一格；已经落到底（或压在堆上）就固化并出下一块。
+ *
+ * `auto` 标记这条记录来自自动下落：**落到底不会当帧固化** —— 停在堆上的那一格
+ * 由下一个 tick 固化，这一个间隔就是墨水屏上的锁定缓冲（玩家还能平移/旋转）。
+ */
+function stepDown(state: TetrisState, spec: DifficultyTetris, auto = false): TetrisState {
   const down: ActivePiece = { ...state.piece, row: state.piece.row + 1 }
   if (fits(state.board, spec, down)) {
-    return { ...withEntry(state, { kind: 'piece', piece: state.piece }), piece: down }
+    return {
+      ...withEntry(state, { kind: 'piece', piece: state.piece, ...(auto ? { auto: true as const } : {}) }),
+      piece: down,
+    }
   }
-  return lockPiece(state, spec)
+  return lockPiece(state, spec, auto)
 }
 
-function lockPiece(state: TetrisState, spec: DifficultyTetris): TetrisState {
+function lockPiece(state: TetrisState, spec: DifficultyTetris, auto = false): TetrisState {
   const merged = state.board.slice()
   for (const cell of pieceCells(state.piece)) {
     merged[cellIndex(spec.cols, cell.row, cell.col)] = CELL_FILLED
@@ -366,10 +428,11 @@ function lockPiece(state: TetrisState, spec: DifficultyTetris): TetrisState {
     lines: state.lines,
     pieces: state.pieces,
     cleared,
+    ...(auto ? { auto: true as const } : {}),
   }
+  const next = withEntry(state, entry)
   return {
-    difficulty: state.difficulty,
-    seed: state.seed,
+    ...next,
     board,
     // 下一块：cursor 指向的那一块；放不下就是失败局面（status 会报 lost）
     piece: spawnPiece(pieceAt(state.seed, state.cursor), spec.cols),
@@ -377,15 +440,14 @@ function lockPiece(state: TetrisState, spec: DifficultyTetris): TetrisState {
     score: state.score + scoreForLines(cleared.length, levelOf(state.lines)),
     lines: state.lines + cleared.length,
     pieces: state.pieces + 1,
-    history: [...state.history, entry],
   }
 }
 
 /**
- * 撤销：回退一步 —— 棋盘、当前块、出块游标、分数、消行、已固化块数全部回到动作之前。
- * 用逆操作而不是快照：一步最多只有 4 个格子 + 4 个计数。
+ * 单步撤销：把栈顶那一条逆操作还原 —— 棋盘、当前块、出块游标、分数、消行、已固化块数
+ * 全部回到动作之前。用逆操作而不是快照：一步最多只有 4 个格子 + 4 个计数。
  */
-export function undoTetris(state: TetrisState, spec: DifficultyTetris = difficultyOf(state.difficulty)): TetrisState {
+function undoOne(state: TetrisState, spec: DifficultyTetris): TetrisState {
   const entry = state.history[state.history.length - 1]
   if (!entry) throw new IllegalActionError(GAME_TETRIS_ID, 'nothing to undo')
   const history = state.history.slice(0, -1)
@@ -410,6 +472,26 @@ export function undoTetris(state: TetrisState, spec: DifficultyTetris = difficul
   }
 }
 
+/**
+ * 撤销：**退回玩家上一次操作之前**。
+ *
+ * 自动下落（tick）也是状态变化（不记录就无法精确回退），但它不是玩家的操作 ——
+ * 因此先把栈顶连续的自动下落一次退干净，再退掉一条玩家操作。
+ * 若栈里只有自动下落（玩家还没操作过），退到栈空为止，不报错。
+ *
+ * 为什么不给每个 tick 单独留一次撤销：那样按一次撤销只退回半格，
+ * 在墨水屏上（一次操作要等几百毫秒才有反馈）体验极差。
+ */
+export function undoTetris(state: TetrisState, spec: DifficultyTetris = difficultyOf(state.difficulty)): TetrisState {
+  if (state.history.length === 0) throw new IllegalActionError(GAME_TETRIS_ID, 'nothing to undo')
+  let next = state
+  while (next.history.length > 0 && isAutoEntry(next.history[next.history.length - 1]!)) {
+    next = undoOne(next, spec)
+  }
+  if (next.history.length > 0) next = undoOne(next, spec)
+  return next
+}
+
 export function reduceState(state: TetrisState, action: TetrisAction): TetrisState {
   const spec = difficultyOf(state.difficulty)
 
@@ -418,10 +500,14 @@ export function reduceState(state: TetrisState, action: TetrisAction): TetrisSta
   // 壳层的「重新开始」在无关卡玩法上走的是重新开局（换 seed），这里保留 restart 是为了
   // 契约完整：会话对每款游戏都会派发它。
   if (action.type === 'restart') return createState(state.seed, state.difficulty)
-  if (action.type !== 'move') throw new IllegalActionError(GAME_TETRIS_ID, 'unknown action')
+  if (action.type !== 'move' && action.type !== 'tick') {
+    throw new IllegalActionError(GAME_TETRIS_ID, 'unknown action')
+  }
 
   // 已经堆到顶：除撤销/重开外一律拒绝（结果面板上的撤销按钮仍然可用，见 undoTetris）
   if (statusOf(state) !== 'playing') throw new IllegalActionError(GAME_TETRIS_ID, 'game over')
+
+  if (action.type === 'tick') return stepDown(state, spec, true)
 
   if (action.dir === 'left' || action.dir === 'right') return shiftPiece(state, spec, action.dir)
   if (action.dir === 'up') return rotatePiece(state, spec)
@@ -434,6 +520,8 @@ export function legalActions(state: TetrisState): readonly TetrisAction[] {
     for (const dir of ALL_DIRS) {
       if (isLegal(state, { type: 'move', dir })) actions.push({ type: 'move', dir })
     }
+    // tick 也是规则允许的动作（壳层到点派发；回放校验同样需要它）
+    actions.push({ type: 'tick' })
   }
   if (canUndo(state)) actions.push({ type: 'undo' })
   if (state.pieces > 0 || state.lines > 0 || canUndo(state)) actions.push({ type: 'restart' })
@@ -458,7 +546,7 @@ export interface EncodedPiece {
 }
 
 export type EncodedHistoryEntry =
-  | { kind: 'piece'; piece: EncodedPiece }
+  | { kind: 'piece'; piece: EncodedPiece; auto?: true }
   | {
       kind: 'lock'
       piece: EncodedPiece
@@ -467,6 +555,8 @@ export type EncodedHistoryEntry =
       lines: number
       pieces: number
       cleared: number[]
+      /** 只写 true：这条记录来自自动下落（缺字段 = 玩家操作，老存档语义正确） */
+      auto?: true
     }
 
 export interface EncodedState {
@@ -497,7 +587,13 @@ export function encodeState(state: TetrisState): EncodedState {
     lines: state.lines,
     pieces: state.pieces,
     history: state.history.map((entry): EncodedHistoryEntry => {
-      if (entry.kind === 'piece') return { kind: 'piece', piece: encodePiece(entry.piece) }
+      if (entry.kind === 'piece') {
+        return {
+          kind: 'piece',
+          piece: encodePiece(entry.piece),
+          ...(entry.auto ? { auto: true as const } : {}),
+        }
+      }
       return {
         kind: 'lock',
         piece: encodePiece(entry.piece),
@@ -506,6 +602,7 @@ export function encodeState(state: TetrisState): EncodedState {
         lines: entry.lines,
         pieces: entry.pieces,
         cleared: [...entry.cleared],
+        ...(entry.auto ? { auto: true as const } : {}),
       }
     }),
   }
@@ -580,12 +677,18 @@ function asHistoryEntry(value: unknown, spec: DifficultyTetris): HistoryEntry {
     lines?: unknown
     pieces?: unknown
     cleared?: unknown
+    auto?: unknown
   }
   if (raw.kind !== 'piece' && raw.kind !== 'lock') {
     throw new IllegalActionError(GAME_TETRIS_ID, 'bad history kind')
   }
+  // `auto` 只认 true / 缺字段：老存档里所有记录都是玩家操作，语义正确
+  if (raw.auto !== undefined && raw.auto !== true && raw.auto !== false) {
+    throw new IllegalActionError(GAME_TETRIS_ID, 'bad auto flag')
+  }
+  const auto = raw.auto === true ? ({ auto: true } as const) : {}
   const piece = asPiece(raw.piece, spec)
-  if (raw.kind === 'piece') return { kind: 'piece', piece }
+  if (raw.kind === 'piece') return { kind: 'piece', piece, ...auto }
   const clearedRaw = raw.cleared
   if (!Array.isArray(clearedRaw) || clearedRaw.length > MAX_LINE_CLEAR) {
     throw new IllegalActionError(GAME_TETRIS_ID, 'bad cleared rows')
@@ -606,6 +709,7 @@ function asHistoryEntry(value: unknown, spec: DifficultyTetris): HistoryEntry {
     lines: asCount(raw.lines, 'history lines'),
     pieces: asCount(raw.pieces, 'history pieces'),
     cleared,
+    ...auto,
   }
 }
 

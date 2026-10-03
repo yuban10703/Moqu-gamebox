@@ -16,11 +16,11 @@ import type { Dict } from '@eink/core'
 export const tetrisZh: Dict = {
   'tetris.title': '俄罗斯方块',
   'tetris.rules.body':
-    '方块从井口出现，全部操作都手动：左/右平移一格，「转」顺时针旋转，「落」下落一格；已经落到底时再按一次「落」就把它固定住，同时出现下一块。棋盘上也可以直接滑动（左滑/右滑平移、上滑旋转、下滑下落）。没有自动下落，也没有计时。',
+    '方块会自动往下掉：入门档约 1.05 秒一格，熟练档 0.8 秒，挑战档 0.6 秒（都慢于墨水屏一次整屏刷新，看得清落点）。你自己也能随时操作：左/右平移一格，「转」顺时针旋转，「落」立刻下落一格 —— 方块已经落到底时再按一次「落」就把它固定住，同时出现下一块；自动下落落到底后也会在下一格固定（中间这一格时间留给你微调）。棋盘上也可以直接滑动（左滑/右滑平移、上滑旋转、下滑下落）。每次操作后都会重新计时，刚按完不会立刻又掉一格。',
   'tetris.rules.body2':
-    '整行填满即消除：一次消 1/2/3/4 行分别得 100/300/500/800 分，再乘以等级；每消 10 行升一级，等级只提高得分倍率。方块堆到顶部、新方块在井口放不下时本局失败（结果页仍可撤销回上一手）。',
+    '整行填满即消除：一次消 1/2/3/4 行分别得 100/300/500/800 分，再乘以等级；每消 10 行升一级，等级只提高得分倍率。方块堆到顶部、新方块在井口放不下时本局失败（结果页仍可撤销回上一手）。点「撤销」退回你上一次操作之前（自动落下的那几格会一起退回）；点顶栏的「暂停」随时停表，暂停时方块完全不动。',
   'tetris.rules.difficulty':
-    '难度只改开局，不改规则：入门是 10 列 × 18 行的深井、空场起步；熟练的井更浅（10 × 16），可周转的余量更小；挑战同样是 10 × 16，但底部已预先堆好 4 行垃圾（每行一个洞，洞的位置由本局种子决定）。',
+    '每档的井深与自动下落速度都不同：入门是 10 列 × 18 行的深井、空场起步、1.05 秒一格；熟练的井更浅（10 × 16）、可周转的余量更小、0.8 秒一格；挑战同样是 10 × 16，但底部已预先堆好 4 行垃圾（每行一个洞，洞的位置由本局种子决定），而且 0.6 秒就掉一格。',
   'tetris.rules.restart': '重新开始会清空当前局面与撤销历史，回到该难度的初始棋盘。',
   'tetris.stat.score': '分数',
   'tetris.stat.lines': '消行',
@@ -47,11 +47,11 @@ export const tetrisZh: Dict = {
 export const tetrisEn: Dict = {
   'tetris.title': 'Tetris',
   'tetris.rules.body':
-    'Pieces appear at the top of the well and every move is manual: left/right shift one column, Turn rotates clockwise, Drop moves down one row. Once a piece has landed, pressing Drop again locks it and the next piece appears. You can also swipe on the board (sideways to shift, up to rotate, down to drop). Nothing falls by itself and nothing is timed.',
+    'The piece falls on its own: about 1.05s per row on Starter, 0.8s on Skilled and 0.6s on Challenging (all slower than a full e-ink refresh, so the landing spot stays readable). You can always act first: left/right shift one column, Turn rotates clockwise, Drop moves down one row at once - once a piece has landed, pressing Drop again locks it and the next piece appears, and a piece that fell to the bottom locks on the following automatic step (that one step is your window to nudge it). You can also swipe on the board (sideways to shift, up to rotate, down to drop). Every input restarts the clock, so a piece never drops again the instant you press.',
   'tetris.rules.body2':
-    'A completely filled row is cleared: 1/2/3/4 rows at once score 100/300/500/800, multiplied by your level. Every 10 cleared lines raise the level, and the level only raises the score multiplier. You lose when the stack reaches the top and a new piece no longer fits (the result panel still lets you undo the fatal move).',
+    'A completely filled row is cleared: 1/2/3/4 rows at once score 100/300/500/800, multiplied by your level. Every 10 cleared lines raise the level, and the level only raises the score multiplier. You lose when the stack reaches the top and a new piece no longer fits (the result panel still lets you undo the fatal move). Undo returns to just before your last input (the rows the piece fell on its own are rolled back too); pause from the top bar stops the clock - while paused nothing falls at all.',
   'tetris.rules.difficulty':
-    'Difficulty only changes the start, never the rules: Starter is a deep 10 x 18 well on an empty board; Skilled is a shallower 10 x 16 well with less room to recover; Challenging is also 10 x 16 but with 4 rows of garbage already stacked at the bottom (one hole per row, placed from this game seed).',
+    'Each difficulty changes both the well and the falling speed: Starter is a deep 10 x 18 well on an empty board at 1.05s per row; Skilled is a shallower 10 x 16 well with less room to recover at 0.8s; Challenging is also 10 x 16 but with 4 rows of garbage already stacked at the bottom (one hole per row, placed from this game seed) and a 0.6s step.',
   'tetris.rules.restart':
     'Restarting clears the current board and the undo history, and returns to a fresh board for this difficulty.',
   'tetris.stat.score': 'Score',

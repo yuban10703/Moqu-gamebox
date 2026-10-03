@@ -7,11 +7,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  CRAMPED_BOARD_AREA_PX,
   DEFAULT_LAYOUT,
   REFERENCE_VIEWPORTS,
   ABSOLUTE_MIN_CELL,
   computeBoardLayout,
   computeRootLayout,
+  isCrampedLayout,
   type FontScale,
 } from '../src/layout.js'
 
@@ -143,5 +145,38 @@ describe('棋盘布局不变量', () => {
     expect(thick.cell).toBeLessThan(thin.cell)
     expect(thick.boardWidth).toBe(thick.cell * 9 + 10)
     expect(thick.boardWidth).toBeLessThanOrEqual(area.width)
+  })
+})
+
+/**
+ * 极矮横屏判定（自动步进据此减速，见 packages/ui/src/session.ts）。
+ *
+ * 实测背景：BOOX P6Plus 强制横屏 879×407，顶栏 + 统计 + 控制区吃掉 300px 以上，
+ * 棋盘区只剩 ~70px —— 12×12 的棋盘只能贴住 12px 的绝对下限。这个档位下自动步进
+ * 会加剧不可用，因此需要一条**不依赖 DOM**的判定：它必须能被纯函数测试守住。
+ */
+describe('极矮横屏（棋盘不可用）判定', () => {
+  it('实测的 P6Plus 强制横屏落在判定内，常用竖屏与正常横屏落在判定外', () => {
+    expect(isCrampedLayout({ width: 879, height: 407, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(true)
+    // 常用档位：不能误伤（否则会把正常的自动步进也拖慢）
+    expect(isCrampedLayout({ width: 415, height: 847, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(false)
+    expect(isCrampedLayout({ width: 1176, height: 513, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(false)
+    expect(isCrampedLayout({ width: 1123, height: 1498, dpr: 1.25 }, DEFAULT_LAYOUT, true)).toBe(false)
+    // 参考设备清单里除了极矮横屏都不该被判成"不可用"
+    for (const device of REFERENCE_VIEWPORTS) {
+      expect(isCrampedLayout(device.viewport, DEFAULT_LAYOUT, true), device.name).toBe(false)
+    }
+  })
+
+  it('判定的确是"棋盘区高度 < 阈值"，且阈值本身就是不可用的量级', () => {
+    const viewport = { width: 879, height: 407, dpr: 2 }
+    const area = computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: true, showStats: true }).boardArea
+    expect(area.height).toBeLessThan(CRAMPED_BOARD_AREA_PX)
+    // 12×12 棋盘在这个高度下只能贴住绝对下限并被裁切
+    const board = computeBoardLayout(area, 12, 12)
+    expect(board.cell).toBe(ABSOLUTE_MIN_CELL)
+    expect(board.boardHeight).toBeGreaterThan(area.height)
+    // 关掉方向盘（玩家把控制区让出来）后不再算"极矮"
+    expect(isCrampedLayout(viewport, DEFAULT_LAYOUT, false)).toBe(false)
   })
 })

@@ -35,6 +35,7 @@ interface GameDef<S, A> {
   controls(state: S): ControlSpec[]               // 壳层渲染成可见按钮
   encode(state: S): unknown                       // 存档用的状态编码
   decode(raw: unknown): S                         // 必须严格校验；非法输入抛错
+  tickMs?(state: S, difficulty: string): number | null  // 可选：自动步进间隔（≥400ms，null = 不该步进）
 }
 ```
 
@@ -44,6 +45,11 @@ interface GameDef<S, A> {
 2. **状态自包含**：`encode` 的产物必须能独立还原局面（撤销历史也放进去，推箱子就是这么做的）。
 3. **拒绝非法输入**：`decode` 遇到损坏内容必须抛错——上层会把它当作「存档损坏」处理并保留原档。
 4. **展示模型不含平台概念**：不要出现 DOM、CSS、像素；尺寸由壳层用 `computeBoardLayout` 计算。
+5. **规则层零时间引用**：不要写 `setInterval` / `setTimeout` / `requestAnimationFrame` / `Date.now` /
+   `performance.now`（有源码扫描测试守住）。需要自动步进就声明 `tickMs` 并让 `reduce` 接受
+   `{ type: 'tick' }`：定时器在壳层会话里，间隔下限 400ms（墨水屏整屏刷新约 500ms），
+   玩家每次有效输入后会话会重置计时。撤销语义上，tick **不单独占撤销层级** ——
+   一次撤销退回玩家上一次操作之前（详见 [eink-guidelines](eink-guidelines.md)）。
 
 ## 3. 注册（唯一需要改壳层之外的地方）
 
@@ -80,7 +86,7 @@ export const library: GameLibrary = {
 
 ## 5. 不要做的事
 
-- 不要引入渲染循环或 `requestAnimationFrame`；
+- 不要引入渲染循环或 `requestAnimationFrame`；自动步进用 `tickMs` + `{type:'tick'}`，间隔不得低于 400ms；
 - 不要用透明度/浅灰表达状态（黑白模式下会消失）；
 - 不要用动画表达「正在计算」——用稳定的文字；
 - 不要把未实现的能力（例如死局检测）做成界面提示；

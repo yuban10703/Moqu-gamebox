@@ -20,9 +20,9 @@ export const snakeGlyph = '蛇'
 export const snakeZh: Dict = {
   'snake.title': '贪吃蛇',
   'snake.rules.body':
-    '每按一次方向按钮，蛇就前进一格，画面立刻更新。墨水屏不适合连续动画，所以这里没有「自动走」——一步一次按键，想清楚了再走。吃到食物加一分，蛇身也会变长。',
+    '蛇会自己往前爬：入门档约 0.85 秒一格，熟练档 0.68 秒，挑战档 0.52 秒 —— 比墨水屏一次整屏刷新（约 0.5 秒）留出更多余量，看得清也来得及想。方向键 / 方向盘 / 滑动 = 转向：按下的方向在下一格生效；同一格内连按只认最后一次合法方向，不会丢输入。每次操作之后都会重新计时，绝不会刚按完就自己走一格。',
   'snake.rules.body2':
-    '不能原地掉头（那个方向按钮会变暗，点了会提示走不通）。入门档可以从一边穿到另一边；熟练档是实心墙，撞墙即结束；挑战档场内还有障碍，而且吃一个食物长两节。撞墙、撞障碍或撞到自己都会结束本局；把整块棋盘填满即取胜。点「撤销」可以退回上一步，输掉之后也能退。',
+    '不能原地掉头（那个方向按钮会变暗，点了会提示走不通）。入门档可以从一边穿到另一边；熟练档是实心墙，撞墙即结束；挑战档场内还有障碍，而且吃一个食物长两节。撞墙、撞障碍或撞到自己都会结束本局；把整块棋盘填满即取胜。点「撤销」退回你上一次操作之前（自动爬过的那几格会一起退回），输掉之后也能退。点顶栏的「暂停」随时停表，暂停时棋盘完全不动。',
   'snake.rules.restart':
     '重新开始会回到同一种子的初始局面并清空撤销记录，无法撤销回重开之前。',
   'snake.stat.score': '分数',
@@ -33,6 +33,11 @@ export const snakeZh: Dict = {
   'snake.dir.left': '左',
   'snake.dir.right': '右',
   'snake.dpad.label': '方向控制',
+  // 转向缓冲的立即确认（棋盘要等下一个 tick 才动，这段时间必须有文字反馈）
+  'snake.turn.up': '下一格向上',
+  'snake.turn.down': '下一格向下',
+  'snake.turn.left': '下一格向左',
+  'snake.turn.right': '下一格向右',
   'snake.blocked': '这一步走不通（不能原地掉头，或本局已经结束）',
   'snake.won.title': '填满棋盘',
   'snake.lost.title': '撞上了',
@@ -60,9 +65,9 @@ export const snakeZh: Dict = {
 export const snakeEn: Dict = {
   'snake.title': 'Snake',
   'snake.rules.body':
-    'Every press of a direction button moves the snake exactly one cell and the board is redrawn at once. E-ink cannot animate, so nothing moves on its own here: one press, one step. Eating food adds a point and makes the snake longer.',
+    'The snake crawls on its own: about 0.85s per cell on Starter, 0.68s on Skilled and 0.52s on Challenging - comfortably above the ~0.5s a full e-ink refresh takes, so you can see each step and still think. Direction keys / the pad / swipes turn the snake: the turn takes effect on the next cell, and pressing several directions within one cell keeps only the last legal one, so no input is lost. Every input restarts the clock, so the snake never moves away the instant you press.',
   'snake.rules.body2':
-    'You cannot turn back on yourself (that direction button is dimmed and reports that the move is blocked). Starter wraps around the edges, Skilled has solid walls, and Challenging adds obstacles plus two extra segments per meal. Hitting a wall, an obstacle or your own body ends the run; filling the whole board wins. Undo steps back one move at a time, and it still works after a crash.',
+    'You cannot turn back on yourself (that direction button is dimmed and reports that the move is blocked). Starter wraps around the edges, Skilled has solid walls, and Challenging adds obstacles plus two extra segments per meal. Hitting a wall, an obstacle or your own body ends the run; filling the whole board wins. Undo returns to just before your last input (the cells the snake crawled on its own are rolled back too) and still works after a crash. Pause from the top bar stops the clock - while paused the board does not move at all.',
   'snake.rules.restart':
     'Restarting returns to the opening position for the same seed and clears the undo history; you cannot undo back past a restart.',
   'snake.stat.score': 'Score',
@@ -73,6 +78,11 @@ export const snakeEn: Dict = {
   'snake.dir.left': 'Left',
   'snake.dir.right': 'Right',
   'snake.dpad.label': 'Direction pad',
+  // Immediate confirmation of a buffered turn (the board only moves on the next tick)
+  'snake.turn.up': 'Next cell: up',
+  'snake.turn.down': 'Next cell: down',
+  'snake.turn.left': 'Next cell: left',
+  'snake.turn.right': 'Next cell: right',
   'snake.blocked': 'That move is not available (no turning back, or the run is over)',
   'snake.won.title': 'Board filled',
   'snake.lost.title': 'Crashed',

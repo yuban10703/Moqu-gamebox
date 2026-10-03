@@ -72,8 +72,7 @@ export function computeRootLayout(
     /** 底部需要额外预留的高度（例如过关面板）：从棋盘区里扣掉，避免为了看结果去滚动 */
     extraBottom?: number
   } = {},
-): RootLayout {
-  const showDpad = options.showDpad ?? true
+): RootLayout {  const showDpad = options.showDpad ?? true
   const showStats = options.showStats ?? true
   const extraBottom = Math.max(0, Math.round(options.extraBottom ?? 0))
   const margin = Math.max(config.margin, Math.round(viewport.width * 0.015))
@@ -176,3 +175,28 @@ export const REFERENCE_VIEWPORTS: ReadonlyArray<{ name: string; viewport: Viewpo
   { name: 'BOOX Nova 7.8\" portrait', viewport: { width: 938, height: 1250, dpr: 1.5 } },
   { name: 'BOOX Max 13.3\" portrait', viewport: { width: 1100, height: 1467, dpr: 1.5 } },
 ]
+
+/**
+ * 「极矮横屏、棋盘已经不可用」的判定阈值（棋盘区高度，CSS px）。
+ *
+ * 由来（真机实测）：BOOX P6Plus 强制横屏是 879×407，顶栏 + 统计栏 + 控制区吃掉 300px 以上，
+ * 留给棋盘区的高度会掉到 ~70px —— 12×12 的棋盘只能贴住 ABSOLUTE_MIN_CELL（12px）并被裁切。
+ * 这个档位下自动步进（贪吃蛇自动前进 / 俄罗斯方块自动下落）会加剧不可用：
+ * 玩家还没看清就已经走了一格。
+ *
+ * 判定只用于**放慢自动步进**（见 packages/ui/src/session.ts 的 tickSlowdown），
+ * 不改变任何游戏规则，也不改变布局本身。
+ */
+export const CRAMPED_BOARD_AREA_PX = 160
+
+/** 当前视口是否落在「棋盘已经不可用」的极矮横屏档 */
+export function isCrampedLayout(
+  viewport: Viewport,
+  config: LayoutConfig = DEFAULT_LAYOUT,
+  showDpad = true,
+): boolean {
+  return (
+    computeRootLayout(viewport, config, { showDpad, showStats: true }).boardArea.height <
+    CRAMPED_BOARD_AREA_PX
+  )
+}

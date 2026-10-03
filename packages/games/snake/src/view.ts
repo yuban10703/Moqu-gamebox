@@ -11,7 +11,7 @@
  * 这五种形状两两不同，且都不依赖深浅，因此单色墨水屏上也分得清。
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
-import { ALL_DIRS, OPPOSITE_DIR, directionOf, gameStatus, type SnakeState } from './rules.js'
+import { ALL_DIRS, OPPOSITE_DIR, canUndo, directionOf, gameStatus, type SnakeState } from './rules.js'
 import { DIFFICULTIES, DIFFICULTY_IDS, difficultySpec } from './meta.js'
 
 /** 用到的 kind 的固定字形（蛇头/食物的字形由 buildBoard 计算） */
@@ -90,10 +90,11 @@ export function buildControls(state: SnakeState): ControlSpec[] {
     labelKey: 'shell.game.undo',
     role: 'action',
     /*
-     * 有历史就可撤销 —— **包括撞死之后**：撞上的那一步正是玩家最想撤回的，
+     * 有**玩家操作**可撤销才可点 —— 包括撞死之后：撞上的那一步正是玩家最想撤回的，
      * 壳层的结果面板据此给出「撤销」按钮，把局面退回撞上之前。
+     * 自动前进（tick）不算玩家操作：只有它还亮着的话，撤销只会退掉「玩家没做过的事」。
      */
-    enabled: state.history.length > 0,
+    enabled: canUndo(state),
     emphasis: 'normal',
   })
   controls.push({
@@ -124,8 +125,16 @@ export function buildView(state: SnakeState): GameView {
     board: buildBoard(state),
     stats: buildStats(state),
     result,
-    // 非法方向由会话用 illegalNoticeKey 统一提示，这里不自己造 notice
-    notice: null,
+    /*
+     * 转向已记录 = 棋盘上的**立即**反馈。
+     *
+     * 为什么需要：自动前进的间隔最长 850ms，而转向要到下一个 tick 才改变棋盘 ——
+     * 没有这条文字，玩家按完方向键可能整整一秒看不到任何变化，会以为输入被吞了
+     * （墨水屏输入延迟的典型体验问题）。这里用稳定文字确认，退场由下一个 tick 自然完成
+     * （那时 pendingDir 已被消费）。
+     * 非法方向仍由会话用 illegalNoticeKey 统一提示，这里不自己造。
+     */
+    notice: status === 'playing' && state.pendingDir ? { textKey: `snake.turn.${state.pendingDir}` } : null,
   }
 }
 

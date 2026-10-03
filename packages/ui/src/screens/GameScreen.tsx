@@ -7,6 +7,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   computeRootLayout,
+  isCrampedLayout,
   type CellKind,
   type MoveDir,
   type SaveEnvelope,
@@ -25,7 +26,7 @@ import {
 } from '../components.js'
 import { useUi } from '../contexts.js'
 import type { GameRegistryEntry } from '../registry.js'
-import { useSession } from '../session.js'
+import { CRAMPED_TICK_SLOWDOWN, useSession } from '../session.js'
 
 export interface GameScreenProps {
   entry: GameRegistryEntry<unknown, unknown>
@@ -62,11 +63,23 @@ export function GameScreen({
    */
   const dpadOn = settings.perGame[entry.game.id]?.dpad ?? settings.dpad
 
+  /**
+   * 极矮横屏（实测 BOOX P6Plus 强制横屏 879×407）下棋盘区只剩 ~70px、格子贴住 12px 下限：
+   * 自动步进会加剧不可用。这里**不停表** —— 停表后贪吃蛇再也不会前进，比自动步进更糟；
+   * 改为把间隔放大（见 CRAMPED_TICK_SLOWDOWN），让"看得清"先于"跑得快"。
+   * 只用布局纯函数判定，不读 DOM，因此可在测试里对各个参考视口断言。
+   */
+  const cramped = useMemo(
+    () => isCrampedLayout(viewport, layoutConfig, dpadOn),
+    [viewport, layoutConfig, dpadOn],
+  )
+
   const session = useSession({
     game: entry.game,
     storage: platform.storage,
     difficulty,
     onCommitted,
+    ...(cramped ? { tickSlowdown: CRAMPED_TICK_SLOWDOWN } : {}),
     ...(initialProgress ? { initialProgress } : {}),
   })
   const [confirmRestart, setConfirmRestart] = useState(false)
@@ -215,7 +228,17 @@ export function GameScreen({
   )
 
   return (
-    <div className="eink-screen eink-screen--game" data-game={entry.game.id}>
+    <div
+      className="eink-screen eink-screen--game"
+      data-game={entry.game.id}
+      /*
+       * 自动步进与暂停的**结构化事实**（不是文案）：浏览器与真机探针据此判定
+       * "计时器是否真的在跑"，而不是靠肉眼看棋盘或匹配界面文字。
+       * 取值 = 生效间隔（毫秒）或 "off"。
+       */
+      data-auto-tick={session.autoTickMs === null ? 'off' : String(session.autoTickMs)}
+      data-paused={session.paused ? 'yes' : 'no'}
+    >
       <TopBar
         title={
           hasLevels

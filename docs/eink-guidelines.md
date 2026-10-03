@@ -7,13 +7,13 @@
 |---|---|---|---|
 | 1 | 白底深色文字为默认，彩色仅作增强 | `packages/ui/src/styles.css`（`--ink-black/--ink-white`，无彩色） | — |
 | 2 | 状态区分不靠浅灰或透明度：用符号 + 线型 + 文字 | 棋盘符号 `○ □ ◼ ▲ △`（`games/sokoban/src/view.ts`）；按钮禁用=点线、走不通=虚线（`styles.css`） | 壳层测试断言提示文本；`eink-guidelines` 人工检查 |
-| 3 | 关闭装饰动画、滑入滑出、循环加载、闪烁 | `styles.css` 全局 `animation/transition: none`；无 spinner，计算态用稳定文字 | — |
+| 3 | **禁止平滑动画/过渡与高频重绘**；允许「慢速自动步进」（离散 tick，≥400ms/格） | `styles.css` 全局 `animation/transition: none`；无 spinner；自动步进只走 `packages/ui/src/session.ts` 的定时器 → `{type:'tick'}`，规则层零时间引用 | `packages/ui/test/auto-tick.test.tsx`（间隔/重置/停表）、各游戏 `tickMs` 断言、源码扫描测试 |
 | 4 | 主操作用可见按钮；滑动/长按只作补充 | 方向盘 + 撤销/重开/菜单按钮；长按被壳层禁用（`MainActivity`） | 壳层测试通过按钮完成操作 |
 | 5 | 输入被接受即产生状态变化；不重复提交 | `session.dispatch` 立即更新状态；非法动作弹提示且不入日志 | `rules.test.ts` 输入处理用例；`shell.test.tsx` |
 | 6 | 列表优先分页，不依赖上下反复滚动 | 详情页关卡列表分页（`GameDetailScreen` + `Pager`） | `Pager` 组件测试（壳层） |
 | 7 | 小屏棋盘不能让整体缩小；提供聚焦格与独立数字区 | `computeBoardLayout` 保证整数格且不小于下限；数独实现按 [A04](A04-screens.md) 预留 | `layout.test.ts` 不变量 |
 | 8 | 触摸目标 ≥48px（棋盘格外，且棋盘格必须有替代输入） | `DEFAULT_LAYOUT.minTouchTarget = 48`；方向盘尺寸来自 `computeRootLayout` | `layout.test.ts` 全设备断言 |
-| 9 | 静止时不连续绘制；后台暂停计算与输入 | 无渲染循环；暂停后 `dispatch` 直接返回 false | 壳层测试（暂停不响应） |
+| 9 | 静止时不连续绘制；后台暂停计算与输入 | 无渲染循环；暂停后 `dispatch` 直接返回 false，自动步进同时停表（暂停/结束/隐藏三条路径） | 壳层测试（暂停不响应）、`auto-tick.test.tsx`（停表 + 定时器计数归零） |
 | 10 | 刷新控制只做平台已验证的能力 | Web 端能力清单全为 false 并给出系统指引；Android 端按探测结果开放 | `platform.test.ts` 能力上报 |
 
 ## 具体尺寸基线
@@ -22,6 +22,35 @@
 - 按钮：≥48px；方向盘按钮高度 = `max(48, 字号 × 2.2)`；
 - 棋盘格：整数 px，最小 24px；主基线（10.3 吋）下 11×9 棋盘格子 ≥44px；
 - 线宽：默认 2px（1px 在墨水屏上容易消失），设置「加粗线条」关闭后降为 1px。
+
+## 允许「慢速自动步进」，禁止的是平滑动画
+
+口径修正（用户要求贪吃蛇自动前进、俄罗斯方块自动下落之后定稿）：
+
+- **禁止**：平滑动画、过渡、逐帧循环、`requestAnimationFrame` 驱动的高频重绘 ——
+  墨水屏一次整屏刷新约 500ms（真机实测：面板能完成的完整刷新约 **2 次/秒**，
+  见 [refresh-adaptation](refresh-adaptation.md)「高频全刷为什么不是功能」），
+  低于这个量级的变化只会被面板丢掉，看起来是跳变与残影；
+- **允许**：**离散的慢速自动步进**（tick）。一次 tick = 一次状态变化 + 一次重绘，
+  间隔由玩法按难度声明，玩家随时可以用「暂停」停表。
+
+### 硬性规范
+
+| 规范 | 取值 / 落点 |
+|---|---|
+| 自动步进的间隔下限 | **≥ 400ms**（`MIN_TICK_MS`，`packages/core/src/types.ts`）。壳层会钳位，玩法声明更小也不会更快 |
+| 间隔谁来定 | 玩法自己的难度配置（贪吃蛇 850/680/520ms，俄罗斯方块 1050/800/600ms），依据见各自 `meta.ts` / `rules.ts` 的注释 |
+| 计时器在哪 | **只在壳层会话** `packages/ui/src/session.ts`。规则层必须纯函数、零时间引用（`setInterval`/`setTimeout`/`requestAnimationFrame`/`Date.now`/`performance.now` 一律不得出现在 `packages/games/*/src/rules.ts`，有源码扫描测试守住） |
+| 到点做什么 | 派发 `{ type: 'tick' }` 给游戏的 reducer；含义由玩法定义（自动前进一格 / 自动下落一格） |
+| **输入延迟补偿** | 玩家**每次有效输入后重置计时**（`tickEpoch`），保证每次操作后都拿到完整的一个间隔。否则刚按完就自动走一格，在墨水屏上像"吞输入" |
+| 什么时候必须停表 | 暂停面板打开、结果面板出现（对局结束）、`visibilitychange`/`pagehide` 页面隐藏、离开对局（组件卸载）。定时器由 effect cleanup 释放，测试断言 `vi.getTimerCount() === 0` |
+| reducer 拒绝 tick 时 | 不得崩溃、不得弹「走不通」提示（没人按任何东西），直接安全停表 |
+| 撤销与 tick 的关系 | tick **不单独占撤销层级**：一次撤销退回**玩家上一次操作之前**（自动走的那几格一起退回）。撤销栈封顶（300 条）并裁到玩家操作边界，避免存档随游玩时长无界增长 |
+| 极矮横屏（棋盘已被压到不可用） | 不停表（停表会让贪吃蛇**永不前进**，比自动步进更不可用），改为按 `CRAMPED_TICK_SLOWDOWN = 1.5` 放慢；判定用纯函数 `isCrampedLayout()`（`layout.test.ts` 守住） |
+
+延迟补偿的实测口径（浏览器 + 真机都用同一条时间序列证据，见 `packages/ui/test/auto-tick.test.tsx`）：
+入门档 850ms/格时，t=800ms 按下方向键 → 下一次自动前进发生在 t=1650ms（相隔 850ms），
+而不是 t=850ms（相隔 50ms）。
 
 ## 明确不承诺
 

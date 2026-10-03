@@ -29,19 +29,31 @@ export interface SnakeDifficulty {
   readonly growth: number
   /** 是否穿墙：为真时从一边出去、从对边进来（该档不会撞墙） */
   readonly wrap: boolean
+  /**
+   * 自动前进的间隔（毫秒/格）。**速度也参与难度**，但取值有硬下限（见下）。
+   *
+   * 依据（真机实测数据，不是拍的）：
+   * - BOOX 面板能完成的整屏刷新约 **2 次/秒**（≈500ms/次，docs/refresh-adaptation.md）；
+   * - 本项目的刷新实测同样表明：低于 ~400ms 的重绘在墨水屏上表现为跳变与残影，
+   *   而不是运动（docs/eink-guidelines.md 的「慢速自动步进」规范把 400ms 定为硬下限）；
+   * - 人眼在墨水屏上要「看清一步 → 决定下一步」，还需要在刷新时间之外留出反应时间。
+   *   因此入门档取 850ms（≈500ms 刷新 + 350ms 决策），熟练 680ms，挑战 520ms
+   *   —— 最快一档仍高于 500ms 的整屏刷新耗时，玩家每次操作后都能拿到完整的一格间隔。
+   */
+  readonly tickMs: number
 }
 
 /**
- * 三档难度都**不是**靠「速度」区分 —— 本作是离散步进（一按一步），根本没有速度这个概念。
- * 差异全部落在规则上：
+ * 三档难度**同时**改规则与速度：速度只落在 ≥500ms/格这一段（见 SnakeDifficulty.tickMs 的依据），
+ * 规则差异是：
  * - starter：可以穿墙，最宽容，只有撞到自己才会结束；
  * - skilled：实心墙的经典规则，撞墙或撞自己都会结束；
  * - challenging：实心墙 + 8 块场内障碍，而且吃一个食物长两节（更快把场地堵死）。
  */
 export const DIFFICULTIES: readonly SnakeDifficulty[] = [
-  { id: 'starter', size: 12, obstacles: 0, growth: 1, wrap: true },
-  { id: 'skilled', size: 12, obstacles: 0, growth: 1, wrap: false },
-  { id: 'challenging', size: 12, obstacles: 8, growth: 2, wrap: false },
+  { id: 'starter', size: 12, obstacles: 0, growth: 1, wrap: true, tickMs: 850 },
+  { id: 'skilled', size: 12, obstacles: 0, growth: 1, wrap: false, tickMs: 680 },
+  { id: 'challenging', size: 12, obstacles: 8, growth: 2, wrap: false, tickMs: 520 },
 ]
 
 export function isDifficultyId(value: string): value is DifficultyId {

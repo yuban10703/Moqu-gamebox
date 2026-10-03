@@ -139,12 +139,28 @@ describe('游戏产出的每个 key 都能取到文案', () => {
     expect(i18nEn.t(tetrisGame.illegalNoticeKey!)).not.toContain('⟦')
   })
 
-  it('字典里不能出现硬编码的尺寸/时间承诺（没有自动下落这回事）', () => {
+  it('玩法说明如实写明「会自动下落」与「怎么暂停」', () => {
     for (const dict of [tetrisZh, tetrisEn]) {
       for (const key of Object.keys(dict)) expect(key.startsWith('tetris.'), key).toBe(true)
     }
-    expect(tetrisZh['tetris.rules.body']).not.toMatch(/毫秒|秒|定时/)
-    expect(tetrisEn['tetris.rules.body']).not.toMatch(/millisecond|per second|timer/i)
+    expect(tetrisZh['tetris.rules.body']).toContain('自动往下掉')
+    expect(tetrisZh['tetris.rules.body2']).toContain('暂停')
+    expect(tetrisEn['tetris.rules.body']).toMatch(/falls on its own/i)
+    expect(tetrisEn['tetris.rules.body2']).toMatch(/pause/i)
+  })
+
+  it('说明里给出的自动下落间隔都 ≥ 400ms（墨水屏刷新下限，不允许承诺更快）', () => {
+    const zhSeconds = [...(tetrisZh['tetris.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?) 秒/g)].map(
+      (match) => Number(match[1]),
+    )
+    const enSeconds = [...(tetrisEn['tetris.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?)s(?=[ ,.])/g)].map(
+      (match) => Number(match[1]),
+    )
+    expect(zhSeconds.length).toBeGreaterThanOrEqual(3)
+    expect(enSeconds.length).toBeGreaterThanOrEqual(3)
+    for (const value of [...zhSeconds, ...enSeconds]) {
+      expect(value * 1000).toBeGreaterThanOrEqual(400)
+    }
   })
 
   it('存档经 JSON 往返后仍能渲染', () => {

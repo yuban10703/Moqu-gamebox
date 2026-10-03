@@ -116,6 +116,16 @@ export interface ControlSpec {
 
 export type GameStatus = 'playing' | 'won' | 'lost'
 
+/**
+ * 自动步进的间隔下限（毫秒）—— **所有玩法都必须遵守**。
+ *
+ * 依据（真机实测，不是估计）：BOOX 面板能完成的整屏刷新约 **2 次/秒**
+ * （见 docs/refresh-adaptation.md「高频全刷为什么不是功能」，每次完整刷新 ≈500ms）。
+ * 间隔低于 400ms 时，一次重绘还没走完下一次就来了：玩家看到的不是运动，而是跳变与残影。
+ * 壳层按这个常量做兜底钳位 —— 游戏即使声明了更小的值也不会真的跑得更快。
+ */
+export const MIN_TICK_MS = 400
+
 export interface DifficultySpec {
   id: string
   labelKey: string
@@ -167,6 +177,19 @@ export interface GameDef<S, A> {
   /** 序列化为存档可承载的 JSON；必须与 decode 往返一致 */
   encode(state: S): unknown
   decode(raw: unknown): S
+  /**
+   * 自动步进间隔（毫秒）；返回 `null` = 当前不该自动步进（已结束 / 已暂停 / 其它）。
+   *
+   * 契约（对应 docs/eink-guidelines.md「允许慢速自动步进」一条）：
+   * 1. **这是声明，不是定时器**：规则层仍然纯函数、零时间引用（不得出现
+   *    setInterval / setTimeout / requestAnimationFrame / Date.now / performance.now），
+   *    定时器只存在于壳层会话（packages/ui/src/session.ts）；
+   * 2. 到点时壳层派发 `{ type: 'tick' }`，由 `reduce` 解释为「自动走一步 / 自动下落一格」；
+   * 3. 返回值必须只由 `state`（与 `difficulty`）决定，不得读时钟；低于 `MIN_TICK_MS`
+   *    的声明会被壳层钳到 `MIN_TICK_MS`；
+   * 4. 只有需要自动步进的玩法才声明它 —— 没声明的玩法行为完全不变（壳层不会起表）。
+   */
+  tickMs?(state: S, difficulty: string): number | null
 }
 
 export class IllegalActionError extends Error {

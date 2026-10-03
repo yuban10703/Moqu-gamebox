@@ -7,10 +7,19 @@
  * - 界面响应 ≠ 已保存：保存状态单独暴露（保存中 / 已保存 / 失败+重试）。
  * - 被拒绝的输入给出明确文字提示，并且**不进入动作日志**。
  * - 暂停后不接受输入；页面隐藏、离开游戏、关卡结束时强制落盘。
+ *
+ * 自动步进（贪吃蛇自动前进 / 俄罗斯方块自动下落）：
+ * - **定时器只在这里**。规则层依旧是纯函数，只多了一个普通动作 `{ type: 'tick' }`；
+ * - 间隔来自 `game.tickMs(state, difficulty)`（返回 null = 当前不该自动步进），
+ *   并统一钳到 `MIN_TICK_MS`（400ms）—— 墨水屏一次整屏刷新约 500ms，更快只会看到跳变与残影；
+ * - **玩家每次有效输入后重置计时**：否则刚按完就自动走一格，在墨水屏上像"吞输入"；
+ * - 暂停 / 结束 / 页面隐藏 / 离开对局一律停表（effect cleanup 保证不泄漏定时器）；
+ * - 到点派发的 tick 若被规则拒绝（例如局面已结束），**不弹提示、不崩**，直接安全停表。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   IllegalActionError,
+  MIN_TICK_MS,
   applyAction,
   newEnvelope,
   readHistory,
@@ -41,6 +50,15 @@ function nextSeed(): number {
 }
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
+
+/**
+ * 极矮横屏档（棋盘区已被压到不可用）下自动步进的放大系数。
+ *
+ * 为什么是 1.5 而不是停表：停表会让贪吃蛇**永远不前进**（比自动步进更不可用）；
+ * 而 1.5 倍把最慢的入门档 1050ms 拉到 1575ms、最快的挑战档 520ms 拉到 780ms ——
+ * 仍然快于"一格一次手动按键"，但玩家在 12px 的格子上也来得及看清蛇头与落点。
+ */
+export const CRAMPED_TICK_SLOWDOWN = 1.5
 
 /**
  * 壳层动作：撤销 / 重开 / 下一关 / 跳关。
@@ -83,6 +101,14 @@ export interface SessionOptions<S, A> {
    * 因此上层把旧存档里的 `history` 通过这里带进来，只有历史记录会被继承，其余进度照旧从零开始。
    */
   initialProgress?: Record<string, unknown>
+  /**
+   * 自动步进的减速系数（≥1，缺省 1）。
+   *
+   * 为什么需要：极矮横屏（实测 BOOX P6Plus 强制横屏 879×407）下棋盘区会被压到几乎为 0、
+   * 格子只剩 12px 左右。这种档位下**停表会让贪吃蛇彻底不前进**（比自动步进更不可用），
+   * 因此外壳改为把间隔放大，让玩家在看得清之前不至于被"自动"坑死。
+   */
+  tickSlowdown?: number
 }
 
 export interface SessionApi<S, A> {
@@ -116,6 +142,12 @@ export interface SessionApi<S, A> {
   levelStartRef: { current: number }
   /** 计时是否应该在跑 */
   clockActive: boolean
+  /**
+   * 实际生效的自动步进间隔（毫秒）；null = 当前没有在自动步进。
+   * 暴露出来是为了让"暂停/结束/隐藏是否真的停表"成为可断言、可在真机探针里读到的事实，
+   * 而不是靠肉眼观察棋盘。
+   */
+  autoTickMs: number | null
   dispatch(action: A): boolean
   /** 点格子：交给游戏自己映射成动作（数独/扫雷等格子玩法用）；不可点时为 undefined */
   selectCell?: (index: number) => void
@@ -172,6 +204,20 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const dirtyRef = useRef(false)
   const stateRef = useRef(state)
   stateRef.current = state
+
+  /**
+   * 自动步进的三个壳层状态：
+   * - `tickEpoch`：玩家每次有效输入 +1，作为 effect 依赖 → 定时器被清掉重建，**计时重新开始**；
+   * - `tickHalted`：tick 被规则拒绝（例如局面已结束）时置位 → 安全停表，不再空转；
+   * - `hidden`：页面隐藏（visibilitychange / pagehide）时置位 → 停表，回到前台再恢复。
+   * 三者都是"停表"的正规理由，缺一个都会出现"看不见的地方还在自己走"。
+   */
+  const [tickEpoch, setTickEpoch] = useState(0)
+  const [tickHalted, setTickHalted] = useState(false)
+  const tickHaltedRef = useRef(false)
+  const [hidden, setHidden] = useState(
+    () => typeof document !== 'undefined' && document.visibilityState === 'hidden',
+  )
 
   /**
    * 串行 + 最新覆盖的提交队列。
@@ -417,8 +463,15 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     [buildHistoryEntry, persist, progress],
   )
 
-  const dispatch = useCallback(
-    (action: A): boolean => {
+  /**
+   * 统一的动作执行路径：玩家输入与自动步进走同一条（自动步进只是 `auto = true`）。
+   *
+   * `auto` 的差别只有两处，都是为了"自动的东西不该像玩家操作"：
+   * - 被拒绝时不弹「走不通」提示（没人按任何东西，弹提示会莫名其妙）；
+   * - 被拒绝时调用方（定时器）据此安全停表，而不是继续空转。
+   */
+  const runAction = useCallback(
+    (action: A, auto: boolean): boolean => {
       if (pausedRef.current || corrupt || !ready) return false
       try {
         const current = stateRef.current
@@ -441,9 +494,23 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         if (kind === 'nextLevel' || kind === 'startLevel') {
           levelStartRef.current = elapsedRef.current
         }
+        /*
+         * 输入延迟补偿（本轮的核心行为）：玩家的**有效**输入成功后重置自动步进的计时，
+         * 保证他每次操作之后都拿到完整的一个间隔。
+         * 没有这一条，玩家刚按完转向、下一个 tick 就立刻到点，墨水瓶上看起来像"吞输入"。
+         * 被拒绝的输入不算有效输入，因此不重置（规则层的提示已经明确告诉他没生效）。
+         */
+        if (kind !== 'tick') {
+          setTickEpoch((value) => value + 1)
+          // 上一次 tick 被规则拒绝而停过表：玩家又操作了，给他一次恢复的机会
+          if (tickHaltedRef.current) {
+            tickHaltedRef.current = false
+            setTickHalted(false)
+          }
+        }
         return true
       } catch (error) {
-        if (error instanceof IllegalActionError && game.illegalNoticeKey) {
+        if (!auto && error instanceof IllegalActionError && game.illegalNoticeKey) {
           setNoticeKey(game.illegalNoticeKey)
         }
         return false
@@ -451,6 +518,9 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     },
     [game, corrupt, ready, persist, finalizeLevel, finalizeLoss],
   )
+
+  /** 玩家输入（含壳层的撤销/重开/换关）：auto = false */
+  const dispatch = useCallback((action: A): boolean => runAction(action, false), [runAction])
 
   const pause = useCallback(() => {
     pausedRef.current = true
@@ -510,19 +580,26 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     setSaveStatus('idle')
   }, [storage, game, difficulty, now, progress])
 
-  // 页面隐藏/退出时强制落盘
+  // 页面隐藏/退出时强制落盘；同时把"隐藏"这件事告诉自动步进（隐藏时必须停表）
   useEffect(() => {
+    const sync = (): void => setHidden(document.visibilityState === 'hidden')
     const onHide = (): void => {
+      sync()
       if (document.visibilityState === 'hidden' && dirtyRef.current) void flush()
     }
     const onPageHide = (): void => {
+      setHidden(true)
       if (dirtyRef.current) void flush()
     }
+    // 从后退缓存（bfcache）恢复时页面重新可见，别把表永久停掉
+    const onPageShow = (): void => sync()
     document.addEventListener('visibilitychange', onHide)
     window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [flush])
 
@@ -531,6 +608,44 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const solved = status === 'won'
 
   const finished = status !== 'playing'
+
+  /**
+   * 自动步进：间隔由游戏声明，壳层只负责"什么时候该走"。
+   *
+   * 注意 `game.tickMs` 只在**确实该走**的时候才问游戏：
+   * 暂停 / 结束 / 存档损坏 / 页面隐藏 / 已经停过表，一律不启用定时器（连问都不问）。
+   */
+  const slowdown = options.tickSlowdown && options.tickSlowdown > 1 ? options.tickSlowdown : 1
+  const declaredTickMs =
+    ready && !corrupt && !paused && !finished && !hidden && !tickHalted
+      ? (game.tickMs?.(state, difficulty) ?? null)
+      : null
+  /**
+   * 钳位：任何玩法声明的间隔都不得低于 MIN_TICK_MS（400ms）——
+   * 墨水屏一次整屏刷新约 500ms，更快只会看到跳变与残影（见 core/types.ts 的 MIN_TICK_MS）。
+   */
+  const autoTickMs =
+    declaredTickMs === null ? null : Math.max(MIN_TICK_MS, Math.round(declaredTickMs * slowdown))
+
+  // 定时器回调里读最新的 runAction（否则每次 state 变化都要重建定时器，节奏会被打乱）
+  const runActionRef = useRef(runAction)
+  runActionRef.current = runAction
+
+  useEffect(() => {
+    if (autoTickMs === null) return
+    const timer = setInterval(() => {
+      const ok = runActionRef.current({ type: 'tick' } as unknown as A, true)
+      if (!ok) {
+        // 规则层拒绝了这一步（例如局面刚好结束）：**不崩、不弹提示**，直接安全停表
+        clearInterval(timer)
+        tickHaltedRef.current = true
+        setTickHalted(true)
+      }
+    }, autoTickMs)
+    // cleanup 覆盖三条路径：暂停/结束/隐藏导致 autoTickMs 变化、输入导致 tickEpoch 变化、离开对局卸载组件
+    return () => clearInterval(timer)
+  }, [autoTickMs, tickEpoch, difficulty, game.id])
+
   const view = useMemo<GameView>(() => {
     if (!ready || corrupt) return { board: null, stats: [], result: null, notice: null }
     const base = game.view(state)
@@ -555,6 +670,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     elapsedRef,
     levelStartRef,
     clockActive: ready && !paused && !finished && !corrupt,
+    autoTickMs,
     dispatch,
     // 只有声明了 selectAction 的游戏才把点格子接进来，其余游戏点击格子的行为完全不变
     ...(game.selectAction

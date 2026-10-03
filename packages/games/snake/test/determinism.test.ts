@@ -20,7 +20,7 @@ import {
   type SnakeState,
 } from '../src/rules.js'
 import { DIFFICULTIES, DIFFICULTY_IDS, type DifficultyId } from '../src/meta.js'
-import { SEED } from './helpers.js'
+import { SEED, tick, turnAndTick } from './helpers.js'
 
 /** 用固定 rng 走出的一串合法动作（含撤销与重开），用于重放比对 */
 function randomTranscript(difficulty: DifficultyId, seed: number, steps: number): {
@@ -52,13 +52,15 @@ describe('同种子可复现', () => {
     )
   })
 
-  it.each(DIFFICULTY_IDS)('%s：同一动作序列重放得到同一局面', (difficulty) => {
+  it.each(DIFFICULTY_IDS)('%s：同一「转向 + 自动前进」序列重放得到同一局面', (difficulty) => {
+    // 这一条正是自动步进的核心口径：定时器只是「什么时候派发 tick」，
+    // 局面完全由「转向 + tick」这条动作序列决定，与真实耗时无关。
     const sequence: Array<'up' | 'down' | 'left' | 'right'> = ['down', 'right', 'down', 'right']
     const play = (): SnakeState => {
       let state = createState(SEED, difficulty)
       for (const dir of sequence) {
         try {
-          state = reduceState(state, { type: 'move', dir })
+          state = turnAndTick(state, dir)
         } catch {
           // 某个方向恰好是原地掉头：跳过，序列本身仍然完全一致
         }
@@ -69,9 +71,20 @@ describe('同种子可复现', () => {
     expect(encodeState(play())).toEqual(encodeState(play()))
   })
 
-  it.each(DIFFICULTY_IDS)('%s：≥100 步随机合法动作后重放结果一致', (difficulty) => {
-    const first = randomTranscript(difficulty, 424242, 120)
-    expect(first.actions.length).toBeGreaterThanOrEqual(100)
+  it.each(DIFFICULTY_IDS)('%s：纯 tick 序列（玩家完全不操作）同样可复现', (difficulty) => {
+    const play = (): SnakeState => {
+      let state = createState(SEED, difficulty)
+      for (let step = 0; step < 20 && gameStatus(state) === 'playing'; step++) state = tick(state)
+      return state
+    }
+    expect(play()).toEqual(play())
+    expect(encodeState(play())).toEqual(encodeState(play()))
+  })
+
+  it.each(DIFFICULTY_IDS)('%s：随机合法动作（含 tick / 撤销 / 重开）重放结果一致', (difficulty) => {
+    // 自动步进让"随机走 120 步"很容易提前结束（撞墙 / 撞自己），因此只要求序列足够长即可
+    const first = randomTranscript(difficulty, 424242, 400)
+    expect(first.actions.length).toBeGreaterThanOrEqual(20)
     let replay = createState(SEED, difficulty)
     for (const action of first.actions) replay = reduceState(replay, action)
     expect(replay).toEqual(first.final)
@@ -103,23 +116,25 @@ describe('同种子可复现', () => {
 
   it('撤销后重走同一步得到同一局面（撤销把游标也退回去了）', () => {
     const start = createState(SEED, 'skilled')
-    const dir = legalActions(start).find((action) => action.type === 'move')
-    expect(dir).toBeDefined()
-    const once = reduceState(start, dir!)
+    const action = legalActions(start).find((candidate) => candidate.type === 'turn')
+    expect(action).toBeDefined()
+    // 一次「玩家操作」= 转向 + 随后的一格自动前进；撤销整段退回，再走一遍结果相同
+    const once = reduceState(reduceState(start, action!), { type: 'tick' })
     const undone = reduceState(once, { type: 'undo' })
     expect(undone).toEqual(start)
-    expect(reduceState(undone, dir!)).toEqual(once)
+    const again = reduceState(reduceState(undone, action!), { type: 'tick' })
+    expect(again).toEqual(once)
   })
 
   it('读档后的局面与原局面走出同样的后续（存档不引入新的随机源）', () => {
     const start = createState(SEED, 'challenging')
-    const moved = reduceState(start, { type: 'move', dir: 'down' })
+    const moved = turnAndTick(start, 'down')
     const restored = decodeState(JSON.parse(JSON.stringify(encodeState(moved))))
     let a = moved
     let b = restored
     for (const dir of ['right', 'down', 'down', 'left'] as const) {
-      a = reduceState(a, { type: 'move', dir })
-      b = reduceState(b, { type: 'move', dir })
+      a = turnAndTick(a, dir)
+      b = turnAndTick(b, dir)
     }
     expect(b).toEqual(a)
   })
@@ -134,10 +149,9 @@ describe('同种子可复现', () => {
     const run = (): number[] => {
       let state = createState(SEED, 'starter')
       const scores = [state.score]
+      // 入门档可以穿墙：一直自动前进永远撞不死，正好用来比对分数轨迹
       for (let step = 0; step < 40 && gameStatus(state) === 'playing'; step++) {
-        const action = legalActions(state).find((candidate) => candidate.type === 'move')
-        if (!action) break
-        state = reduceState(state, action)
+        state = tick(state)
         scores.push(state.score)
       }
       return scores

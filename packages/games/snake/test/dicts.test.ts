@@ -12,12 +12,11 @@ import {
   createState,
   decodeState,
   encodeState,
-  reduceState,
   type SnakeState,
 } from '../src/rules.js'
 import { difficultySpec } from '../src/meta.js'
 import { CELL_LABEL_KEYS, buildControls, buildView } from '../src/view.js'
-import { SEED, hamiltonianCycle, stateWith } from './helpers.js'
+import { SEED, hamiltonianCycle, stateWith, tick, turn } from './helpers.js'
 
 const SIZE = 12
 
@@ -27,11 +26,10 @@ const i18nZh = createI18n('zh-CN', { 'zh-CN': zh, 'en-US': en })
 const i18nEn = createI18n('en-US', { 'zh-CN': zh, 'en-US': en })
 
 function sampleStates(): SnakeState[] {
-  const moved = reduceState(createState(SEED, 'challenging'), { type: 'move', dir: 'down' })
-  const dead = reduceState(stateWith('skilled', { body: [5, 6, 7], food: 100 }), {
-    type: 'move',
-    dir: 'up',
-  })
+  // 转向之后（缓冲里还有方向）的状态也要覆盖：它带着 "下一格向上" 的提示文案
+  const turned = turn(createState(SEED, 'challenging'), 'down')
+  const moved = tick(turned)
+  const dead = tick(turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up'))
   const score = (SIZE * SIZE - INITIAL_LENGTH) / difficultySpec('skilled').growth
   const won = stateWith('skilled', {
     body: hamiltonianCycle(SIZE),
@@ -39,7 +37,7 @@ function sampleStates(): SnakeState[] {
     score,
     cursor: 1 + score,
   })
-  return [createState(SEED, 'starter'), createState(SEED, 'skilled'), moved, dead, won]
+  return [createState(SEED, 'starter'), createState(SEED, 'skilled'), turned, moved, dead, won]
 }
 
 describe('中英字典对齐', () => {
@@ -101,6 +99,22 @@ describe('中英字典对齐', () => {
     expect(i18nEn.missingKeys()).toEqual([])
   })
 
+  it('玩法说明如实写明「会自动前进」与「怎么暂停」，间隔不低于 400ms 下限', () => {
+    expect(snakeZh['snake.rules.body']).toContain('自己往前爬')
+    expect(snakeZh['snake.rules.body2']).toContain('暂停')
+    expect(snakeEn['snake.rules.body']).toMatch(/crawls on its own/i)
+    expect(snakeEn['snake.rules.body2']).toMatch(/pause/i)
+    const zhSeconds = [...(snakeZh['snake.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?) 秒/g)].map(
+      (match) => Number(match[1]),
+    )
+    const enSeconds = [...(snakeEn['snake.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?)s(?=[ ,.])/g)].map(
+      (match) => Number(match[1]),
+    )
+    expect(zhSeconds.length).toBeGreaterThanOrEqual(3)
+    expect(enSeconds.length).toBeGreaterThanOrEqual(3)
+    for (const value of [...zhSeconds, ...enSeconds]) expect(value * 1000).toBeGreaterThanOrEqual(400)
+  })
+
   it('难度 id 与其它游戏一致（壳层 prop 直接传 id），labelKey 落在本命名空间', () => {
     expect(snakeGame.difficulties.map((spec) => spec.id)).toEqual([
       'starter',
@@ -126,6 +140,8 @@ describe('游戏产出的每个 key 都能取到文案', () => {
         ...view.stats.map((stat) => stat.labelKey),
         ...controls.map((control) => control.labelKey),
         ...(view.result ? [view.result.titleKey] : []),
+        // 转向缓冲的文字确认（snake.turn.<dir>）也必须中英都能取到
+        ...(view.notice ? [view.notice.textKey] : []),
         ...(view.result?.details ?? []).map((detail) => `${detail.key}__other`),
       ]
       for (const key of keys) {

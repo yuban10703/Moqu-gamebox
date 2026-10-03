@@ -1,23 +1,27 @@
 /**
  * 规则层测试。重点覆盖验收点名的边界：
- *   - 确定性：同 seed + 同动作序列 → 完全同状态（7-bag 出块序列由 seed 复算，不碰 Math.random）；
- *   - 离散步进：唯一的下落来源是「落」这个动作，规则层里没有任何定时器；
+ *   - 确定性：同 seed + 同「玩家输入 + tick」序列 → 完全同状态（7-bag 出块序列由 seed 复算，不碰 Math.random）；
+ *   - 自动下落：tick 是普通动作，规则层里没有任何定时器（间隔由壳层按 tickMs 驱动）；
  *   - 固化 / 消行 / 计分 / 等级；
  *   - 胜负：堆到顶部即 lost，且除撤销/重开外一律拒绝；
  *   - 撤销：逆操作回退（棋盘、当前块、出块游标、分数、消行全部一致回退），无历史时抛错；
+ *     自动下落（tick）**不占撤销层级**：一次撤销退回玩家上一次操作之前；
  *   - 存档：encode/decode 严格往返，坏数据一律拒绝，缺 history 按空栈。
  */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { IllegalActionError, createRng, type MoveDir, type Rng } from '@eink/core'
+import { IllegalActionError, MIN_TICK_MS, createRng, type MoveDir, type Rng } from '@eink/core'
 import { ALL_PIECES, cellsOf, type PieceId } from '../src/pieces.js'
 import {
   CELL_FILLED,
   DIFFICULTIES,
   LINE_SCORES,
   LINES_PER_LEVEL,
+  MAX_HISTORY_ENTRIES,
   MAX_LINE_CLEAR,
   bagAt,
+  canUndo,
+  isAutoEntry,
   cellIndex,
   createState,
   decodeState,
@@ -161,13 +165,31 @@ describe('出块序列（7-bag，只由 seed 决定）', () => {
     }
   })
 
-  it('源码里没有定时器与 Math.random / Date.now（墨水屏不能有自动下落）', () => {
+  it('源码里没有定时器与 Math.random / Date.now（自动下落由壳层按 tickMs 驱动）', () => {
     for (const name of ['rules.ts', 'view.ts', 'index.ts', 'pieces.ts']) {
       const text = readFileSync(new URL(`../src/${name}`, import.meta.url), 'utf8')
       const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
-      expect(code, name).not.toMatch(/setInterval|setTimeout|requestAnimationFrame/)
+      expect(code, name).not.toMatch(/setInterval|setTimeout|requestAnimationFrame|performance\.now/)
       expect(code, name).not.toMatch(/Math\.random|Date\.now/)
     }
+  })
+
+  it('tickMs 是纯函数声明：同局面同间隔、不低于 400ms 硬下限、堆到顶返回 null', () => {
+    for (const spec of DIFFICULTIES) {
+      const state = createState(20261004, spec.id)
+      expect(tetrisGame.tickMs!(state, spec.id)).toBe(spec.tickMs)
+      expect(spec.tickMs).toBeGreaterThanOrEqual(MIN_TICK_MS)
+      // 纯函数：只由 state 决定
+      expect(tetrisGame.tickMs!(state, spec.id)).toBe(tetrisGame.tickMs!(state, spec.id))
+    }
+    // 越难越快，但都快不过刷新下限
+    const speeds = DIFFICULTIES.map((spec) => spec.tickMs)
+    expect(speeds).toEqual([...speeds].sort((a, b) => b - a))
+    // 堆到顶（块放不下）之后返回 null —— 壳层据此停表
+    const board = emptyBoard(COLS, ROWS).fill(CELL_FILLED)
+    const lost = manual(board, spawnPiece('O', COLS))
+    expect(statusOf(lost)).toBe('lost')
+    expect(tetrisGame.tickMs!(lost, 'starter')).toBeNull()
   })
 })
 
@@ -458,6 +480,77 @@ describe('堆到顶部即失败', () => {
   })
 })
 
+describe('自动下落（tick）', () => {
+  /** 连续自动下落 n 格 */
+  function ticks(state: TetrisState, count: number): TetrisState {
+    let next = state
+    for (let step = 0; step < count; step++) next = reduceState(next, { type: 'tick' })
+    return next
+  }
+
+  it('一次 tick 下落一格：形状 / 列 / 旋转都不变，棋盘也不变', () => {
+    const state = createState(20261004, 'starter')
+    const down = reduceState(state, { type: 'tick' })
+    expect(down.piece).toEqual({ ...state.piece, row: state.piece.row + 1 })
+    expect(down.board).toEqual(state.board)
+    expect(down.pieces).toBe(0)
+    expect(down.history).toHaveLength(1)
+    expect(isAutoEntry(down.history[0]!)).toBe(true)
+  })
+
+  it('落到底不会当帧固化：先停在堆上一格，下一次 tick 才固化并出新块', () => {
+    let state = manual(emptyBoard(COLS, ROWS), { id: 'O', row: 0, col: 4, rot: 0 })
+    state = ticks(state, ROWS - 2) // O 块占两行，最高只能落到第 ROWS-2 行
+    expect(state.piece.row).toBe(ROWS - 2)
+    expect(state.pieces).toBe(0)
+    expect(statusOf(state)).toBe('playing')
+    // 这一格就是墨水屏上的"锁定缓冲"：玩家还有整个间隔可以平移/旋转
+    const shifted = reduceState(state, { type: 'move', dir: 'left' })
+    expect(shifted.piece.col).toBe(3)
+    // 再一个 tick 才固化
+    const locked = reduceState(shifted, { type: 'tick' })
+    expect(locked.pieces).toBe(1)
+    expect(locked.board.filter((cell) => cell === CELL_FILLED)).toHaveLength(4)
+    expect(locked.piece.id).toBe(pieceAt(locked.seed, 1))
+  })
+
+  it('自动下落到底并固化（含消行）与手动「落」的结果完全一致', () => {
+    const board = emptyBoard(COLS, ROWS)
+    for (let col = 0; col < COLS; col++) {
+      if (col !== 4 && col !== 5) board[cellIndex(COLS, ROWS - 1, col)] = CELL_FILLED
+    }
+    const state = manual(board, { id: 'O', row: ROWS - 4, col: 4, rot: 0 }, { score: 0, lines: 0 })
+    const byTick = ticks(state, 5)
+    let byHand = state
+    for (let step = 0; step < 5; step++) byHand = reduceState(byHand, { type: 'move', dir: 'down' })
+    expect(byTick.board).toEqual(byHand.board)
+    expect(byTick.piece).toEqual(byHand.piece)
+    expect(byTick.cursor).toBe(byHand.cursor)
+    expect(byTick.lines).toBe(byHand.lines)
+    expect(byTick.score).toBe(byHand.score)
+    // 只有撤销记录里的 auto 标记不同
+    expect(isAutoEntry(byTick.history[4]!)).toBe(true)
+    expect(isAutoEntry(byHand.history[4]!)).toBe(false)
+  })
+
+  it('已经堆到顶之后 tick 抛错（壳层据此安全停表）', () => {
+    const lost = manual(emptyBoard(COLS, ROWS).fill(CELL_FILLED), spawnPiece('O', COLS))
+    expect(statusOf(lost)).toBe('lost')
+    expect(() => reduceState(lost, { type: 'tick' })).toThrow(IllegalActionError)
+    expect(isLegal(lost, { type: 'tick' })).toBe(false)
+  })
+
+  it('tick 也在 legal 里（回放校验需要它），且不动撤销按钮的可用性', () => {
+    const state = createState(20261004, 'starter')
+    expect(legalActions(state).some((action) => action.type === 'tick')).toBe(true)
+    const fallen = ticks(state, 3)
+    expect(fallen.history).toHaveLength(3)
+    // 玩家一步都没走过：撤销按钮不该亮着（自动下落不是玩家操作）
+    expect(canUndo(fallen)).toBe(false)
+    expect(legalActions(fallen).some((action) => action.type === 'undo')).toBe(false)
+  })
+})
+
 describe('撤销（逆操作，不存整盘快照）', () => {
   it('没有可撤销的动作时抛错', () => {
     const state = createState(20261004, 'starter')
@@ -523,6 +616,53 @@ describe('撤销（逆操作，不存整盘快照）', () => {
       expect(state).toEqual(snapshots[index - 1]!)
     }
     expect(state).toEqual(initial)
+  })
+
+  it('自动下落不占撤销层级：一次撤销退回玩家上一次操作之前（不是半格）', () => {
+    const start = createState(20261004, 'starter')
+    const shifted = reduceState(start, { type: 'move', dir: 'left' }) // 玩家操作
+    let fallen = shifted
+    for (let step = 0; step < 5; step++) fallen = reduceState(fallen, { type: 'tick' })
+    expect(fallen.piece.row).toBe(shifted.piece.row + 5)
+    const back = reduceState(fallen, { type: 'undo' })
+    expect(back).toEqual(start)
+    expect(back.piece).toEqual(start.piece)
+  })
+
+  it('自动落到底并固化之后撤销：棋盘、游标、已固化块数整段还原', () => {
+    const start = createState(20261004, 'starter')
+    const shifted = reduceState(start, { type: 'move', dir: 'left' })
+    let fallen = shifted
+    while (fallen.pieces === 0) fallen = reduceState(fallen, { type: 'tick' })
+    expect(fallen.pieces).toBe(1)
+    const back = reduceState(fallen, { type: 'undo' })
+    expect(back).toEqual(start)
+    expect(back.board).toEqual(start.board)
+    expect(back.cursor).toBe(start.cursor)
+  })
+
+  it('撤销栈封顶：超过上限时裁掉最旧的一段，并且裁到一条玩家操作上', () => {
+    const base = createState(20261004, 'starter')
+    const autoEntry = (): { kind: 'piece'; piece: ActivePiece; auto: true } => ({
+      kind: 'piece',
+      piece: base.piece,
+      auto: true,
+    })
+    // 玩家操作放在中间：裁剪必须停在它上面（否则最老的一次撤销会变成"退回半格"）
+    const playerIndex = 5
+    const history = Array.from({ length: MAX_HISTORY_ENTRIES }, (_, index) =>
+      index === playerIndex
+        ? ({ kind: 'piece', piece: base.piece } as const)
+        : autoEntry(),
+    )
+    const stuffed: TetrisState = { ...base, history }
+    const after = reduceState(stuffed, { type: 'move', dir: 'left' })
+    expect(after.history.length).toBeLessThanOrEqual(MAX_HISTORY_ENTRIES)
+    expect(isAutoEntry(after.history[0]!)).toBe(false)
+    expect(after.history[0]).toEqual(history[playerIndex])
+    // 裁剪过的局面照样能存档往返（自动记录带 auto 标记）
+    const restored = decodeState(JSON.parse(JSON.stringify(encodeState(after))))
+    expect(restored).toEqual(after)
   })
 
   it('重开会清空撤销历史（不能撤销回重开之前）', () => {

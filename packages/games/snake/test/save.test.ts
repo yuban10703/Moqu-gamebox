@@ -10,6 +10,7 @@ import { IllegalActionError, createRng } from '@eink/core'
 import {
   INITIAL_LENGTH,
   NO_FOOD,
+  canUndo,
   createState,
   decodeState,
   encodeState,
@@ -20,7 +21,7 @@ import {
   type SnakeState,
 } from '../src/rules.js'
 import { DIFFICULTY_IDS, difficultySpec } from '../src/meta.js'
-import { SEED, hamiltonianCycle } from './helpers.js'
+import { SEED, hamiltonianCycle, stateWith, tick, turn } from './helpers.js'
 
 const SIZE = 12
 
@@ -61,9 +62,8 @@ describe('存档往返', () => {
   })
 
   it('撞死之后的状态照样能存能读（dead 与撤销栈一起进存档）', () => {
-    const alive = createState(SEED, 'skilled')
-    let dead = alive
-    while (gameStatus(dead) === 'playing') dead = reduceState(dead, { type: 'move', dir: 'up' })
+    const alive = stateWith('skilled', { body: [5, 6, 7], food: 100 })
+    const dead = tick(turn(alive, 'up')) // 朝上自动走一格即撞墙
     expect(gameStatus(dead)).toBe('lost')
     const restored = roundTrip(dead)
     expect(restored).toEqual(dead)
@@ -98,6 +98,30 @@ describe('缺字段的存档（旧档兼容）', () => {
     // 即使步数不为 0 也照样能读（撤销栈只是「没有」，不是「不一致」）
     const moved = { ...withoutHistory, moves: 3 }
     expect(decodeState(moved).moves).toBe(3)
+  })
+
+  it('pendingDir / trimmed 缺失时按「无缓冲、未裁剪」处理（老存档不判损坏）', () => {
+    const raw = encoded(createState(SEED, 'skilled'))
+    const legacy = { ...raw, pendingDir: undefined, trimmed: undefined }
+    const restored = decodeState(legacy)
+    expect(restored.pendingDir).toBeNull()
+    expect(restored.trimmed).toBe(false)
+    expect(restored).toEqual(createState(SEED, 'skilled'))
+  })
+
+  it('老存档里的撤销记录没有 auto 字段 → 一律当成玩家操作（撤销语义与旧版一致）', () => {
+    const raw = encoded(createState(SEED, 'skilled'))
+    const legacy = {
+      ...raw,
+      moves: 1,
+      body: [...raw.body],
+      history: [
+        { kind: 'step', tail: 76, food: raw.food, cursor: raw.cursor, score: 0, pending: 0, moves: 0 },
+      ],
+    }
+    const restored = decodeState(legacy)
+    expect(restored.history[0]!.kind === 'step' && restored.history[0]!.auto).toBeFalsy()
+    expect(canUndo(restored)).toBe(true)
   })
 })
 
@@ -141,6 +165,28 @@ describe('损坏的存档必须被拒绝', () => {
       { ...base(), moves: 1, history: [{ kind: 'step', tail: null, food: 1, cursor: -1, score: 0, pending: 0, moves: 0 }] },
     ],
     ['dead 与撤销栈末条不一致', { ...base(), dead: true }],
+    ['缓冲方向不是合法方向', { ...base(), pendingDir: 'sideways' }],
+    [
+      '缓冲方向是当前朝向的掉头（下一个 tick 必撞脖子）',
+      { ...base(), pendingDir: 'left' },
+    ],
+    [
+      'auto 标记不是布尔',
+      { ...base(), moves: 1, history: [{ kind: 'death', moves: 0, auto: 'yes' }] },
+    ],
+    ['trimmed 标记不是布尔', { ...base(), trimmed: 'yes' }],
+    [
+      '撤销栈里非转向记录多于步数',
+      {
+        ...base(),
+        moves: 1,
+        history: [
+          { kind: 'step', tail: null, food: base().food, cursor: base().cursor, score: 0, pending: 0, moves: 0 },
+          { kind: 'step', tail: null, food: base().food, cursor: base().cursor, score: 0, pending: 0, moves: 1 },
+          { kind: 'turn', pendingDir: 'up', moves: 2 },
+        ],
+      },
+    ],
     [
       '末条是 death 但 dead 为假',
       {
