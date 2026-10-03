@@ -79,6 +79,16 @@ export function reduceWithLevel(
   state: SokobanState,
   action: SokobanAction,
 ): SokobanState {
+  /*
+   * 自由选关：详情页点任意关卡即从这里开局。
+   * 难度由**关卡自己**决定（关卡包里带着 def.difficulty），因此壳层不需要知道难度。
+   * 未知 id（例如旧存档里的关卡）保持原状而不是抛错，避免详情页点一下就白屏。
+   */
+  if (action.type === 'startLevel') {
+    const target = PACK.find((item) => item.def.id === action.levelId)
+    if (!target) return state
+    return { difficulty: target.def.difficulty, levelId: target.def.id, log: [] }
+  }
   const level = levelOrThrow(levelId)
   return reduceOnLevel(level.parsed, state, action, nextLevelId(levelId))
 }

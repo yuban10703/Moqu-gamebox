@@ -1293,3 +1293,25 @@ html[data-bold-lines='on'] .eink-board {
 .eink-screen--game .eink-statusstrip .eink-notice {
   padding: 2px 8px;
 }
+
+/*
+ * 关卡行里的选择按钮：铺满整行、沿用行内排版，去掉浏览器默认按钮外观。
+ * 做成真正的 <button> 是为了让墨水屏设备能用硬件键/焦点遍历选关。
+ */
+.eink-levels__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: var(--ink-white);
+  border: 0;
+  cursor: pointer;
+}
+
+.eink-levels__pick:disabled {
+  cursor: default;
+}

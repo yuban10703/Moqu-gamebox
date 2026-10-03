@@ -22,6 +22,8 @@ export type SokobanAction =
   | { type: 'undo' }
   | { type: 'restart' }
   | { type: 'nextLevel' }
+  /** 自由选关：直接跳到指定关卡（详情页点关卡用） */
+  | { type: 'startLevel'; levelId: string }
 
 export interface SokobanState {
   difficulty: DifficultyId

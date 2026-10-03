@@ -26,6 +26,10 @@ type Screen =
       gameId: string
       difficulty: string
       nonce: number
+      /** 自由选关：进入对局后直接跳到该关（详情页点关卡） */
+
+      startLevelId?: string
+
       /**
        * 新开局时从旧存档继承过来的进度（目前只有历史记录）。
        * 「开始新游戏」会先删掉旧存档，若不显式带过去，历史战绩就会跟着局面一起消失。
@@ -160,7 +164,11 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
   const entry = (gameId: string): GameRegistryEntry<unknown, unknown> | undefined =>
     library.entries.find((candidate) => candidate.game.id === gameId)
 
-  const startNew = async (gameId: string, difficulty: string): Promise<void> => {
+  /**
+   * 开局。`levelId` 有值表示「自由选关」：直接以该关开始（详情页点关卡）。
+   * 历史记录照旧继承；old 存档照旧先删（调用方负责先确认「替换并开始」）。
+   */
+  const startNew = async (gameId: string, difficulty: string, levelId?: string): Promise<void> => {
     // 删档前先取出历史记录：它是跨局战绩，不该被「开始新游戏」清掉
     const history = readHistory(saves[gameId]?.progress?.history)
     await platform.storage.saves.remove(gameId)
@@ -172,6 +180,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
       difficulty,
       nonce: nonceRef.current,
       ...(history.length > 0 ? { carryProgress: { history } } : {}),
+      ...(levelId ? { startLevelId: levelId } : {}),
     })
   }
 
@@ -227,6 +236,8 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
             onBack={goBack}
             onResume={() => resume(screen.gameId)}
             onStartNew={(difficulty) => void startNew(screen.gameId, difficulty)}
+            // 「替换并开始」的确认在详情页内部完成（它已经有一整套），这里只负责开局
+            onStartLevel={(levelId, difficulty) => void startNew(screen.gameId, difficulty, levelId)}
           />
         )
       }
@@ -239,6 +250,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
             entry={target}
             difficulty={screen.difficulty}
             {...(screen.carryProgress ? { initialProgress: screen.carryProgress } : {})}
+            {...(screen.startLevelId ? { startLevelId: screen.startLevelId } : {})}
             onBack={goBack}
             // 「返回游戏库」字面意思就是回库：原先与顶栏返回共用 goBack，
             // 点下去其实只到详情页，文案与行为不符（探索式测试发现）

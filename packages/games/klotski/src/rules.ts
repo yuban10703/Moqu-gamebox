@@ -40,6 +40,8 @@ export type KlotskiAction =
   | { type: 'undo' }
   /** 重开：回到本关初始摆法。壳层会无条件派发，必须接受 */
   | { type: 'restart' }
+  /** 自由选关：直接跳到指定关卡（详情页点关卡用）。未知 id 保持原状，不抛错 */
+  | { type: 'startLevel'; levelId: string }
 
 export interface Slide {
   readonly id: string
@@ -135,6 +137,13 @@ export function reduceKlotski(state: KlotskiState, action: KlotskiAction): Klots
       }
     }
 
+    case 'startLevel': {
+      try {
+        return createState(action.levelId)
+      } catch {
+        return state
+      }
+    }
     case 'restart':
       // 回到本关初始摆法（过关后也必须可用）
       return createState(state.levelId)

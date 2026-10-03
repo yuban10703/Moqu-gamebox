@@ -107,6 +107,8 @@ export interface SessionApi<S, A> {
   undo(): void
   restart(): void
   nextLevel(): void
+  /** 自由选关：直接跳到指定关卡（详情页点关卡） */
+  startLevel(levelId: string): void
   pause(): void
   resume(): void
   retrySave(): void
@@ -409,7 +411,9 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         } else {
           persist(next, { force: false })
         }
-        if (action && typeof action === 'object' && (action as { type?: string }).type === 'nextLevel') {
+        const kind = action && typeof action === 'object' ? (action as { type?: string }).type : undefined
+        // 换关（下一关 / 自由选关）都要重置本关计时起点，否则用时会把上一关的算进来
+        if (kind === 'nextLevel' || kind === 'startLevel') {
           levelStartRef.current = elapsedRef.current
         }
         return true
@@ -542,6 +546,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     undo: () => dispatch({ type: 'undo' } as unknown as A),
     restart: () => dispatch({ type: 'restart' } as unknown as A),
     nextLevel: () => dispatch({ type: 'nextLevel' } as unknown as A),
+    startLevel: (levelId: string) => dispatch({ type: 'startLevel', levelId } as unknown as A),
     pause,
     resume,
     retrySave,

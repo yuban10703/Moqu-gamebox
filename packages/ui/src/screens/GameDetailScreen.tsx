@@ -39,6 +39,8 @@ export interface GameDetailScreenProps {
   onBack: () => void
   onResume: () => void
   onStartNew: (difficulty: string) => void
+  /** 自由选关：点某一关直接以该关开局（所有关卡都可选，不做解锁限制） */
+  onStartLevel?: (levelId: string, difficulty: string) => void
 }
 
 export function GameDetailScreen({
@@ -48,6 +50,7 @@ export function GameDetailScreen({
   onBack,
   onResume,
   onStartNew,
+  onStartLevel,
 }: GameDetailScreenProps): ReactNode {
   const { i18n, settings, updateGameSettings, viewport, layoutConfig } = useUi()
   const layout = computeRootLayout(viewport, layoutConfig, { showDpad: false })
@@ -58,6 +61,8 @@ export function GameDetailScreen({
       (envelope?.difficulty ?? entry.defaultDifficulty),
   )
   const [confirmReplace, setConfirmReplace] = useState(false)
+  /** 自由选关时待确认的目标关卡（有存档时先确认「替换并开始」，绝不静默丢局） */
+  const [pendingLevel, setPendingLevel] = useState<{ id: string; difficulty: string } | null>(null)
   const [page, setPage] = useState(0)
   /**
    * 每页关卡数：**按可用空间实测得出**，而不是写死。
@@ -127,6 +132,21 @@ export function GameDetailScreen({
   const start = (): void => {
     void updateGameSettings(entry.game.id, { difficulty })
     onStartNew(difficulty)
+  }
+
+  /**
+   * 自由选关：点任意关卡即以该关开局（所有关卡都可选，不做解锁限制）。
+   * 已有进行中的局面时先走同一个「替换并开始」确认 —— 与「开始新游戏」保持一致的丢局保护。
+   */
+  const pickLevel = (levelId: string): void => {
+    if (!onStartLevel) return
+    void updateGameSettings(entry.game.id, { difficulty })
+    if (hasSave) {
+      setPendingLevel({ id: levelId, difficulty })
+      setConfirmReplace(true)
+      return
+    }
+    onStartLevel(levelId, difficulty)
   }
 
   /*
@@ -241,6 +261,16 @@ export function GameDetailScreen({
                     data-done={done ? 'yes' : 'no'}
                     data-current={isCurrent ? 'yes' : 'no'}
                   >
+                    {/*
+                      整行是一个真正的 <button>：墨水屏设备要靠硬件键/焦点遍历，
+                      所以必须是可聚焦元素，而不是给 <li> 绑 onClick。
+                    */}
+                    <button
+                      type="button"
+                      className="eink-levels__pick"
+                      disabled={!onStartLevel}
+                      onClick={() => pickLevel(level.id)}
+                    >
                     <span className="eink-levels__index">{index + 1}</span>
                     <span className="eink-levels__state" aria-hidden="true">
                       {done ? '◼' : isCurrent ? '▲' : '□'}
@@ -253,6 +283,7 @@ export function GameDetailScreen({
                           : i18n.t(`${entry.game.i18nNamespace}.progress.notSolved`)}
                       {best !== undefined ? ` · ${i18n.t('shell.common.moves')} ${best}` : ''}
                     </span>
+                    </button>
                   </li>
                 )
               })}
@@ -334,9 +365,15 @@ export function GameDetailScreen({
           danger
           onConfirm={() => {
             setConfirmReplace(false)
-            start()
+            const target = pendingLevel
+            setPendingLevel(null)
+            if (target) onStartLevel?.(target.id, target.difficulty)
+            else start()
           }}
-          onCancel={() => setConfirmReplace(false)}
+          onCancel={() => {
+            setConfirmReplace(false)
+            setPendingLevel(null)
+          }}
         />
       ) : null}
     </div>

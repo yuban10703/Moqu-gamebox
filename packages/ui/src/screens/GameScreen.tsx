@@ -4,7 +4,7 @@
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, useEffect } from 'react'
 import {
   BOARD_FRAME_PX,
   computeBoardLayout,
@@ -39,6 +39,8 @@ export interface GameScreenProps {
   onCommitted: (envelope: SaveEnvelope) => void
   /** 新开局时从旧存档继承的进度（目前只有历史记录） */
   initialProgress?: Record<string, unknown>
+  /** 自由选关：进入对局后直接跳到该关（详情页点关卡传入） */
+  startLevelId?: string
 }
 
 
@@ -49,6 +51,7 @@ export function GameScreen({
   onExit,
   onCommitted,
   initialProgress,
+  startLevelId,
 }: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig, updateSettings } = useUi()
   const session = useSession({
@@ -181,6 +184,27 @@ export function GameScreen({
   const onBoardPointerCancel = (): void => {
     swipeStart.current = null
   }
+
+  /**
+   * 自由选关：进入对局后跳到指定关卡。
+   *
+   * 为什么放在"就绪之后"：新建会话会先加载存档（或新造一局，从第一关开始），
+   * 必须等它 ready 再派发，否则会被随后的加载覆盖掉。
+   * 只派发一次（依赖里带 startLevelId 与 ready），重复渲染不会反复跳。
+   */
+  const jumpedLevelRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!startLevelId || !session.ready || session.corrupt) return
+    /*
+     * 只跳一次（按关卡 id 记名）。
+     * 起因：session.startLevel 每次渲染都是**新函数**，若只用依赖数组约束，
+     * 每走一步都会重渲染 → effect 重跑 → 又跳回该关初始局面，
+     * 表现就是"标题对但怎么点都不动"（实测踩到过）。
+     */
+    if (jumpedLevelRef.current === startLevelId) return
+    jumpedLevelRef.current = startLevelId
+    session.startLevel(startLevelId)
+  }, [startLevelId, session.ready, session.corrupt, session.startLevel])
 
   useKeyboardControls({
     onMove,
