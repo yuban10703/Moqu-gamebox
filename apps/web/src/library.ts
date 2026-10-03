@@ -16,6 +16,7 @@ import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
 import { connect4En, connect4Game, connect4Zh } from '@eink/connect4'
 import { lightsoutEn, lightsoutGame, lightsoutZh } from '@eink/lightsout'
 import { checkersEn, checkersGame, checkersZh } from '@eink/checkers'
+import { battleshipEn, battleshipGame, battleshipZh } from '@eink/battleship'
 import { dotsboxesEn, dotsboxesGame, dotsboxesZh } from '@eink/dotsboxes'
 import { knightstourEn, knightstourGame, knightstourZh } from '@eink/knightstour'
 import {
@@ -35,6 +36,16 @@ import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
   entries: [
+    defineGame({
+      game: battleshipGame,
+      cellLabelKey: (kind) => `battleship.cell.${kind}`,
+      rulesKeys: ['battleship.rules.body', 'battleship.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: battleshipGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: battleshipGame.difficulties.length,
+      }),
+    }),
     defineGame({
       game: dotsboxesGame,
       cellLabelKey: (kind) => `dotsboxes.cell.${kind}`,
@@ -207,7 +218,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh, ...knightstourZh, ...dotsboxesZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn, ...knightstourEn, ...dotsboxesEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh, ...knightstourZh, ...dotsboxesZh, ...battleshipZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn, ...knightstourEn, ...dotsboxesEn, ...battleshipEn },
   },
 }

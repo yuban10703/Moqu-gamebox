@@ -16,6 +16,7 @@ import { connect4Game } from '@eink/connect4'
 import { lightsoutGame } from '@eink/lightsout'
 import { checkersGame } from '@eink/checkers'
 import { klotskiGame } from '@eink/klotski'
+import { battleshipGame } from '@eink/battleship'
 import { dotsboxesGame } from '@eink/dotsboxes'
 import { knightstourGame } from '@eink/knightstour'
 import { pegsolitaireGame } from '@eink/pegsolitaire'
@@ -51,6 +52,7 @@ const GAMES: Array<GameDef<any, any>> = [
   klotskiGame as GameDef<any, any>,
   knightstourGame as GameDef<any, any>,
   dotsboxesGame as GameDef<any, any>,
+  battleshipGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {
