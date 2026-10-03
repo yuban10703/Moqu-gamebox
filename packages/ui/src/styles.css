@@ -1218,10 +1218,18 @@ html[data-bold-lines='on'] .eink-board {
  * 用 `:not([data-expanded='yes'])` 限定：保存**失败**时状态条会带 data-expanded='yes'
  * 展开成多行（那条规则在上面），警告必须仍有完整空间，不能被这里压掉。
  */
-.eink-screen--game .eink-statusstrip:not([data-expanded='yes']):not([data-notice='yes']) {
-  height: 28px;
-  min-height: 28px;
-  max-height: 28px;
+/*
+ * 对局页状态条：**高度恒定 48px**。
+ *
+ * 曾经在"没有提示时"压到 28px（想省 20px 给棋盘），结果提示一出现就长到 48px ——
+ * 棋盘可用区被重算、整屏元素跟着位移（用户反馈：2048 的「这个方向走不动」会让游戏画面移动）。
+ * 墨水屏的首要纪律是"出现/消失的元素高度必须恒定"，因此这里改回恒定高度：
+ * 提示的内边距已经收窄到 2px 8px（26px 字号下一行约 39px），48px 装得下，且高度不变。
+ */
+.eink-screen--game .eink-statusstrip:not([data-expanded='yes']) {
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
 }
 
 /*
