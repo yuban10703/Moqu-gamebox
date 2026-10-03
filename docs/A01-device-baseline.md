@@ -23,10 +23,28 @@
 | 可用刷新模式名 | 无 | 诊断页 `refreshModes` |
 | 支持整屏全刷 / 临时快刷 | 否 / 否 | 诊断页 `fullRefresh` / `fastMode` |
 
-## 平台支持下限的复核
+## 运行环境基线（2026-10-03 复核，构建目标据此确定）
 
-- **WebView 156** 远高于构建目标（chrome69），代码里的语法降级对本机无影响，但对老机型仍是必要保险；
-- `minSdk 23` / `targetSdk 35` 在本机（API 30）运行正常；
+两台设备都用 devtools 实测了引擎与特性支持（`navigator.userAgent` + `CSS.supports`）：
+
+| 能力 | BOOX P6Plus | BOOX NoteX2 |
+|---|---|---|
+| 引擎 | **Chromium 146**（Android 13）| **Chromium 156**（Android 11）|
+| CSS 变量 / grid / flex gap | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ |
+| `:has()` / `dvh` / 容器查询 | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ |
+| `color-mix` / subgrid | ✓ / ✓ | ✓ / ✓ |
+
+结论与决定：
+
+- **构建目标改为"现代常青浏览器基线"** `['chrome110','edge110','firefox110','safari16']`
+  （原先写的是 `['chrome69','safari12']`，理由是"BOOX 的系统 WebView 可能很旧"——
+  那是一条**没有实测的防御性猜测**，实测后不成立：156/146 远超该目标）。
+  实测收益：JS 410 KB → 406 KB，可选链与空值合并不再被降级掉（`?.` 79 处、`??` 151 处得以保留）。
+- **明确不支持 Kindle 自带浏览器**：它是很老的 WebKit，不认 `type="module"`
+  → 脚本不执行 → `<div id="root">` 永远为空 → **白屏**；此外也不支持 CSS 变量与 grid
+  （本应用 CSS 有 101 处 `var(--)`、6 处 `display:grid`）。Kindle 还是封闭平台，装不了我们的 APK。
+  用户已决定不为它做兼容版。
+- `minSdk 23` / `targetSdk 35` 在实机（API 30 / 33）运行正常；
 - 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **78px**（远超 48px 门槛）。
 
 ## 关于 Onyx SDK（重要，已实测）

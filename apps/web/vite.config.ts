@@ -44,8 +44,21 @@ export default defineConfig({
     fs: { allow: [fileURLToPath(new URL('../..', import.meta.url))] },
   },
   build: {
-    // BOOX 上的系统 WebView 可能很旧：语法按 chrome69 降级，避免白屏
-    target: ['chrome69', 'safari12'],
+    /*
+     * 按**现代浏览器**构建（用户要求："不用管 kindle 了，完全按照现代浏览器来写"）。
+     *
+     * 之前这里写的是 ['chrome69','safari12']，理由是"BOOX 的系统 WebView 可能很旧"——
+     * 那是**没有实测的防御性猜测**。实测两台正牌设备（devtools 里读 navigator.userAgent + CSS.supports）：
+     *   · BOOX P6Plus：Chromium 146 / Android 13
+     *   · BOOX NoteX2：Chromium 156 / Android 11
+     *   · CSS 变量 / grid / flex gap / :has() / dvh / 容器查询 / color-mix / subgrid 全部支持
+     * 所以老引擎降级是不必要的负担：它会白白降级语法、增大产物体积。
+     *
+     * 现在取"常青浏览器"基线（2023 年前后），对实测设备有巨大余量，
+     * 同时不用真正的前沿语法，避免踩到实现差异。
+     * 明确不支持：Kindle 自带浏览器（老 WebKit，不支持 ES 模块/CSS 变量/grid，会白屏）。
+     */
+    target: ['chrome110', 'edge110', 'firefox110', 'safari16'],
     outDir: 'dist',
     emptyOutDir: true,
     assetsInlineLimit: 0,
