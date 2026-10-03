@@ -482,8 +482,12 @@ const DRIVERS = {
   },
   memory: {
     title: '记忆配对',
-    // 规则层：一次尝试 = 两张牌（撤销时按日志奇偶退回 1 或 2 张），因此撤销前要走满两张
-    undoClicks: 2,
+    /*
+     * 规则层：撤销退回"当前未完成的一次尝试（1 张）或最近一次完整尝试（2 张）"，
+     * 退回的张数取决于日志的奇偶 —— 在半途状态下断言"回到上一步"没有唯一答案。
+     * 因此先重开把日志清零，再翻一张、撤一张（必为 1 张）。
+     */
+    undoNormalize: 'restart',
     valid: (snap) => {
       const down = snap.cells.map((c, i) => (c.k === 'hidden' ? i : -1)).filter((i) => i >= 0)
       return down.slice(0, 6).map((i) => ({ t: 'cell', i }))
@@ -526,7 +530,12 @@ const DRIVERS = {
   2048: {
     title: '2048',
     valid: (snap, step) => dirs.slice(step % 4).concat(dirs.slice(0, step % 4)).map((dir) => ({ t: 'dpad', dir })),
-    invalid: 'auto-dpad',
+    /*
+     * 2048 的开局棋盘四个方向都走得通，"轮流试 + 撤销"永远碰不到"走不通"。
+     * 真实玩家是**朝一个方向连推**：推到推不动为止，那一下就是非法输入。
+     */
+    invalid: 'spam-dpad',
+    invalidNotice: '这个方向走不通',
   },
   match3: {
     title: '消消乐',
@@ -573,8 +582,44 @@ const DRIVERS = {
       return null
     },
   },
-  snake: { title: '贪吃蛇', valid: () => [], invalid: () => null },
-  tetris: { title: '俄罗斯方块', valid: () => [], invalid: () => null },
+  /*
+   * 自动步进玩法：settle 用短值（玩家输入会重置自动步进的计时，有整整一个间隔的静止窗口），
+   * 非法输入用 probe-dpad（重复按同一方向是"合法但无变化"，只有掉头/撞墙才非法）。
+   */
+  snake: {
+    title: '贪吃蛇',
+    settle: 420,
+    // 转向要等下一个自动步进才落到棋盘上（tickMs=850），因此有效操作等过一个完整间隔
+    validSettle: 1300,
+    autoTick: true,
+    valid: (snap, step) => dirs.slice(step % 4).concat(dirs.slice(0, step % 4)).map((dir) => ({ t: 'dpad', dir })),
+    invalid: 'probe-dpad',
+    invalidNotice: '这一步走不通',
+    // 进度度量：步数（第 3 项统计）只会增长，重开后必须 ≥ 离开时且 > 0
+    persistMeasure: (snap) => Number((snap.stats[2] ?? '').split('=')[1] ?? NaN),
+    persistLabel: '步数',
+  },
+  tetris: {
+    title: '俄罗斯方块',
+    settle: 450,
+    autoTick: true,
+    valid: (snap, step) => dirs.slice(step % 4).concat(dirs.slice(0, step % 4)).map((dir) => ({ t: 'dpad', dir })),
+    // 开局四个方向都走得通；连推同一个方向直到撞墙，那一下才是非法输入
+    invalid: 'spam-dpad',
+    invalidNotice: '这一步走不通',
+    /*
+     * 进度度量：已固化（kind='mine'）的格子数。
+     * 下落中的方块是 'boxOnGoal'，不算数 —— 于是"堆在底下的块还在不在"变成可断言的事实。
+     * 离开前先连按「下落」把方块落到底，固化出 ≥4 格。
+     */
+    persistMeasure: (snap) => snap.cells.filter((cell) => cell.k === 'mine').length,
+    persistLabel: '已固化格子',
+    preparePersist: async (driver) => {
+      for (let i = 0; i < 26; i++) {
+        await clickAction({ t: 'dpad', dir: 'down' }, 200)
+      }
+    },
+  },
 }
 
 /* ------------------------------------------------------------------ *
@@ -596,28 +641,35 @@ page.on('console', (m) => {
 const snap = () => page.evaluate(SNAP_FN)
 const layout = () => page.evaluate(LAYOUT_FN)
 
-async function clickAction(action) {
+/**
+ * 点一个动作并等 `settle` 毫秒再读 DOM。
+ *
+ * 自动步进玩法（贪吃蛇 / 俄罗斯方块）传更短的 settle：
+ * 它们每一步都可能自己动一格，玩家输入之后计时被重置、有**整整一个间隔**的静止窗口，
+ * 在这个窗口里读完 DOM 就不会把"自动走的那一格"误判成"这一步没生效"。
+ */
+async function clickAction(action, settle = SETTLE) {
   if (action.t === 'seq') {
-    for (const step of action.steps) await clickAction(step)
+    for (const step of action.steps) await clickAction(step, settle)
     return
   }
   if (action.t === 'cell') {
     const cell = page.locator('.eink-board__cell').nth(action.i)
     await cell.scrollIntoViewIfNeeded().catch(() => {})
     await cell.click({ timeout: 4000 })
-    await page.waitForTimeout(SETTLE)
+    await page.waitForTimeout(settle)
     return
   }
   if (action.t === 'dpad') {
     const btn = page.locator(dpadSel[action.dir]).first()
     await btn.click({ timeout: 4000 })
-    await page.waitForTimeout(SETTLE)
+    await page.waitForTimeout(settle)
     return
   }
   if (action.t === 'btn') {
     const btn = page.getByRole('button', { name: action.text, exact: true }).first()
     await btn.click({ timeout: 4000 })
-    await page.waitForTimeout(SETTLE)
+    await page.waitForTimeout(settle)
   }
 }
 
@@ -688,21 +740,21 @@ async function readSeed() {
   })
 }
 
-async function clickUndo() {
+async function clickUndo(settle = SETTLE) {
   const btn = undoButton()
   if (!(await btn.count())) return false
   await btn.click()
-  await page.waitForTimeout(SETTLE)
+  await page.waitForTimeout(settle)
   return true
 }
 
-async function confirmRestart() {
+async function confirmRestart(settle = SETTLE) {
   const btn = page.getByRole('button', { name: '重新开始' }).first()
   await btn.click()
   await page.waitForTimeout(500)
   const dialog = page.locator('.eink-dialog').last()
   await dialog.getByRole('button', { name: '重新开始' }).click()
-  await page.waitForTimeout(SETTLE)
+  await page.waitForTimeout(settle)
 }
 
 async function backToLibrary() {
@@ -719,11 +771,44 @@ async function backToLibrary() {
 /** 在某个游戏里找一步**有效**操作（候选里第一个真的改变局面的） */
 async function playValidMove(driver, before, step) {
   if (driver.invalid === undefined) return null
+  /*
+   * 有效操作的等待时间可以和别处不同：贪吃蛇的「转向」只是写入缓冲，
+   * **要等下一个自动步进才会体现在棋盘上**，因此必须等过一个完整间隔才看得到变化。
+   */
+  const settle = driver.validSettle ?? driver.settle ?? SETTLE
   const candidates = (driver.valid(before, step) ?? []).slice(0, 40)
   for (const action of candidates) {
-    await clickAction(action)
+    await clickAction(action, settle)
     const after = await snap()
     if (contentSig(after) !== contentSig(before)) return { action, after }
+  }
+  return null
+}
+
+/**
+ * 自动步进玩法的非法输入探测：逐个方向点一次，找「局面没变 **但出现了提示**」的那个。
+ *
+ * 不能像固定局面那样"点一下没变就算非法"：贪吃蛇里重复按同一个方向是**合法但无变化**的输入，
+ * 只有原地掉头才非法。两者都让局面不变，区别只在有没有提示。
+ */
+async function findInvalidByNotice(settle, expect, fast = 0) {
+  for (const dir of dirs) {
+    const before = await snap()
+    /*
+     * 自动步进玩法要把等待压到最短：玩家输入会重置自动步进的计时，
+     * 输入后整整一个间隔（850/1050ms）内棋盘不会有"自动"的变化，
+     * 因此 150ms 就读，能把"这一步有没有改变局面"测干净 ——
+     * 等 420ms 时可能正好撞上一次自动步进，把非法输入误判成"局面变了"。
+     */
+    await clickAction({ t: 'dpad', dir }, fast || settle)
+    const after = await snap()
+    const unchanged = contentSig(after) === contentSig(before)
+    console.log(`    · 试方向 ${dir}：局面${unchanged ? '未变' : '变了'}，提示「${after.notice}」`)
+    /*
+     * 必须是**该玩法的非法提示**，不能是玩法自己挂着的说明
+     * （贪吃蛇"下一格向上"是转向缓冲的说明，不是拒绝）。
+     */
+    if (unchanged && expect && after.notice.includes(expect)) return { dir, before, after }
   }
   return null
 }
@@ -758,6 +843,7 @@ async function findBlockedDir() {
 async function runGame(id, driver) {
   console.log(`\n=== ${driver.title}（${id}） ===`)
   const shot = (name) => `${SHOT_DIR}/${id}-${name}.png`
+  const S = driver.settle ?? SETTLE
 
   await startGame(driver.title, { fresh: true })
   let initial = await snap()
@@ -805,7 +891,46 @@ async function runGame(id, driver) {
   record(id, '至少 3 次有效操作且局面真的变化', moves.length >= 3, `有效操作 ${moves.length} 次`)
 
   // ---- 非法输入：明确反馈 + 局面不变 ----
-  if (driver.invalid === 'auto-dpad' || driver.invalid === undefined) {
+  if (driver.invalid === 'spam-dpad') {
+    // 朝同一方向连续推，直到某一次推不动（那一下必须给出提示且局面不变）
+    let found = null
+    let ended = false
+    const wait = driver.autoTick ? 150 : S
+    for (let i = 0; i < 24 && !found; i++) {
+      const before = await snap()
+      if (before.result) { ended = true; break }
+      await clickAction({ t: 'dpad', dir: 'left' }, wait)
+      const after = await snap()
+      if (contentSig(after) === contentSig(before)) found = { before, after }
+    }
+    if (!found) {
+      record(
+        id,
+        '非法输入有明确反馈且局面不变',
+        false,
+        ended ? '连推过程中局面已结束（没探到"推不动"那一下）' : '连推 24 次都没遇到"推不动"的方向',
+      )
+    } else {
+      record(
+        id,
+        '非法输入有明确反馈且局面不变',
+        found.after.notice.includes(driver.invalidNotice),
+        `提示「${found.after.notice || '（无）'}」，局面未变`,
+      )
+    }
+  } else if (driver.invalid === 'probe-dpad') {
+    const found = await findInvalidByNotice(S, driver.invalidNotice, driver.autoTick ? 150 : 0)
+    if (!found) {
+      record(id, '非法输入有明确反馈且局面不变', false, '四个方向都没探到"局面不变 + 有提示"的非法输入')
+    } else {
+      record(
+        id,
+        '非法输入有明确反馈且局面不变',
+        true,
+        `方向 ${found.dir}：提示「${found.after.notice}」，局面未变`,
+      )
+    }
+  } else if (driver.invalid === 'auto-dpad' || driver.invalid === undefined) {
     // 方向盘：四向里总有一个走不通（推箱子/数字华容道/2048）
     const blocked = await findBlockedDir()
     if (!blocked) {
@@ -849,11 +974,17 @@ async function runGame(id, driver) {
       await page.keyboard.press('ArrowLeft')
       await page.waitForTimeout(SETTLE)
       const after = await snap()
+      /*
+       * 判据是「按键**没有产生新的**提示」，而不是"提示为空"：
+       * 有些玩法本来就长期挂着自己的提示（消消乐的「再点相邻的一格交换」是选中态说明），
+       * 那是界面状态，不是按键引起的错误。
+       */
+      const newNotice = after.notice !== before.notice
       record(
         id,
         '无方向键玩法按方向键不弹假提示',
-        after.notice.length === 0 && contentSig(after) === contentSig(before),
-        `提示「${after.notice || '（无）'}」`,
+        !newNotice && contentSig(after) === contentSig(before),
+        `按键前「${before.notice || '（无）'}」→ 按键后「${after.notice || '（无）'}」`,
       )
     }
   }
@@ -863,11 +994,9 @@ async function runGame(id, driver) {
     record(id, '撤销按钮由 disabled 变可用', 'na', driver.undoHidden)
     record(id, '撤销后逐格 + 统计回到上一步', 'na', driver.undoHidden)
   } else {
+    // 有些玩法的撤销语义依赖"当前处于一次尝试的第几张"（记忆配对）：先重开归零再测
+    if (driver.undoNormalize === 'restart') await confirmRestart(S)
     const before = await snap()
-    /*
-     * 一次「撤销」= 一次尝试：记忆配对的一次尝试是**两张牌**（规则层如此定义，
-     * 单张时撤销只退回那一张），所以它要先走两步再撤。
-     */
     let cursor = before
     let ok = true
     for (let k = 0; k < (driver.undoClicks ?? 1); k++) {
@@ -882,7 +1011,7 @@ async function runGame(id, driver) {
       const enabled = (await btn.count()) > 0 && !(await btn.first().isDisabled())
       record(id, '撤销按钮由 disabled 变可用', enabled, (await btn.count()) ? '' : '找不到撤销按钮')
       if (enabled) {
-        await clickUndo()
+        await clickUndo(S)
         const back = await snap()
         const sameContent = contentSig(back) === contentSig(before)
         const sameSelection = selectedOf(back) === selectedOf(before)
@@ -907,7 +1036,7 @@ async function runGame(id, driver) {
     const movedSnap = played ? played.after : beforeRestart
     const timerBefore = timerOf(movedSnap)
     const seedBefore = await readSeed()
-    await confirmRestart()
+    await confirmRestart(S)
     const after = await snap()
     const seedAfter = await readSeed()
     if (driver.level) {
@@ -936,31 +1065,64 @@ async function runGame(id, driver) {
     } else {
       const changed = contentSig(after) !== contentSig(movedSnap)
       record(id, '重新开始换了题目（棋盘内容不同）', changed, changed ? '' : '重开后棋盘与重开前完全相同')
-      const seedChanged = seedBefore !== null && seedAfter !== null && seedBefore !== seedAfter
+      /*
+       * 换种子要**读到盘上的 seed** 才算数（内容是随机的，肉眼"看起来不一样"不算证据）。
+       * 重开后新局若还没落盘就先走一步触发提交，再读。
+       */
+      record(
+        id,
+        '重新开始后新局立即落盘',
+        seedAfter !== null,
+        seedAfter !== null ? `seed=${seedAfter}` : '重开后的存档为空（要等下一步操作才写入）',
+      )
+      let committedSeed = seedAfter
+      if (committedSeed === null) {
+        const playedAfter = await playValidMove(driver, after, 0)
+        if (playedAfter) committedSeed = await readSeed()
+      }
+      const seedChanged = seedBefore !== null && committedSeed !== null && seedBefore !== committedSeed
       record(
         id,
         '重新开始换了种子（存档 seed 变化）',
         seedChanged,
-        `seed ${seedBefore} → ${seedAfter}`,
+        `seed ${seedBefore} → ${committedSeed}`,
       )
     }
   }
 
   // ---- 离局再进（存档） ----
   {
+    if (driver.preparePersist) await driver.preparePersist()
     const played = await playValidMove(driver, await snap(), 1)
     const before = played ? played.after : await snap()
     await backToLibrary()
     await startGame(driver.title, { fresh: false })
     const after = await snap()
-    record(
-      id,
-      '离局再进进度还在',
-      contentSig(after) === contentSig(before),
-      contentSig(after) === contentSig(before)
-        ? ''
-        : `离开前 ${contentSig(before).slice(0, 160)}… 回来 ${contentSig(after).slice(0, 160)}…`,
-    )
+    if (driver.autoTick) {
+      /*
+       * 自动步进玩法没法逐格对比：回来的一瞬间它又开始自己走了。
+       * 改用**只增不减的进度度量**（贪吃蛇=步数，俄罗斯方块=已固化格子数）。
+       */
+      const measure = driver.persistMeasure
+      const beforeN = measure(before)
+      const afterN = measure(after)
+      const label = driver.persistLabel ?? '进度'
+      record(
+        id,
+        '离局再进进度还在（不是从头开始）',
+        Number.isFinite(beforeN) && Number.isFinite(afterN) && beforeN > 0 && afterN >= beforeN,
+        `${label} ${beforeN} → ${afterN}`,
+      )
+    } else {
+      record(
+        id,
+        '离局再进进度还在',
+        contentSig(after) === contentSig(before),
+        contentSig(after) === contentSig(before)
+          ? ''
+          : `离开前 ${contentSig(before).slice(0, 160)}… 回来 ${contentSig(after).slice(0, 160)}…`,
+      )
+    }
   }
 }
 
