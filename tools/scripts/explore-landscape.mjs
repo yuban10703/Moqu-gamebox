@@ -107,6 +107,44 @@ for (const title of titles) {
   await audit(`${title}·游戏页`)
 }
 
+/*
+ * 第二遍：**极矮横屏 + 最大字号** 的最受限组合。
+ * 此前两个套件各测一个维度（landscape 用默认字号、maxscale 用 439×847），
+ * 这个组合从没被测过 —— 而它恰恰是最容易出问题的一档。
+ */
+console.log('\n[第二遍] 极矮横屏 + 最大字号（最受限组合）')
+await page.evaluate(async () => {
+  const p = window.__einkPlatform
+  const s = await p.storage.loadSettings()
+  await p.storage.saveSettings({ ...s, fontScale: 1.5 })
+})
+await page.reload({ waitUntil: 'networkidle' })
+await page.waitForSelector('text=墨水屏游戏盒子')
+await page.waitForTimeout(600)
+const rootFont = await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)
+check('已切到最大字号', rootFont === '26px', rootFont)
+await audit('首页·1.5×')
+
+for (const title of titles) {
+  await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=墨水屏游戏盒子')
+  await click(new RegExp(title))
+  await page.waitForSelector('text=玩法说明', { timeout: 8000 })
+  await audit(`${title}·详情·1.5×`)
+  await click(/继续/, true)
+  await page.waitForSelector('.eink-board', { timeout: 3000 }).catch(() => {})
+  if (!(await page.locator('.eink-board').count())) await click(/开始新游戏/)
+  await page.waitForTimeout(300)
+  if (await page.getByRole('button', { name: /替换并开始/ }).count()) await dialog('替换并开始')
+  await page.waitForSelector('.eink-board', { timeout: 8000 })
+  const cell = await page.evaluate(() => {
+    const c = document.querySelector('.eink-board__cell')
+    return c ? Math.round(c.getBoundingClientRect().width) : null
+  })
+  check(`${title}·游戏页·1.5×：格子不低于绝对下限`, cell === null || cell >= 12, `${cell}px`)
+  await audit(`${title}·游戏页·1.5×`)
+}
+
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 5)) console.log('  ! ' + e)
 const failed = results.filter((r) => !r.ok)
