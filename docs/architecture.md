@@ -52,7 +52,7 @@ commit(env):
 | 存储 | IndexedDB（`readwrite` 事务内完成 CAS） | 原生 SQLite（`beginTransaction` 内完成 CAS） |
 | 资源 | Service Worker 预缓存 + 缓存优先 | 安装包内置，启动即离线 |
 | 页面源 | 正常 https/本地地址 | `WebViewAssetLoader` → `https://appassets.androidplatform.net/`（file:// 下存储不可靠） |
-| 刷新 | 不能控制（能力清单全为 false，给出系统指引） | 反射探测 BOOX 接口，按可用性开放 |
+| 刷新 | 不能控制（给出系统指引） | 同样不能控制：壳层是通用 Android 实现，不含任何厂商 SDK |
 | 备份导出 | Blob 下载 | SAF（`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`） |
 
 两端复用**同一套**提交协议与 i18n、同一份游戏代码，因此规则一致性可以在 Node 侧一次性锁死。

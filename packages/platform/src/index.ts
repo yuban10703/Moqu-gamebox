@@ -1,5 +1,5 @@
 /**
- * @eink/platform —— 平台适配层：存储、离线、刷新、设备基线。
+ * @eink/platform —— 平台适配层：存储、离线、设备基线。
  * 上层（UI 与壳）只依赖这里的门面，不直接接触 IndexedDB / 桥 / Service Worker。
  */
 import type { DeviceBaseline, KvBackend } from '@eink/core'
@@ -8,19 +8,14 @@ import {
   androidExportBackup,
   androidImportBackup,
   isAndroidBridgeAvailable,
-  onCapabilityChanged,
   onHardwareKey,
   type EinkNativeBridge,
   type HardwareKeyEvent,
 } from './androidBridge.js'
 import {
-  createAndroidRefresh,
   createBundledOffline,
   createServiceWorkerOffline,
-  createWebRefresh,
-  installFastModeGuard,
   type OfflineController,
-  type RefreshController,
 } from './offline.js'
 import { collectBaseline } from './baseline.js'
 
@@ -33,7 +28,6 @@ export * from './baseline.js'
 export interface Platform {
   kind: 'android' | 'web'
   storage: AppStorage
-  refresh: RefreshController
   offline: OfflineController
   baseline(): DeviceBaseline
   onHardwareKey(handler: (event: HardwareKeyEvent) => void): () => void
@@ -67,7 +61,6 @@ export async function createPlatform(options: PlatformOptions = {}): Promise<Pla
   const bridge =
     options.bridge ?? (isAndroidBridgeAvailable() ? window.EinkNative! : null)
   const kind: 'android' | 'web' = bridge ? 'android' : 'web'
-  const refresh = bridge ? createAndroidRefresh(bridge) : createWebRefresh()
   const offline =
     kind === 'android'
       ? createBundledOffline()
@@ -81,17 +74,11 @@ export async function createPlatform(options: PlatformOptions = {}): Promise<Pla
     ...(options.kv ? { kv: options.kv } : {}),
   })
 
-  const releaseFastModeGuard = installFastModeGuard(refresh)
-  // 原生验证完成后会通知一次，此时重新读取能力清单（否则界面会一直用启动时的乐观/悲观值）
-  const releaseCapabilityListener =
-    kind === 'android' ? onCapabilityChanged(() => refresh.refreshCapability()) : () => undefined
-
   return {
     kind,
     storage,
-    refresh,
     offline,
-    baseline: () => collectBaseline({ refresh, bridge, ...(options.now ? { now: options.now } : {}) }),
+    baseline: () => collectBaseline({ bridge, ...(options.now ? { now: options.now } : {}) }),
     onHardwareKey,
     async exportBackup(fileName, text) {
       if (bridge) {
@@ -106,9 +93,6 @@ export async function createPlatform(options: PlatformOptions = {}): Promise<Pla
       return null
     },
     dispose() {
-      releaseFastModeGuard()
-      releaseCapabilityListener()
-      refresh.dispose()
       offline.dispose()
     },
   }

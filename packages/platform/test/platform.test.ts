@@ -5,11 +5,11 @@
  */
 import 'fake-indexeddb/auto'
 import { describe, expect, it, vi } from 'vitest'
-import { createSaveStore, newEnvelope, verifyChecksum } from '@eink/core'
+import { createBackup, createSaveStore, DEFAULT_SETTINGS, newEnvelope, verifyChecksum, type SettingsSnapshot } from '@eink/core'
 import { createIndexedDbKv } from '../src/indexeddb.js'
 import { createAppStorage } from '../src/appStorage.js'
-import { createAndroidKv, type EinkNativeBridge } from '../src/androidBridge.js'
-import { createBundledOffline, createWebRefresh } from '../src/offline.js'
+import { createAndroidKv, readAndroidBaseline, type EinkNativeBridge } from '../src/androidBridge.js'
+import { createBundledOffline } from '../src/offline.js'
 import { collectWebBaseline } from '../src/baseline.js'
 
 const NOW = 1_700_000_000_000
@@ -70,7 +70,6 @@ describe('应用存储门面', () => {
     await storage.saveSettings({
       locale: 'en-US',
       fontScale: 1.25,
-      refreshProfile: 'balanced',
       timer: false,
       dpad: true,
       boldLines: false,
@@ -111,7 +110,7 @@ describe('应用存储门面', () => {
     })
     await source.saves.commit(envelope())
     const text = await source.createBackupText(
-      collectWebBaseline(createWebRefresh(), () => NOW),
+      collectWebBaseline(() => NOW),
       NOW,
     )
 
@@ -159,7 +158,7 @@ describe('应用存储门面', () => {
       now: () => NOW,
     })
     await source.saves.commit(envelope())
-    const text = await source.createBackupText(collectWebBaseline(createWebRefresh(), () => NOW), NOW)
+    const text = await source.createBackupText(collectWebBaseline(() => NOW), NOW)
 
     const target = await createAppStorage({
       kv: await createIndexedDbKv({ dbName: `d-${Math.random()}` }),
@@ -172,6 +171,35 @@ describe('应用存储门面', () => {
     expect(outcome.ok).toBe(true)
     if (outcome.ok) expect(outcome.summary.skipped).toBe(1)
     expect((await target.saves.load('sokoban'))?.updatedAt).toBe(before?.updatedAt)
+  })
+
+  it('含旧 refreshProfile 字段的备份仍可导入，且该字段不会被写回本机设置', async () => {
+    const storage = await createAppStorage({
+      kv: await createIndexedDbKv({ dbName: `legacy-${Math.random()}` }),
+      kind: 'indexeddb',
+      now: () => NOW,
+    })
+    // 旧版本导出的备份：settings 里带着已删除的 refreshProfile（JSON 往返以避免类型过期）
+    const legacySettings = JSON.parse(
+      JSON.stringify({ ...DEFAULT_SETTINGS, refreshProfile: 'speed' }),
+    ) as SettingsSnapshot
+    const text = JSON.stringify(
+      createBackup({
+        device: collectWebBaseline(() => NOW),
+        saves: [envelope()],
+        records: [],
+        settings: legacySettings,
+        exportedAt: NOW,
+      }),
+    )
+
+    const outcome = await storage.applyImport(text, 'keepBoth')
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) expect(outcome.summary.added).toBe(1)
+    // 导入后本机设置能正常读回，且不再带着已删除的字段
+    const settings = await storage.loadSettings()
+    expect(settings.fontScale).toBe(1)
+    expect(Object.keys(settings)).not.toContain('refreshProfile')
   })
 
   it('内存后端会明确标记为不可持久化', async () => {
@@ -189,14 +217,6 @@ describe('Android 桥的存储映射', () => {
       map,
       version: 'test',
       deviceBaseline: () => JSON.stringify({ manufacturer: 'onyx', model: 'NoteAir' }),
-      getRefreshCapability: () =>
-        JSON.stringify({
-          onyxSdkFound: true,
-          features: ['fullRefresh', 'fastMode'],
-          modes: ['GU', 'GC'],
-          fullRefresh: true,
-          fastMode: true,
-        }),
       saveGet: (key) => map.get(key) ?? null,
       savePut: (key, value) => {
         map.set(key, value)
@@ -223,9 +243,6 @@ describe('Android 桥的存储映射', () => {
         }
         return '{"ok":true}'
       },
-      setRefreshProfile: vi.fn(),
-      fullRefresh: vi.fn(),
-      setFastMode: vi.fn(),
       setFrontLight: vi.fn(),
       keepScreenOn: vi.fn(),
       setFullscreen: vi.fn(),
@@ -250,12 +267,15 @@ describe('Android 桥的存储映射', () => {
     expect((await store.load('sokoban'))?.commitId).toBe(1)
   })
 
-  it('基线与刷新能力来自原生探测结果', async () => {
+  it('设备基线经桥读回后可解析出原生型号', () => {
     const bridge = fakeBridge()
-    const baseline = collectWebBaseline(createWebRefresh(), () => NOW)
-    expect(baseline.refresh.onyxSdkFound).toBe(false)
-    const capability = JSON.parse(bridge.getRefreshCapability()) as { onyxSdkFound: boolean }
-    expect(capability.onyxSdkFound).toBe(true)
+    const native = readAndroidBaseline(bridge)
+    expect(native?.manufacturer).toBe('onyx')
+    expect(native?.model).toBe('NoteAir')
+    // 网页侧基线只报实测到的视口等事实
+    const web = collectWebBaseline(() => NOW)
+    expect(web.platform).toBe('web')
+    expect(web.recordedAt).toBe(NOW)
   })
 })
 

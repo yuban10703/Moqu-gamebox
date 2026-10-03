@@ -1,9 +1,8 @@
 /**
  * 设置模型：全局默认 + 单游戏覆盖（对应 C06）。
- * 「不支持的选项不作为可用选项显示」——由壳层依据能力清单过滤，模型本身只描述取值。
+ * 模型只描述取值，可用性由壳层决定；未知/非法字段一律回落默认值（旧存档必须仍能读入）。
  */
 import type { FontScale } from './layout.js'
-import type { RefreshProfile } from './diagnostics.js'
 import type { LocaleId } from './i18n.js'
 
 export interface GameSettings {
@@ -17,7 +16,6 @@ export interface SettingsSnapshot {
   /** auto 表示跟随系统语言 */
   locale: LocaleId | 'auto'
   fontScale: FontScale
-  refreshProfile: RefreshProfile
   timer: boolean
   dpad: boolean
   boldLines: boolean
@@ -27,7 +25,6 @@ export interface SettingsSnapshot {
 export const DEFAULT_SETTINGS: SettingsSnapshot = {
   locale: 'auto',
   fontScale: 1,
-  refreshProfile: 'quality',
   timer: true,
   dpad: true,
   boldLines: true,
@@ -39,16 +36,11 @@ export function parseSettings(raw: unknown): SettingsSnapshot {
   const value = raw as Partial<SettingsSnapshot>
   const fontScale: FontScale =
     value.fontScale === 1.25 || value.fontScale === 1.5 ? value.fontScale : 1
-  const refreshProfile: RefreshProfile =
-    value.refreshProfile === 'balanced' || value.refreshProfile === 'speed'
-      ? value.refreshProfile
-      : 'quality'
   const locale =
     value.locale === 'zh-CN' || value.locale === 'en-US' ? value.locale : ('auto' as const)
   return {
     locale,
     fontScale,
-    refreshProfile,
     timer: value.timer !== false,
     dpad: value.dpad !== false,
     boldLines: value.boldLines !== false,
@@ -82,7 +74,6 @@ export interface EffectiveSettings {
   dpad: boolean
   boldLines: boolean
   fontScale: FontScale
-  refreshProfile: RefreshProfile
   locale: LocaleId | 'auto'
 }
 
@@ -98,7 +89,6 @@ export function effectiveSettings(
     dpad: override.dpad ?? snapshot.dpad,
     boldLines: override.boldLines ?? snapshot.boldLines,
     fontScale: snapshot.fontScale,
-    refreshProfile: snapshot.refreshProfile,
     locale: snapshot.locale,
   }
 }

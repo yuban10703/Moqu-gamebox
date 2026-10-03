@@ -5,9 +5,9 @@
  * - 桥只对**内置可信内容**开放（`EinkNative` 由壳层注入，且壳层只加载本地资源、外链一律走系统浏览器）；
  * - 所有存储操作走原生 SQLite 事务：`commitCas` / `setMany` 由原生保证原子性，
  *   提交协议本身仍然复用 @eink/core（同一套逻辑在两端都被测试覆盖）；
- * - 设备能力一律「探测后回报」，不在 JS 侧硬编码型号与模式名。
+ * - 设备信息一律由原生回报，不在 JS 侧硬编码型号。
  */
-import type { DeviceBaseline, KvBackend, RefreshCapability, RefreshProfile } from '@eink/core'
+import type { DeviceBaseline, KvBackend } from '@eink/core'
 
 export interface BridgeResult {
   ok: boolean
@@ -19,7 +19,6 @@ export interface EinkNativeBridge {
   readonly version: string
   /** 返回 JSON 字符串（DeviceBaseline） */
   deviceBaseline(): string
-  getRefreshCapability(): string
 
   saveGet(key: string): string | null
   savePut(key: string, value: string): string
@@ -32,10 +31,6 @@ export interface EinkNativeBridge {
   /** 入参为 JSON 数组 [[key,value],...]，单事务原子写入 */
   savePutMany(entriesJson: string): string
 
-  setRefreshProfile(profile: RefreshProfile): void
-  fullRefresh(): void
-  /** 成对调用；壳层在页面切换/退出时也会强制恢复 */
-  setFastMode(on: boolean): void
   setFrontLight(level: number): void
   keepScreenOn(on: boolean): void
   setFullscreen(on: boolean): void
@@ -55,20 +50,6 @@ declare global {
     __EINK_EXPORT_RESULT__?: (payload: string) => void
     /** 网页层决定系统返回键的行为：返回 true 表示已处理 */
     __einkHandleBack?: () => boolean
-    /** 壳层在能力验证完成后调用，通知网页重新读取能力清单 */
-    __einkCapabilityChanged?: () => void
-  }
-}
-
-/**
- * 监听「能力验证完成」通知。
- * 返回取消订阅函数；在不支持的环境里是空操作。
- */
-export function onCapabilityChanged(handler: () => void): () => void {
-  if (typeof window === 'undefined') return () => undefined
-  window.__einkCapabilityChanged = handler
-  return () => {
-    delete window.__einkCapabilityChanged
   }
 }
 
@@ -119,26 +100,6 @@ export function createAndroidKv(bridge: EinkNativeBridge): KvBackend {
 export function readAndroidBaseline(bridge: EinkNativeBridge): DeviceBaseline | null {
   try {
     return JSON.parse(bridge.deviceBaseline()) as DeviceBaseline
-  } catch {
-    return null
-  }
-}
-
-export function readAndroidRefreshCapability(bridge: EinkNativeBridge): RefreshCapability | null {
-  try {
-    const parsed = JSON.parse(bridge.getRefreshCapability()) as RefreshCapability
-    if (typeof parsed?.onyxSdkFound !== 'boolean') return null
-    return {
-      onyxSdkFound: parsed.onyxSdkFound,
-      features: Array.isArray(parsed.features) ? parsed.features : [],
-      modes: Array.isArray(parsed.modes) ? parsed.modes : [],
-      fullRefresh: parsed.fullRefresh === true,
-      fastMode: parsed.fastMode === true,
-      // 缺省视为「未验证」：宁可少显示一个开关，也不要显示一个点了没用的
-      partialProfiles: parsed.partialProfiles === true,
-      regionRefresh: parsed.regionRefresh === true,
-      animationMode: parsed.animationMode === true,
-    }
   } catch {
     return null
   }

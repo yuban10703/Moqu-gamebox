@@ -8,7 +8,7 @@
  * 属性即最终值，不再依赖书写顺序；内联样式也收回到了类里。
  *
  * 组织（按依赖顺序自上而下）：
- *   1 变量 / 2 基础 / 3 壳层 / 4 首页 / 5 详情 / 6 对局 / 7 测试页 / 8 媒体查询
+ *   1 变量 / 2 基础 / 3 壳层 / 4 首页 / 5 详情 / 6 对局 / 7 媒体查询
  *
  * 硬性约定（与 docs/eink-guidelines.md 一致）：
  * - 没有 transition / animation（基础区块里全局声明一次，不需要 !important）；
@@ -1118,143 +1118,7 @@ html[data-bold-lines='on'] .eink-board {
   width: var(--controls-actions-width, auto);
 }
 
-/* ------------------------------------------------------------------ 7 测试页 */
-
-/* 刷新测试页：运动区域就是我们要请求刷新的矩形，给它一圈粗边框便于肉眼确认边界 */
-.eink-refresh-region {
-  /* align-self/width 必须显式写：父级是 flex 列，否则这个框会被拉伸到整屏宽，
-     而测试的意义正是「框内动、框外不动」——框太大就分不出来了。 */
-  align-self: flex-start;
-  width: fit-content;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  border: 6px solid #000;
-  background: #fff;
-}
-
-.eink-refresh-grid {
-  display: grid;
-  gap: 0;
-  border: 2px solid #000;
-}
-
-.eink-refresh-cell {
-  border: 1px solid #000;
-  background: #fff;
-}
-
-/* 用纯黑填充表示当前所在格：位置每步都变，是「有没有刷新」最直观的指示 */
-.eink-refresh-cell[data-on='yes'] {
-  background: #000;
-}
-
-.eink-refresh-status {
-  margin: 0;
-  font-size: 1.05em;
-  font-weight: 700;
-}
-
-/* 参照区：内容完全静止。变淡/发灰就说明整屏被反复驱动过 */
-.eink-refresh-stripes {
-  display: flex;
-  height: 40px;
-  border: 2px solid #000;
-  overflow: hidden;
-}
-
-.eink-refresh-stripes > span {
-  flex: 1 1 auto;
-  background: #000;
-  margin-right: 3px;
-}
-
-.eink-refresh-solid {
-  height: 44px;
-  margin-top: 8px;
-  background: #000;
-}
-
-/* 测试页要紧凑：区域与参照区必须同屏可见，否则没法对照 */
-.eink-screen--refresh-test .eink-section {
-  margin: 6px 0;
-  padding: 4px 0;
-}
-
-.eink-screen--refresh-test .eink-section h2 {
-  margin: 2px 0 4px;
-}
-
-.eink-motion-track {
-  position: relative;
-  border: 4px solid #000;
-  overflow: hidden;
-}
-
-.eink-motion-rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 6px;
-  height: 2px;
-  background: #000;
-}
-
-/* 用 transform 移动：只触发合成、不触发布局，才谈得上「连续」 */
-.eink-motion-dot {
-  position: absolute;
-  top: 8px;
-  left: 0;
-  background: #000;
-  will-change: transform;
-}
-
-/* 圆形仅用于纯黑白模式；含灰阶时改为带边框的卡片，灰阶内容才看得清 */
-.eink-motion-dot[data-style='bw'] {
-  border-radius: 50%;
-}
-
-.eink-motion-dot[data-style='gray'] {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 6px solid #000;
-  background: #fff;
-}
-
-/* 连续灰度渐变：中间灰最容易被快刷压平或抖动（测试页专用，运行时由内联样式给灰阶） */
-.eink-motion-gradient {
-  flex: 1 1 auto;
-  border: 2px solid #000;
-  background: linear-gradient(90deg, #000 0%, #fff 100%);
-}
-
-/* 8 级离散灰阶 */
-.eink-motion-steps {
-  display: flex;
-  height: 26px;
-  border: 2px solid #000;
-}
-
-.eink-motion-steps > span {
-  flex: 1 1 auto;
-}
-
-/* 参照灰阶条：静止不动。变淡、跳变、纹理化都说明灰阶被刷新过程破坏了 */
-.eink-gray-wedge {
-  display: flex;
-  height: 34px;
-  margin-top: 8px;
-  border: 2px solid #000;
-}
-
-.eink-gray-wedge > span {
-  flex: 1 1 auto;
-}
-
-/* ------------------------------------------------------------------ 8 媒体查询 */
+/* ------------------------------------------------------------------ 7 媒体查询 */
 
 /*
  * 竖屏：控制区居中。

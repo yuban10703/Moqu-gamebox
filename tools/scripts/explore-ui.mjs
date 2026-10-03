@@ -208,7 +208,7 @@ await page.waitForTimeout(300)
 
 /* ---------- 3) 退出后从首页继续 ---------- */
 console.log('\n[3] 退出 → 首页继续')
-// 「返回游戏库」在暂停遮罩里（菜单弹窗只有全刷/导出备份/关闭）
+// 「返回游戏库」在暂停遮罩里（暂停面板只有继续/重新开始/返回游戏库）
 await clickText('暂停')
 await clickOverlay('返回游戏库')
 await page.waitForTimeout(800)
@@ -316,6 +316,9 @@ console.log('\n[6] 设置项切换后各页仍放得下')
 await gotoLibrary()
 await clickText('设置')
 await page.waitForSelector('text=设置', { timeout: 8000 })
+// 刷新档位整节（含系统「应用优化/刷新模式」指引）已从设置页删除，这里守住它不再回来
+const settingsText = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
+check('设置页不再展示刷新档位与系统刷新指引', !/刷新/.test(settingsText), settingsText.slice(0, 60))
 for (const label of ['加粗线条', '显示方向按钮']) {
   await clickText(label)
   await invariants(page, `设置·${label}`)
@@ -409,6 +412,8 @@ await invariants(page, '设置返回后首页')
   const diag = await page.evaluate(() => document.body.innerText.replace(/\n+/g, ' '))
   // 诊断页要如实反映运行环境（网页版曾据此确认「不谎报 BOOX 能力」）
   check('诊断页给出平台与存储信息', /存储|IndexedDB|安卓|Android|BOOX/i.test(diag), diag.slice(0, 70))
+  // 刷新能力一栏与「连续运动测试」入口已整块删除（SDK 不再打进 APK，测也测不到）
+  check('诊断页不再展示刷新能力与连续运动测试', !/刷新|连续运动/.test(diag), diag.slice(0, 70))
 }
 
 console.log('\n[7] 键盘方向键')

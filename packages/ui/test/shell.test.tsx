@@ -186,11 +186,28 @@ describe('设置与语言', () => {
     await waitFor(() => expect(document.documentElement.dataset.fontScale).toBe('1.5'))
   })
 
-  it('不支持直接控制刷新时，不把档位显示为可用', async () => {
+  it('设置页不再提供刷新档位，帮助入口仍然可达', async () => {
     await mount()
     fireEvent.click(screen.getByText('Settings'))
-    await waitFor(() => expect(screen.getByText(/Refresh profile/)).toBeTruthy())
-    expect(screen.getByText(/does not expose refresh control/)).toBeTruthy()
+    await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
+    // 刷新档位整节已删（含「本设备不支持直接控制刷新」的提示）
+    expect(screen.queryByText(/Refresh profile/)).toBeNull()
+    expect(screen.queryByText(/refresh control/)).toBeNull()
+    expect(screen.queryByText(/refresh mode/)).toBeNull()
+    // 帮助入口原先挂在被删的那一节上，现在改挂页脚，必须仍然可用
+    fireEvent.click(screen.getByText('Help'))
+    await waitFor(() => expect(screen.getByText(/Offline use/)).toBeTruthy())
+  })
+})
+
+describe('诊断页', () => {
+  it('不再展示刷新能力一栏，也没有缺键', async () => {
+    await mount()
+    fireEvent.click(screen.getByText('Diagnostics'))
+    await waitFor(() => expect(screen.getByText(/Raw dump/)).toBeTruthy())
+    expect(screen.queryByText(/Refresh capability/)).toBeNull()
+    expect(screen.queryByText(/BOOX display API/)).toBeNull()
+    expect(document.body.textContent).not.toContain('⟦')
   })
 })
 

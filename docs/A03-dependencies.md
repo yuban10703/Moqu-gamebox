@@ -18,9 +18,11 @@
 **没有引入**通用游戏引擎、状态管理库、i18n 库、UI 组件库：壳层规模小，
 自建几十行的实现比引入依赖更可控，也避免在旧 WebView 上增加兼容面。
 
-## BOOX（Onyx）官方 SDK —— 实测结论
+## BOOX（Onyx）官方 SDK —— 历史记录（该 SDK 已完全移除）
 
-以下均为访问 `http://repo.boox.com` 实测所得：
+> **历史说明（2026-10-04）**：本项目曾评估并短期内置过 Onyx SDK（`onyxsdk-device`）。
+> 该 SDK 与相关 Gradle 开关**现已从项目中完全删除**：应用不再声明、下载或反射调用它，
+> 也不存在任何启用方式。下面是对 `http://repo.boox.com` 的实测记录，仅作历史参考。
 
 | 事实 | 结论 |
 |---|---|
@@ -30,26 +32,24 @@
 | 传递依赖 | base → device 1.0.4 + fastjson + easypermissions + commonsIO + rxjava2/rxandroid + eventbus；device → fastjson2 + batik/xmlgraphics（大量 exclusions）；pen 1.2.1 → base 1.6.4 + fst |
 | 文档里的 `setWebViewContrastOptimize` | 在 `onyxsdk-base 1.6.53` 与 `onyxsdk-device 1.3.6` 的常量池里**都找不到**（与公开文档不一致） |
 
-由此确定接入方式：
+据此曾确定的接入方式（**已作废**，相关代码、依赖声明与开关都已删除）：
 
-1. **默认零依赖**：不把 SDK 声明为 `implementation`，而是按类名做**纯反射**调用；
-   APK 里不出现 fastjson2 / batik / rxjava，也就没有相应的体积与冲突风险。
+1. **零依赖**：不把 SDK 声明为 `implementation`，只按类名做**纯反射**调用；
 2. **能力探测而非硬编码**：`UpdateMode` 的名字、前光方法签名、快刷方法签名都按运行时探测结果决定；
-   探测不到的档位在设置页显示为不可用（不假装能用）。
-3. **默认不内置**：这些类不在系统里，所以反射要能用就必须把 SDK 打进来；
-   但实测它只换来「整屏全刷」一项有效能力，代价是 APK 从 1.5MB 涨到 3.3MB。
-   因此**默认不内置**；需要时用 `-PonyxBundled=true`（已配置对 batik 相关组的 exclusions）。
-4. 详细适配说明见 [refresh-adaptation.md](refresh-adaptation.md)。
+3. **最终放弃内置**：这些类不在系统里，反射要能用就必须把 SDK 打进来；
+   而实测它只换来「整屏全刷」一项有效能力（BOOX 系统手势本来就有），代价是 APK 从 1.5MB 涨到 3.3MB。
+   因此不再内置，随后（2026-10-04）连开关与依赖一并彻底移除。
+4. 当时的适配说明见 [refresh-adaptation.md](refresh-adaptation.md)（同为历史记录）。
 
-### `-PonyxBundled` 变体（已实测）
+### 内置 SDK 的体积代价（历史实测，仅供参考）
 
-需要应用内控制刷新时可用 `./gradlew -PonyxBundled=true assembleDebug` 把 SDK 打进 APK：
+内置 SDK 的旧构建（`./gradlew -PonyxBundled=true assembleDebug`，该开关现已删除）：
 
 - 体积 **1.5MB → 3.3MB**（2026-10-04 实测；batik 相关组未被拉入）；
 - SDK 清单声明的 4 个权限（ACCESS_WIFI_STATE / CHANGE_WIFI_STATE / BLUETOOTH / DUMP）
-  已在本项目清单里用 `tools:node="remove"` 剥掉，最终 APK 仍然是**零权限**；
+  当时在本项目清单里用 `tools:node="remove"` 剥掉；**这些声明现已连同 SDK 一起删除**，
+  最终 APK 依旧是**零权限**；
 - 真机结论：整屏全刷可用（`refreshScreen(GC)`），刷新档位不可用（写入被接受但不生效）。
-  详见 [refresh-adaptation.md](refresh-adaptation.md)。
 
 ## 内容来源（无第三方题库）
 

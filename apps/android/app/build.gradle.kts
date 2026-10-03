@@ -5,23 +5,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-/*
- * 是否把 BOOX SDK 一并打进 APK。**默认内置**（此前的默认是不内置，现已反转并附实测依据）。
- *
- * 与 Onyx SDK 的关系（2026-10-04 重新实测后改口径）
- * 本项目在 BOOX 上验证过的刷新能力（整屏全刷 / 档位回读 / 动画模式探测）都靠**反射**调用 SDK 类，
- * 而那些类**不在系统里** —— 所以要把 SDK 打进来反射才找得到。
- * 但实测收益极小、代价很大：
- *   · 真正生效的只有「整屏全刷」一项（档位调用被接受但回读不变；区域刷新实际刷整屏；前光未使用）；
- *   · 而整屏全刷在 BOOX 上**系统手势本来就有**，应用内按钮只是便利；
- *   · 体积代价：内置 3.3MB / 不内置 1.5MB —— **差 1.8MB，超过整个 APK 的一半**
- *     （早先注释里写的"只差约 0.9MB"是错的，已按实测更正）。
- * 因此**默认不内置**。设备上探测不到 SDK 时会如实上报「不支持」并隐藏相关按钮，不会崩溃。
- *
- * 想恢复应用内全刷（或做 SDK 能力实验）时显式打进来：
- *   ./gradlew -PonyxBundled=true assembleDebug
- */
-val onyxBundled: Boolean = (findProperty("onyxBundled") as String?)?.toBoolean() ?: false
 /** 跳过网页资源构建（IDE 里反复编译时用） */
 val skipWebBuild: Boolean = (findProperty("skipWebBuild") as String?)?.toBoolean() ?: false
 
@@ -78,17 +61,6 @@ kotlin {
 
 dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
-    if (onyxBundled) {
-        // 仅在 -PonyxBundled=true 时打进 APK（默认不内置，理由见文件顶部）。
-        implementation("com.onyx.android.sdk:onyxsdk-device:1.3.6") {
-            exclude(group = "net.sf.saxon")
-            exclude(group = "org.xmlresolver")
-            exclude(group = "com.twelvemonkeys.imageio")
-            exclude(group = "com.twelvemonkeys.common")
-        }
-    } else {
-        compileOnly("com.onyx.android.sdk:onyxsdk-device:1.3.6")
-    }
     testImplementation("junit:junit:4.13.2")
 }
 

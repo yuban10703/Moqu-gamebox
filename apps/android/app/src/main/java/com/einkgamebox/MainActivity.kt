@@ -102,8 +102,6 @@ class MainActivity : Activity() {
             ): Boolean {
                 val didCrash = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail.didCrash()
                 Log.w(TAG, "renderer process gone: didCrash=$didCrash - reloading UI")
-                // 先把设备状态收拾干净：退出动画模式、停掉刷新泵，别把面板留在快刷状态
-                backend.setAnimationMode(false, "auto")
                 view.postDelayed({
                     if (::webView.isInitialized && !isFinishing) {
                         webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
@@ -128,15 +126,8 @@ class MainActivity : Activity() {
 
         webView.addJavascriptInterface(JsBridge(this, store, backend), "EinkNative")
         setContentView(webView)
-        // 局部刷新模式是按视图设置的：必须先绑定承载网页的视图，否则调用会静默无效
-        backend.bindView(webView) { webView.post { notifyCapabilityChanged() } }
         webView.loadUrl("https://$ASSET_HOST/assets/web/index.html")
-
-        // 兜底：万一验证回调没跑到（例如后端是通用实现），也再通知一次
-        webView.postDelayed({ notifyCapabilityChanged() }, CAPABILITY_NOTIFY_DELAY_MS)
     }
-
-    fun gameView(): View = webView
 
     /** 让网页层决定返回行为；到底层（首页）时才真正退出应用 */
     @Suppress("DEPRECATION")
@@ -153,28 +144,12 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onPause() {
-        // 切走/熄屏时立即退出动画模式：绝不把设备留在快刷状态
-        backend.setAnimationMode(false, "auto")
-        super.onPause()
-    }
-
     override fun onDestroy() {
-        // 退出前恢复临时快刷模式，避免把设备留在非正常刷新状态
-        backend.release()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface("EinkNative")
             webView.destroy()
         }
         super.onDestroy()
-    }
-
-    private fun notifyCapabilityChanged() {
-        if (!::webView.isInitialized) return
-        webView.evaluateJavascript(
-            "window.__einkCapabilityChanged && window.__einkCapabilityChanged()",
-            null,
-        )
     }
 
     fun applyLocale(locale: String) {
@@ -277,8 +252,6 @@ class MainActivity : Activity() {
         private const val ASSET_HOST = "appassets.androidplatform.net"
         private const val REQUEST_EXPORT = 1001
         private const val REQUEST_IMPORT = 1002
-        /** 给能力验证留出时间（验证要驱动一次真实全刷，耗时以百毫秒计） */
-        private const val CAPABILITY_NOTIFY_DELAY_MS = 1200L
         /** 渲染进程崩溃后重新加载页面的延迟 */
         private const val RENDERER_RESTART_DELAY_MS = 600L
     }

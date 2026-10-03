@@ -92,15 +92,6 @@ export function GameScreen({
   const statColumns = viewport.width > viewport.height ? statCount : Math.min(3, statCount)
 
   /**
-   * 走一步之后不再调用区域刷新。
-   *
-   * 原因：真机实测（Note X2）传入区域矩形后**面板仍然整屏刷新**，
-   * 与整屏全刷在观感上无差别 —— 也就是说这个 API 在这台设备上并没有「只刷一块」的效果。
-   * 既然没有收益，就不该每一步都去驱动一次面板；离屏内容交由系统自身的刷新策略处理，
-   * 需要清残影时用户可以在暂停菜单里手动「立即整屏全刷」。
-   */
-
-  /**
    * 方向键动作名由**游戏**决定：优先走 controlAction（游戏自己把 `move-<dir>` 控件映射成动作），
    * 例如数字华容道的规范动作是 `{ type:'slide', dir }` 而不是 `{ type:'move', dir }`。
    * 没有实现 controlAction 的游戏沿用既有约定 `{ type:'move', dir }`，行为完全不变。
@@ -424,9 +415,6 @@ export function GameScreen({
             <div className="eink-dialog__actions">
               <ActionButton labelKey="shell.game.resume" emphasis="primary" size="large" onSelect={session.resume} />
               <ActionButton labelKey="shell.game.restart" onSelect={() => setConfirmRestart(true)} />
-              {platform.refresh.capability().fullRefresh ? (
-                <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
-              ) : null}
               {/*
                 Direction-pad toggle. Only offered when the game actually renders a pad:
                 dpad-only games are unplayable once it is hidden, and games that never render

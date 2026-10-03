@@ -1,5 +1,5 @@
 /**
- * 诊断页：把 A01 设备基线、刷新能力、存档自检、webView 版本、缺失文案一次性摊开。
+ * 诊断页：把 A01 设备基线、存档自检、webView 版本、缺失文案一次性摊开。
  * 真机跑一次，把文本复制进 docs/A01-device-baseline.md 即可。
  */
 import { useEffect, useState, type ReactNode } from 'react'
@@ -16,11 +16,10 @@ import { useUi } from '../contexts.js'
 
 export interface DiagnosticsScreenProps {
   onBack: () => void
-  onOpenRefreshTest: () => void
   recovery: RecoveryReport | null
 }
 
-export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: DiagnosticsScreenProps): ReactNode {
+export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps): ReactNode {
   const { i18n, platform, storage, locale } = useUi()
   const [baseline, setBaseline] = useState<DeviceBaseline | null>(null)
   const [saves, setSaves] = useState<SaveMeta[]>([])
@@ -32,20 +31,11 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
   }, [platform, storage])
 
   const text = baseline ? formatBaseline(baseline) : ''
-  const capability = platform.refresh.capability()
   const major = webViewMajor(baseline?.webViewVersion ?? null)
 
   return (
     <div className="eink-screen eink-screen--sticky-footer">
-      <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack}>
-        {capability.animationMode ? (
-          <ActionButton
-            labelKey="shell.diagnostics.refreshTest"
-            size="large"
-            onSelect={onOpenRefreshTest}
-          />
-        ) : null}
-      </TopBar>
+      <TopBar title={i18n.t('shell.diagnostics.title')} onBack={onBack} />
 
       {/* 主操作固定在页脚；原始转储很长（实测可达 1884px），绝不能把按钮顶出首屏 */}
       <div className="eink-screen__content">
@@ -82,26 +72,6 @@ export function DiagnosticsScreen({ onBack, onOpenRefreshTest, recovery }: Diagn
             value={baseline ? `${baseline.touch.maxTouchPoints} / coarse=${String(baseline.touch.coarse)}` : '-'}
           />
         </dl>
-      </section>
-
-      <section className="eink-section">
-        <h2>{i18n.t('shell.diagnostics.refresh')}</h2>
-        <p className={capability.onyxSdkFound ? 'eink-notice' : 'eink-muted'}>
-          {i18n.t(capability.onyxSdkFound ? 'shell.diagnostics.sdk.found' : 'shell.diagnostics.sdk.missing')}
-        </p>
-        <dl className="eink-kv">
-          <Row label="features" value={capability.features.join(',') || '-'} />
-          <Row label="modes" value={capability.modes.join(',') || '-'} />
-          <Row label="fullRefresh" value={String(capability.fullRefresh)} />
-          <Row label="partialProfiles" value={String(capability.partialProfiles)} />
-          <Row label="regionRefresh" value={String(capability.regionRefresh)} />
-
-          <Row label="fastMode" value={String(capability.fastMode)} />
-          <Row label={i18n.t('shell.diagnostics.fullRefresh')} value={String(platform.refresh.stats().fullRefreshes)} />
-        </dl>
-        {!capability.onyxSdkFound ? (
-          <p className="eink-text">{i18n.t('shell.diagnostics.help.body')}</p>
-        ) : null}
       </section>
 
       <section className="eink-section">

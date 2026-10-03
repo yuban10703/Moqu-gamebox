@@ -1,5 +1,10 @@
 # 刷新适配说明（BOOX）
 
+> **历史说明（2026-10-04）**：应用内的刷新链路与 Onyx SDK（`onyxsdk-device`）**已从项目中完全移除**，
+> 连同 `onyxBundled` / `-PonyxBundled` 开关、依赖声明、`OnyxEinkBackend` / `RefreshMapping` 等实现。
+> 本文整体转为**历史记录**：下面的实测数据、接口名与验证步骤仅作参考，不代表现版本行为
+> （现版本不提供任何应用内刷新控制，只能依赖 BOOX 系统的刷新手势与「应用优化/刷新模式」）。
+
 ## 实测事实（不是推测）
 
 | 结论 | 证据 |
@@ -83,9 +88,12 @@
 4. 再拍一张同样角度的照片；
 5. 对比两张照片里空白区域的干净程度 —— 这才是残影结论的有效依据。
 
-## 补充：开启 `-PonyxBundled` 后的真机结论（Note X2 + onyxsdk-device 1.3.6）
+## 补充（历史）：内置 `onyxsdk-device` 时的真机结论（Note X2）
 
-把 SDK 打进 APK（`./gradlew -PonyxBundled=true assembleDebug`）后的实测结果：
+> 该构建方式**已不存在**：Onyx SDK 与 `-PonyxBundled` 开关已从项目中完全删除，
+> 应用不再依赖该 SDK。下表是移除前的实测数据，仅作历史参考。
+
+把 SDK 打进 APK（当时的 `./gradlew -PonyxBundled=true assembleDebug`）后的实测结果：
 
 | 项目 | 结论 |
 |---|---|

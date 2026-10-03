@@ -17,7 +17,7 @@ import {
 } from './save.js'
 import type { CompletionRecord } from './types.js'
 import type { DeviceBaseline } from './diagnostics.js'
-import type { SettingsSnapshot } from './settings.js'
+import { parseSettings, type SettingsSnapshot } from './settings.js'
 
 export interface BackupFileV1 {
   schema: typeof BACKUP_SCHEMA
@@ -87,6 +87,10 @@ export function parseBackup(text: string): BackupParseResult {
   }
   if (errors.length > 0) return { ok: false, errors }
 
+  // 旧备份里可能带着已删除的字段（如 device.refresh）：解析时剥掉，模型保持干净
+  const device: DeviceBaseline & { refresh?: unknown } = { ...(candidate.device as DeviceBaseline) }
+  delete device.refresh
+
   return {
     ok: true,
     warnings,
@@ -94,10 +98,11 @@ export function parseBackup(text: string): BackupParseResult {
       schema: candidate.schema as typeof BACKUP_SCHEMA,
       appVersion: candidate.appVersion ?? 'unknown',
       exportedAt: candidate.exportedAt ?? 0,
-      device: candidate.device as DeviceBaseline,
+      device,
       saves,
       records: Array.isArray(candidate.records) ? candidate.records : [],
-      settings: candidate.settings ?? null,
+      // 走一遍设置解析：旧备份里已删除的字段（如 refreshProfile）不会带进新存档
+      settings: candidate.settings ? parseSettings(candidate.settings) : null,
       checksum,
     },
   }

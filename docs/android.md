@@ -10,15 +10,18 @@ npm run build:apk       # 产出 apps/android/app/build/outputs/apk/debug/app-de
 版本组合（已锁定）：JDK 17 (Temurin) + Gradle 8.14.3 + AGP 8.7.3 + Kotlin 2.2.21，
 `compileSdk 35` / `targetSdk 35` / `minSdk 23`。
 
-`-PskipWebBuild=true` 可跳过网页资源构建（IDE 里反复编译时用）；
-`-PonyxBundled=true` 会把 `onyxsdk-device` 打进 APK。**默认不内置**：它只换来「整屏全刷」一项有效能力，
-却让 APK 从 1.5MB 涨到 3.3MB（系统手势本来就能全刷）。需要应用内全刷时再显式打开。
+`-PskipWebBuild=true` 可跳过网页资源构建（IDE 里反复编译时用）。
+
+> **历史说明（2026-10-04）**：本项目曾短暂内置过 Onyx SDK（`onyxsdk-device`），
+> 现已**完全移除** —— 依赖声明与 Gradle 开关（`onyxBundled` / `-PonyxBundled`）都已删除，
+> 应用不再探测或调用任何 BOOX 私有接口。此前实测：内置只换来「整屏全刷」一项
+> （BOOX 系统手势本来就有），却让 APK 从 1.5MB 涨到 3.3MB。数据仅作历史参考，见 [A03](A03-dependencies.md)。
 
 ## 侧载与调试
 
 ```bash
 adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk
-adb logcat -s MainActivity OnyxEinkBackend   # 壳层与 Onyx 探测日志
+adb logcat -s MainActivity   # 壳层日志
 ```
 
 首次运行请到 **设置 → 诊断** 复制设备基线，回填 [A01](A01-device-baseline.md)。
@@ -35,7 +38,6 @@ adb logcat -s MainActivity OnyxEinkBackend   # 壳层与 Onyx 探测日志
 | 返回键 | 网页层接管（`window.__einkHandleBack`） | 与浏览器历史一致；到首页才退出应用 |
 | 文件导入导出 | SAF（`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`） | WebView 内的下载不可靠 |
 | 桥调用 | 绝不阻塞 JavaBridge 线程：需要 UI 的操作 post 到主线程，结果用 JS 回调返回 | 阻塞桥会把后续自动保存一起卡住 |
-| 临时快刷 | 成对进出；页面隐藏、`blur`、退出、`onDestroy` 都会强制恢复 | 不能把设备留在非正常刷新状态 |
 
 ## 签名与发布（尚未完成，属 M5/G04）
 
@@ -46,5 +48,5 @@ adb logcat -s MainActivity OnyxEinkBackend   # 壳层与 Onyx 探测日志
 ## 已知限制
 
 - 本机无 `/dev/kvm`、无真机连接：**只能做编译级验证**，运行期表现必须侧载后确认；
-- BOOX 系统里是否存在 Onyx SDK 类需真机确认；探测结果会在诊断页显示
-  （`onyxSdkFound` 与可用模式名），这也是 [A01](A01-device-baseline.md) 的核心字段。
+- 壳层是**纯通用 Android 实现**：只用平台 API 与 `androidx.webkit`，不含任何厂商 SDK；
+  设备差异（屏幕/视口/WebView/存储/触摸点数等）由诊断页如实上报，见 [A01](A01-device-baseline.md)。

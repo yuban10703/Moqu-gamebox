@@ -31,8 +31,8 @@ fi
 "$ADB" -s "$DEVICE" shell echo ok >/dev/null 2>&1 \
   || die "设备不可达（$DEVICE）。WiFi ADB 掉线时需在设备上重新开启无线调试；被防火墙挡住会报 No route to host。"
 
-step "2/7 构建 APK（用默认配置：Onyx SDK 默认内置）"
-# 刻意不传 -PonyxBundled：验收要验证「发布时的真实默认配置」，
+# 现版本只有一种构建配置：Onyx SDK 已完全移除（无任何开关）
+# （旧注释已删：-PonyxBundled 开关不存在了，Onyx SDK 已完全移除）
 # 显式传参等于绕过默认值，默认值错了也发现不了。
 (cd "$ROOT" && source .toolchain/env.sh && cd apps/android && "$GRADLE_BIN" --no-daemon assembleDebug >/dev/null) \
   || die "构建失败"

@@ -19,9 +19,7 @@
 | 触摸点数 / 粗指针 | 5 / coarse=true | 诊断页 `touch` |
 | 实体按键 | 待采集（诊断页未展示 `hardwareKeys` 字段） | — |
 | 触笔 | 待采集 | — |
-| BOOX 屏幕接口可用 | **否（未检测到）** | 诊断页 `onyxSdkFound` |
-| 可用刷新模式名 | 无 | 诊断页 `refreshModes` |
-| 支持整屏全刷 / 临时快刷 | 否 / 否 | 诊断页 `fullRefresh` / `fastMode` |
+| BOOX 屏幕接口 / 刷新控制 | **不适用**：相关能力与 SDK 已于 2026-10-04 从应用里完全移除 | 见下方「关于 Onyx SDK（历史）」 |
 
 ## 运行环境基线（2026-10-03 复核，构建目标据此确定）
 
@@ -47,18 +45,22 @@
 - `minSdk 23` / `targetSdk 35` 在实机（API 30 / 33）运行正常；
 - 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **78px**（远超 48px 门槛）。
 
-## 关于 Onyx SDK（重要，已实测）
+## 关于 Onyx SDK（历史记录）
+
+> **历史说明（2026-10-04）**：Onyx SDK（`onyxsdk-device`）及其 Gradle 开关已从项目中**完全移除**，
+> 应用不再依赖它，也不存在任何开关或后手。以下检查与结论是移除前的实测记录，仅作历史参考。
 
 | 检查 | 结果 |
 |---|---|
 | `/system/framework` 下是否有 onyx jar | **没有**（64 个条目里无任何 onyx 相关） |
 | 全盘搜索 `*onyx*` | 只有系统原生库与自家应用：`/system/lib/libonyx_epd_listener.so`、`libonyx_neo_dither.so`、`/system/priv-app/OnyxOtaService`、`/system/etc/sysconfig/onyx_whitelist.xml` 等 |
-| 第三方应用能否 `Class.forName("...EpdController")` | **不能**（诊断页 `onyxSdkFound=false`，应用自动退回通用模式，未崩溃） |
+| 第三方应用能否 `Class.forName("...EpdController")` | **不能**（当时的诊断页报 `onyxSdkFound=false`，应用自动退回通用模式，未崩溃） |
 
 结论：这台 Note X2 上第三方应用**拿不到** Java 层的 Onyx 屏幕接口。因此：
 
 1. 应用如实显示「当前设备不支持直接控制刷新」，并给出系统设置指引 —— 符合「不把未验证能力写成可用」的原则；
-2. 若确实需要应用内全刷/档位控制，用 `-PonyxBundled` 把 SDK 打进 APK 再实测（见 [android.md](android.md)）；
+2. （已作废）曾用内置 SDK 的构建做过能力实测，但 SDK 只换来一项系统本就有手势的能力、代价是 APK 翻倍；
+   该 SDK 及开关现已彻底删除，不再提供启用方式；
 3. 网页端（Neo 浏览器）同样无法直接控制刷新，只能依赖系统的「应用优化/刷新模式」。
 
 ## 实测观察记录
@@ -107,6 +109,9 @@ webViewSufficient: true
 storage: android
 ```
 
+> 这是 2026-10-03 旧构建复制出来的原始记录：其中 `onyxSdkFound` / `refreshFeatures` / `refreshModes` /
+> `fullRefresh` / `fastMode` 几个字段随 SDK 与刷新链路一起被删除，现版诊断页不再输出它们。
+
 ## 第二台设备：BOOX P6Plus（用于跨设备对比）
 
 | 项目 | 数值 |
@@ -121,7 +126,20 @@ storage: android
 | 波形 | `onyx waveform sg` |
 | 侧载注意 | 与 Note X2 相同：安装后包被置为 `enabled=3`（DISABLED_USER），**需要再执行一次 `pm enable --user 0`**；启动器还会标 `isAutoFreeze:true isEACEnabled:true` |
 
-### 跨设备能力对比（同一 APK，`-PonyxBundled=true`）
+### Google Play 商店（2026-10-03 追加，详见 [device-google-play.md](device-google-play.md)）
+
+| 检查 | 结果 |
+|---|---|
+| GMS / GSF | **系统自带**：`GmsCore 23.37.17`（`/product/priv-app`）、`GoogleServicesFramework 13-8768315`（`/system_ext/priv-app`） |
+| Play 商店 | 出厂**没有**（`pm list packages -u` 无 `vending`）；已侧载 `53.3.21-31`（universal / minSdk 31）并跑通 |
+| 固件闸门 | `gms_enable=false` 时 framework 的 `ActivityStarter.executeRequest()` 直接拒绝启动 `com.android.vending`（`SecurityException: … Google Play is disabled.`）；该键在 `/onyxconfig/mmkv/onyx_config`，写入接口是 `OnyxMMKVConfigHelper.saveValue` |
+| 已给权限 | `com.android.vending` 的 `INSTALL_PACKAGES` / `DELETE_PACKAGES` 实测 `granted=true`（来自 ROM 的 `privapp-permissions-google-product.xml` 白名单，即使装在 `/data/app`） |
+
+### 跨设备能力对比（历史数据：SDK 已移除）
+
+> **历史说明（2026-10-04）**：下表是**移除前**用内置 SDK 的旧构建（`-PonyxBundled=true`）实测的数据。
+> Onyx SDK 与那个 Gradle 开关现已从项目中完全移除，应用不再依赖它，也没有任何启用方式；
+> 这些数字仅作历史参考，不代表现版本的行为。
 
 | 探测项 | Note X2（Android 11） | P6Plus（Android 13） |
 |---|---|---|

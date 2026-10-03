@@ -154,17 +154,19 @@ WebView 调试端口名带 pid（必须先取 pid 才能转发）。
 
 （这些脚本此前只存在于未纳入版本控制的 `.toolchain/` 里，交接时容易丢失，现正式入库。）
 
-## 5b. 构建决策：Onyx SDK **默认不内置**（2026-10-04 改回）
+## 5b. 构建决策：Onyx SDK **已完全移除**（2026-10-04）
 
-`apps/android/app/build.gradle.kts` 里 `onyxBundled` 的默认值是 **false**。
+`apps/android/app/build.gradle.kts` 里**已不存在** `onyxBundled` 开关，也不再有
+`onyxsdk-device` 的依赖声明（`implementation` / `compileOnly` 都没有）；`settings.gradle.kts`
+里的 BOOX Maven 仓库、`AndroidManifest.xml` 里为 SDK 权限做的 `tools:node="remove"`、
+以及 `OnyxEinkBackend.kt` 都已一并删除。**没有任何后手或启用方式。**
 
-- **依据（重新实测后的结论）**：SDK 只带来一项**真正生效**的能力 —— 整屏全刷
-  （档位调用被接受但回读不变；区域刷新实际刷整屏；前光未使用）；
+移除依据（此前的实测结论，仅作历史参考）：
+
+- SDK 只带来一项**真正生效**的能力 —— 整屏全刷（档位调用被接受但回读不变；区域刷新实际刷整屏）；
   而整屏全刷在 BOOX 上**系统手势本来就有**，应用内按钮只是便利；
-- **实测体积代价很大**：内置 **3.3MB** / 不内置 **1.5MB**，**差 1.8MB（超过整个 APK 的一半）**
-  —— 早先文档里写的"3.4 / 2.5，只差约 0.9MB"与本次实测不符，已按实测更正；
-- **如何启用**：`./gradlew -PonyxBundled=true assembleDebug`（做 SDK 能力实验或想要应用内全刷时）；
-- 不内置时设备上探测不到 SDK → 能力清单如实上报不支持、相关按钮隐藏、不会崩溃。
+- 体积代价（差 1.8MB，超过当时整个 APK 的一半），且因此把 APK 从 1.5MB 撑到 3.3MB；
+- 移除后壳层是纯通用 Android 实现：不含任何厂商 SDK，也不再有刷新能力探测。
 
 ## 6. 未结项与已知限制
 

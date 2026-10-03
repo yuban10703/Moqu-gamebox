@@ -1,5 +1,5 @@
 /**
- * 应用外壳：路由、启动自检（存档恢复 / 离线准备 / 刷新档位）、硬件按键。
+ * 应用外壳：路由、启动自检（存档恢复 / 离线准备）、硬件按键。
  *
  * 路由与浏览器历史一致，因此 Android 的系统返回键 = history.back()，
  * 浏览器返回键行为也一致（对应 E04：不重复执行旧输入、不占用系统保留键）。
@@ -15,7 +15,6 @@ import { GameDetailScreen } from './screens/GameDetailScreen.js'
 import { GameScreen } from './screens/GameScreen.js'
 import { SettingsScreen } from './screens/SettingsScreen.js'
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen.js'
-import { MotionTestScreen } from './screens/MotionTestScreen.js'
 import { HelpScreen } from './screens/HelpScreen.js'
 
 type Screen =
@@ -38,7 +37,6 @@ type Screen =
     }
   | { name: 'settings' }
   | { name: 'diagnostics' }
-  | { name: 'motionTest' }
   | { name: 'help' }
 
 export interface AppProps {
@@ -89,7 +87,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
     setCorruptGameIds(corrupt)
   }, [platform])
 
-  // 启动自检：先补提交未完成的存档，再读列表；同时准备离线资源、应用刷新档位
+  // 启动自检：先补提交未完成的存档，再读列表；同时准备离线资源
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -98,12 +96,11 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
       setRecovery(report)
       await refreshSaves()
       await platform.offline.ensure()
-      platform.refresh.setProfile(ui.settings.refreshProfile)
     })()
     return () => {
       cancelled = true
     }
-  }, [platform, refreshSaves, ui.settings.refreshProfile])
+  }, [platform, refreshSaves])
 
   const navigate = useCallback((next: Screen) => {
     if (typeof history !== 'undefined') {
@@ -268,15 +265,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
           />
         )
       case 'diagnostics':
-        return (
-          <DiagnosticsScreen
-            onBack={goBack}
-            recovery={recovery}
-            onOpenRefreshTest={() => navigate({ name: 'motionTest' })}
-          />
-        )
-      case 'motionTest':
-        return <MotionTestScreen onBack={goBack} />
+        return <DiagnosticsScreen onBack={goBack} recovery={recovery} />
       case 'help':
         return <HelpScreen onBack={goBack} onDiagnostics={() => navigate({ name: 'diagnostics' })} />
     }

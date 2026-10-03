@@ -13,11 +13,11 @@ import org.json.JSONObject
 
 /**
  * 设备基线采集（对应 A01）。真机跑一次诊断页即可回填文档表格。
- * 只采集设备能力，不采集任何用户标识。
+ * 只采集设备能力，不采集任何用户标识，也不含任何刷新能力字段（刷新链路已整条删除）。
  */
 object DeviceBaseline {
 
-    fun collect(context: Context, capability: RefreshCapability): JSONObject {
+    fun collect(context: Context): JSONObject {
         val metrics: DisplayMetrics = context.resources.displayMetrics
 
         val hardwareKeys = JSONArray()
@@ -47,15 +47,6 @@ object DeviceBaseline {
             put("touch", JSONObject().put("maxTouchPoints", 1).put("coarse", true))
             put("hardwareKeys", hardwareKeys)
             put("stylusSupported", stylusSupported)
-            put(
-                "refresh",
-                JSONObject()
-                    .put("onyxSdkFound", capability.onyxSdkFound)
-                    .put("features", JSONArray(capability.features))
-                    .put("modes", JSONArray(capability.modes))
-                    .put("fullRefresh", capability.fullRefresh)
-                    .put("fastMode", capability.fastMode),
-            )
         }
     }
 

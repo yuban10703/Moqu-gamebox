@@ -8,7 +8,7 @@
  * 网页版冒烟测试（真实 Chromium，Playwright）。
  *
  * 为什么需要它：真机（BOOX）与浏览器是两条不同的运行路径 ——
- * 网页版走 IndexedDB 存储、没有 Onyx 刷新能力、语言跟随浏览器。
+ * 网页版走 IndexedDB 存储、语言跟随浏览器。
  * 这些在 jsdom 单测里覆盖不到（jsdom 没有真实 IndexedDB/布局），必须用真浏览器。
  *
  * 用法：
@@ -50,12 +50,10 @@ check('首页渲染', true)
 
 const platform = await page.evaluate(() => {
   const p = window.__einkPlatform
-  return p ? { kind: p.kind, storage: p.storage.kind, refresh: p.refresh.capability() } : null
+  return p ? { kind: p.kind, storage: p.storage.kind } : null
 })
 check('平台为 web 且存储可用', platform?.kind === 'web' && !!platform?.storage,
   `kind=${platform?.kind} storage=${platform?.storage}`)
-check('网页版不谎报 BOOX 刷新能力', platform?.refresh?.onyxSdkFound === false,
-  `onyxSdkFound=${platform?.refresh?.onyxSdkFound}`)
 
 await page.getByRole('button', { name: /推箱子/ }).first().click()
 await page.waitForSelector('text=玩法说明', { timeout: 8000 })

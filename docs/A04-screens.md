@@ -11,10 +11,10 @@
 | 游戏界面 | `screens/GameScreen.tsx` | 顶栏（返回 / 暂停）、统计、棋盘、提示行、保存状态、方向控制 + 操作按钮、结果面板 |
 | 暂停层 | `screens/GameScreen.tsx` | 已暂停说明（只读提示）、继续、重新开始、全刷（如支持）、返回游戏库 |
 | 结果面板 | `screens/GameScreen.tsx` | 完成标题、统计（步数/推箱/撤销/最佳）、下一关、再来一次、返回游戏库 |
-| 设置 | `screens/SettingsScreen.tsx` | 语言、字号、刷新档位（不支持时明确标注）、计时、方向盘、线条、数据管理 |
+| 设置 | `screens/SettingsScreen.tsx` | 语言、字号、计时、方向盘、线条、数据管理、帮助入口（页脚） |
 | 数据管理 | `screens/SettingsScreen.tsx` | 导出、导入、清除（需确认）、备份副本列表与恢复 |
-| 诊断 | `screens/DiagnosticsScreen.tsx` | 设备基线、视口、刷新能力、存档自检、缺失文案、复制按钮 |
-| 帮助 | `screens/HelpScreen.tsx` | BOOX 系统刷新指引、离线说明、存档与备份说明、操作方式 |
+| 诊断 | `screens/DiagnosticsScreen.tsx` | 设备基线、视口、存档自检、缺失文案、复制按钮 |
+| 帮助 | `screens/HelpScreen.tsx` | 离线说明、存档与备份说明、操作方式 |
 
 ## 关键流程
 

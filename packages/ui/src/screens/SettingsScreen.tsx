@@ -1,6 +1,6 @@
 /**
  * 设置与数据管理。
- * 「不支持的选项不作为可用选项显示」——刷新档位在没有原生能力时明确标注不可用并给出指引。
+ * 「不支持的选项不作为可用选项显示」——只呈现本设备真正生效的选项。
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { APP_VERSION, type ConflictStrategy } from '@eink/core'
@@ -13,17 +13,8 @@ export interface SettingsScreenProps {
   onBackupsChanged: () => void
 }
 
-type RefreshProfile = 'quality' | 'balanced' | 'speed'
-
-const REFRESH_PROFILES: ReadonlyArray<{ value: RefreshProfile; labelKey: string }> = [
-  { value: 'quality', labelKey: 'shell.settings.refresh.quality' },
-  { value: 'balanced', labelKey: 'shell.settings.refresh.balanced' },
-  { value: 'speed', labelKey: 'shell.settings.refresh.speed' },
-]
-
 export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: SettingsScreenProps): ReactNode {
-  const { i18n, settings, updateSettings, platform, storage, fullRefresh } = useUi()
-  const capability = platform.refresh.capability()
+  const { i18n, settings, updateSettings, platform, storage } = useUi()
   const [message, setMessage] = useState<string | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [backups, setBackups] = useState<Array<{ gameId: string; slot: number }>>([])
@@ -108,38 +99,6 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
       </section>
 
       <section className="eink-section">
-        <h2>{i18n.t('shell.settings.refreshProfile')}</h2>
-        {capability.partialProfiles ? (
-          <div className="eink-choice-row">
-            {REFRESH_PROFILES.map((option) => (
-              <ActionButton
-                key={option.value}
-                labelKey={option.labelKey}
-                emphasis={settings.refreshProfile === option.value ? 'primary' : 'normal'}
-                onSelect={() => void updateSettings({ refreshProfile: option.value })}
-              />
-            ))}
-          </div>
-        ) : (
-          <>
-            <p className="eink-muted">
-              {i18n.t(
-                capability.onyxSdkFound
-                  ? 'shell.settings.refresh.notEffective'
-                  : 'shell.settings.refresh.unsupported',
-              )}
-            </p>
-          </>
-        )}
-        <div className="eink-card__actions">
-          {capability.fullRefresh ? (
-            <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={fullRefresh} />
-          ) : null}
-          <ActionButton labelKey="shell.nav.help" onSelect={onOpenHelp} />
-        </div>
-      </section>
-
-      <section className="eink-section">
         <h2>{i18n.t('shell.settings.appliesToAll')}</h2>
         <div className="eink-choice-row">
           <ActionButton
@@ -214,6 +173,10 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
       </div>
 
       <footer className="eink-footer">
+        {/* The help entry used to live in the refresh-profile section; that section is gone */}
+        <button type="button" className="eink-link" onClick={onOpenHelp}>
+          {i18n.t('shell.nav.help')}
+        </button>
         <span className="eink-muted">{`v${APP_VERSION}`}</span>
       </footer>
 

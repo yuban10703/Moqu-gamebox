@@ -42,8 +42,6 @@ export interface UiContextValue {
   layoutConfig: LayoutConfig
   updateSettings(patch: Partial<SettingsSnapshot>): Promise<void>
   updateGameSettings(gameId: string, patch: GameSettings): Promise<void>
-  /** 整屏全刷（同时计数，供诊断页展示） */
-  fullRefresh(): void
 }
 
 const UiContext = createContext<UiContextValue | null>(null)
@@ -90,7 +88,6 @@ export function UiProvider({ platform, dicts, children, initialSettings }: UiPro
       const next = mergeSettings(effective, patch)
       setSettings(next)
       await platform.storage.saveSettings(next)
-      if (patch.refreshProfile) platform.refresh.setProfile(patch.refreshProfile)
     },
     [effective, platform],
   )
@@ -119,7 +116,6 @@ export function UiProvider({ platform, dicts, children, initialSettings }: UiPro
     layoutConfig,
     updateSettings,
     updateGameSettings,
-    fullRefresh: () => platform.refresh.fullRefresh(),
   }
 
   return <UiContext.Provider value={value}>{children}</UiContext.Provider>
@@ -129,7 +125,6 @@ function defaultSettings(): SettingsSnapshot {
   return {
     locale: 'auto',
     fontScale: 1,
-    refreshProfile: 'quality',
     timer: true,
     dpad: true,
     boldLines: true,
@@ -172,7 +167,6 @@ export function useRootAttributes(locale: LocaleId, settings: SettingsSnapshot):
     root.lang = locale
     root.dataset.fontScale = String(settings.fontScale)
     root.dataset.boldLines = settings.boldLines ? 'on' : 'off'
-    root.dataset.refreshProfile = settings.refreshProfile
   }, [locale, settings])
 }
 

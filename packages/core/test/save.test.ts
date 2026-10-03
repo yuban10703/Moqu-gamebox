@@ -300,7 +300,25 @@ describe('设置模型', () => {
 
   it('损坏或非法的设置回落为默认值而不是崩溃', () => {
     expect(parseSettings(null).fontScale).toBe(1)
-    expect(parseSettings({ fontScale: 7, refreshProfile: 'turbo' }).fontScale).toBe(1)
-    expect(parseSettings({ refreshProfile: 'speed' }).refreshProfile).toBe('speed')
+    expect(parseSettings({ fontScale: 7 }).fontScale).toBe(1)
+  })
+
+  it('旧存档里的 refreshProfile 字段被忽略且解析不报错（向后兼容）', () => {
+    // 旧版本写下的设置快照里带 refreshProfile；字段已删除，但旧存档必须照常读入
+    const legacy = JSON.stringify({
+      locale: 'zh-CN',
+      fontScale: 1.25,
+      refreshProfile: 'speed',
+      timer: false,
+      dpad: true,
+      boldLines: true,
+      perGame: { sokoban: { difficulty: 'skilled' } },
+    })
+    const parsed = parseSettings(JSON.parse(legacy))
+    expect(parsed.locale).toBe('zh-CN')
+    expect(parsed.fontScale).toBe(1.25)
+    expect(parsed.timer).toBe(false)
+    expect(Object.keys(parsed)).not.toContain('refreshProfile')
+    expect(effectiveSettings(parsed, 'sokoban').difficulty).toBe('skilled')
   })
 })
