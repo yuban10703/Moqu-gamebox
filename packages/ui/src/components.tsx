@@ -6,7 +6,7 @@
  * - 计时等每秒变化的内容隔离在小组件里，不驱动整页重绘。
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { BOARD_FRAME_PX, type BoardView, type CellKind, type ControlSpec, type MoveDir } from '@eink/core'
+import { type BoardView, type CellKind, type ControlSpec, type MoveDir } from '@eink/core'
 import { useUi } from './contexts.js'
 
 export interface ActionButtonProps {
@@ -158,8 +158,8 @@ export function Timer({
  *   角色      = 人形剪影                   角色在目标点 = 目标圆环 + 缩小的剪影
  *   目标点    = 圆环
  *
- * 箱子会**占满整个格子**（见 Board 里的 glyphSize）：推箱子的箱体本来就是格子的内容，
- * 留白反而让箱子和地板混淆；占满后「箱体/通道」一眼可分。
+ * 箱子会**占满整个格子**（见 styles.css 里 `.eink-board__cell[data-kind='box'] > svg`）：
+ * 推箱子的箱体本来就是格子的内容，留白反而让箱子和地板混淆；占满后「箱体/通道」一眼可分。
  */
 /** 以「文字」呈现的格子：数字/符号在墨水屏上比图形更清楚，且天然是 1-bit */
 // floor 也纳入：迷宫用 `floor` + `·` 标记已走过的路径（推箱子的 floor glyph 为空，不受影响）
@@ -167,19 +167,16 @@ const TEXT_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(['tile', 'given', 'n
 
 function BoardGlyph({
   kind,
-  size,
   bold,
 }: {
   kind: CellKind
-  size: number
   bold: boolean
 }): ReactNode {
   if (kind === 'floor' || kind === 'wall' || TEXT_KINDS.has(kind)) return null
   const stroke = bold ? 2.6 : 1.6
   const thin = bold ? 2 : 1.1
+  // 尺寸交给 CSS（.eink-board__cell > svg 按格子的百分比给），因此只写 viewBox
   const common = {
-    width: size,
-    height: size,
     viewBox: '0 0 24 24',
     'aria-hidden': true,
     focusable: false,
@@ -239,7 +236,6 @@ export interface BoardProps {
   /** 「加粗线条」设置：加粗 SVG 线宽，方便墨水屏上辨认 */
   bold?: boolean
   board: BoardView
-  cell: number
   /** 无障碍标签：优先用游戏包提供的 i18n key；缺省时回退到 glyph */
   labelFor?: (kind: CellKind, index: number, glyph: string) => string
   onCellSelect?: (index: number) => void
@@ -249,21 +245,15 @@ export interface BoardProps {
  * 棋盘：DOM 网格渲染。
  * 选择 DOM 而不是 Canvas 的原因：网页侧无法承诺像素级局部刷新，
  * 而 DOM 让系统自己做最小重绘；文字用系统字体，中文不会缺字。
+ *
+ * 尺寸：格子大小、棋盘宽高、外框线宽**全部由 CSS 决定**（styles.css 的 .eink-board：
+ * 容器查询 100cqw/100cqh + min()）。这里只给出棋盘的**形状**（列数/行数）——
+ * 那是数据，不是布局。JS 不再参与任何像素计算。
  */
-export function Board({
-  board,
-  cell,
-  labelFor,
-  onCellSelect,
-  bold = false,
-}: BoardProps): ReactNode {
+export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProps): ReactNode {
   const style = {
-    gridTemplateColumns: `repeat(${board.cols}, ${cell}px)`,
-    gridTemplateRows: `repeat(${board.rows}, ${cell}px)`,
-    // 外框宽度与 computeBoardLayout 用同一个常量，避免「布局按 3px 算、实际画 5px」而裁掉边框
-    borderWidth: `${BOARD_FRAME_PX}px`,
-    // 供 CSS 计算格子内符号的字号
-    ['--cell' as string]: `${cell}px`,
+    ['--board-cols' as string]: board.cols,
+    ['--board-rows' as string]: board.rows,
   } as CSSProperties
   // 组边界（例如数独每 3 格）画更粗的分隔线，否则分组结构看不出来
   const groups = board.groups
@@ -295,8 +285,7 @@ export function Board({
     <div
       className="eink-board"
       /*
-       * 棋盘几何（列宽/行高/外框宽度/--cell）一律走内联样式：这些值由 JS 按实测可用区算出来，
-       * 写进类选择器会与 styles.css 里的规则层叠打架（本项目已踩过三次）。
+       * 行内只给**形状**（--board-cols/--board-rows，来自棋盘数据），尺寸一律由 CSS 算。
        * 注意：元素一律**按格**渲染，不再有绝对定位的覆盖层 —— 覆盖层与网格是两套坐标系，
        * 真机上名字位置与可点区域对不上（用户反馈"点到的不是我想点的那块 / 完全乱了"）。
        */
@@ -333,17 +322,7 @@ export function Board({
               {cellView.glyph}
             </span>
           ) : null}
-          <BoardGlyph
-            kind={cellView.kind}
-            size={
-              // 箱子占满整个格子（内容盒 = 格子 - 两侧边框）；
-              // 其余图形留白，避免与格子边框糊成一片
-              cellView.kind === 'box' || cellView.kind === 'boxOnGoal'
-                ? Math.max(8, cell - 2)
-                : Math.round(cell * 0.78)
-            }
-            bold={bold}
-          />
+          <BoardGlyph kind={cellView.kind} bold={bold} />
         </div>
       ))}
 
