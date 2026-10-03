@@ -30,6 +30,7 @@ export const library: GameLibrary = {
   entries: [
     defineGame({
       game: klotskiGame,
+      hideDifficulty: true,
       cellLabelKey: (kind) => `klotski.cell.${kind}`,
       rulesKeys: ['klotski.rules.body', 'klotski.rules.body2'],
       defaultDifficulty: 'starter',
@@ -42,6 +43,7 @@ export const library: GameLibrary = {
     }),
     defineGame({
       game: sokobanGame,
+      hideDifficulty: true,
       cellLabelKey: (kind) => `sokoban.cell.${kind}`,
       rulesKeys: ['sokoban.rules.body', 'sokoban.rules.body2'],
       defaultDifficulty: 'starter',

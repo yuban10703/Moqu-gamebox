@@ -52,8 +52,8 @@ describe('起始状态', () => {
   })
 
   it('GameDef 按难度给出该难度第一关', () => {
-    expect(klotskiGame.create(0, 'starter').levelId).toBe('level-2')
-    expect(klotskiGame.create(0, 'skilled').levelId).toBe('level-1')
+    expect(klotskiGame.create(0, 'starter').levelId).toBe('level-1')
+    expect(klotskiGame.create(0, 'skilled').levelId).toBe('level-3')
     expect(klotskiGame.create(0, 'challenging').levelId).toBe('level-4')
     expect(() => klotskiGame.create(0, 'impossible')).toThrow(IllegalActionError)
   })

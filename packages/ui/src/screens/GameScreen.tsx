@@ -280,7 +280,8 @@ export function GameScreen({
   const clearedCount = session.progress.completed?.length ?? 0
   // difficulty 是本组件的 prop（详情页选定的难度），直接使用
   const subtitleParts = [
-    difficulty ? i18n.t(`${entry.game.i18nNamespace}.difficulty.${difficulty}`) : '',
+    // 有关卡的玩法隐藏了难度区，副标题里也就别再显示难度词（否则会显示一个玩家没选过的难度）
+    !entry.hideDifficulty && difficulty ? i18n.t(`${entry.game.i18nNamespace}.difficulty.${difficulty}`) : '',
     clearedCount > 0 && levelTotal > 0
       ? i18n.t('shell.game.cleared', { done: clearedCount, total: levelTotal })
       : '',

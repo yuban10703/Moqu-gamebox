@@ -215,6 +215,12 @@ export function GameDetailScreen({
         </div>
       </section>
 
+      {/*
+        Difficulty is hidden for games that also have levels (sokoban / klotski):
+        there it only acts as a "which level to start on" shortcut, and the level list
+        already covers that. Games with difficulty only (sudoku, minesweeper, ...) keep it.
+      */}
+      {entry.hideDifficulty ? null : (
       <section className="eink-section">
         <h2>{i18n.t('shell.detail.difficulty')}</h2>
         <div className="eink-choice-row">
@@ -228,6 +234,7 @@ export function GameDetailScreen({
           ))}
         </div>
       </section>
+      )}
 
       {/*
        * 关卡区只给有关卡的玩法（推箱子 / 华容道）；只有难度选择的玩法换成历史记录，

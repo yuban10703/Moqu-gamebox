@@ -8,6 +8,13 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
   game: GameDef<S, A>
   /** 详情页「玩法说明」的文案 key 列表（按顺序展示） */
   rulesKeys: string[]
+  /**
+   * 隐藏详情页的「难度」区。
+   * 用于**同时有难度和关卡**的玩法（推箱子 / 华容道）—— 那里的"难度"其实只是
+   * "从第几关开始"的快捷方式，有关卡列表就够了（用户要求："把难度选项删了，只保留关卡"）。
+   * 只有难度、没有关卡的玩法**不要**设它，那七款的难度是真难度。
+   */
+  hideDifficulty?: boolean
   defaultDifficulty: string
   /** 详情页展示的内容列表（关卡等） */
   levels?: readonly { id: string }[]

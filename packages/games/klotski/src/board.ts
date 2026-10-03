@@ -155,7 +155,8 @@ function pawn(n: number, col: number, row: number): LevelPiece {
 export const LEVELS: readonly LevelDef[] = [
   {
     id: 'level-1',
-    difficulty: 'skilled',
+    // 标成 starter：它现在是默认起点（难度区已隐藏，不能再靠"熟练"才够到第 1 关）
+    difficulty: 'starter',
     optimalMoves: 116,
     pieces: [
       cao(1, 0),

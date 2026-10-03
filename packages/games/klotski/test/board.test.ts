@@ -75,8 +75,9 @@ describe('关卡包', () => {
       expect(DIFFICULTY_IDS).toContain(level.def.difficulty)
       expect(level.def.optimalMoves).toBeGreaterThan(0)
     }
-    expect(levelsFor('starter').map((level) => level.def.id)).toEqual(['level-2'])
-    expect(levelsFor('skilled').map((level) => level.def.id)).toEqual(['level-1', 'level-3'])
+    // level-1 现在是默认起点（难度区已隐藏），因此也带 starter 标签，skilled 只剩 level-3
+    expect(levelsFor('starter').map((level) => level.def.id)).toEqual(['level-1', 'level-2'])
+    expect(levelsFor('skilled').map((level) => level.def.id)).toEqual(['level-3'])
     expect(levelsFor('challenging').map((level) => level.def.id)).toEqual(['level-4'])
     for (const difficulty of DIFFICULTY_IDS) {
       expect(levelById(firstLevelId(difficulty))).toBeDefined()
