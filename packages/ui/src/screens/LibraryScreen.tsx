@@ -57,6 +57,15 @@ export function LibraryScreen({
   const current = Math.min(page, pageCount - 1)
   const pageEntries = entries.slice(current * pageSize, current * pageSize + pageSize)
   const gridRef = useRef<HTMLUListElement | null>(null)
+  // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
+  const offline = useOfflineState(platform.offline)
+  /**
+   * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
+   * 原先用 entries.find(...)，于是玩了 2048 之后首页卡片还显示推箱子（探索式测试发现）。
+   */
+  const continued = entries
+    .filter((entry) => saves[entry.game.id])
+    .sort((a, b) => (saves[b.game.id]?.updatedAt ?? 0) - (saves[a.game.id]?.updatedAt ?? 0))[0]
 
   /*
    * 量「这屏能放多少张卡」：列数 = 网格宽 / 卡宽，行数 = 内容区可用高 / 卡高。
@@ -64,6 +73,12 @@ export function LibraryScreen({
    * 关键：**只观察内容区与窗口，绝不观察网格自身**。
    * 之前观察网格导致翻页后重算（页数从 2 变 3）、页码自己跳 —— 真机上实测到的 bug。
    * 另外可用高度用「内容区高度 − 网格相对内容区的偏移」算，与网格当页有几张卡无关。
+   *
+   * 偏移量的依赖必须显式列出：损坏警告与「继续上一局」都在网格上方，
+   * 它们出现/消失会改变 gridOffset，从而改变这一屏放得下几行。
+   * 只靠 ResizeObserver 不行 —— 内容区自身的尺寸没变，观察回调不保证再来一次
+   * （实测：坏档警告出现后内容 894px > 可视 632px，只因碰巧撞上一次初始回调才恢复）。
+   * 这些依赖都不会在翻页时变化，所以不会造成「页数自跳」。
    */
   useEffect(() => {
     const measure = (): void => {
@@ -93,16 +108,7 @@ export function LibraryScreen({
       window.removeEventListener('resize', measure)
       observer?.disconnect()
     }
-  }, [entries.length])
-  // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
-  const offline = useOfflineState(platform.offline)
-  /**
-   * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
-   * 原先用 entries.find(...)，于是玩了 2048 之后首页卡片还显示推箱子（探索式测试发现）。
-   */
-  const continued = entries
-    .filter((entry) => saves[entry.game.id])
-    .sort((a, b) => (saves[b.game.id]?.updatedAt ?? 0) - (saves[a.game.id]?.updatedAt ?? 0))[0]
+  }, [entries.length, corruptGameIds.length, continued?.game.id, offline, platform.storage.persistent])
 
   return (
     <div className="eink-screen eink-screen--sticky-footer">
@@ -157,22 +163,38 @@ export function LibraryScreen({
           </div>
           {(() => {
             const envelope = saves[continued.game.id]!
-            const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
-            const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
             const title = i18n.t(`${continued.game.i18nNamespace}.title`)
-            // 只保留「关卡 N」；区块标题已经说明这是「继续」，栏内不再以「继续上一局 ·」开头
-            const level = `${i18n.t('shell.common.level')} ${index + 1}`
+            /*
+             * Level-based games (sokoban / klotski) keep "Level N".
+             * Games without levels (2048 / sudoku / ...) have no level index at all:
+             * falling back to index 0 used to print a meaningless "Level 1".
+             * They show their real progress instead (same key and same progressFor
+             * the detail screen uses); if that is unavailable or empty, the bar
+             * shows the game name alone rather than inventing a level.
+             */
+            const hasLevels = (continued.levels?.length ?? 0) > 0
+            let meta = ''
+            if (hasLevels) {
+              const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
+              const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
+              meta = `${i18n.t('shell.common.level')} ${index + 1}`
+            } else {
+              const summary = continued.progressFor?.(progressOf(envelope).completed)
+              if (summary && summary.total > 0) {
+                meta = i18n.t('shell.library.progress', { done: summary.done, total: summary.total })
+              }
+            }
             return (
               <button
                 type="button"
                 className="eink-continue"
                 onClick={() => onContinue(continued.game.id)}
                 // 无障碍名仍要能独立读懂：区块标题在按钮之外，读屏可能只读到按钮
-                aria-label={`${i18n.t('shell.library.continue')} ${title} ${level}`}
+                aria-label={meta ? `${i18n.t('shell.library.continue')} ${title} ${meta}` : `${i18n.t('shell.library.continue')} ${title}`}
               >
                 <GameIcon namespace={continued.game.i18nNamespace} size={22} />
                 <span className="eink-continue__title">{title}</span>
-                <span className="eink-continue__meta">{level}</span>
+                {meta ? <span className="eink-continue__meta">{meta}</span> : null}
               </button>
             )
           })()}
