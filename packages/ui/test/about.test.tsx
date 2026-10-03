@@ -45,25 +45,42 @@ function footerButton(text: string): HTMLButtonElement {
   return found
 }
 
+/**
+ * 首页上的「关于」入口。**不锁定在页脚还是标题行**：
+ * 这两处都被产品要求过（先与设置/帮助/诊断同排，后因英文页脚会折行改到 h1 那一行），
+ * 测试只守住「首页有一个真的 <button> 入口」这件事，位置交给布局决定。
+ */
+function homeEntry(text: string): HTMLButtonElement {
+  for (const scope of ['.eink-screen__header', '.eink-footer']) {
+    const root = document.querySelector(scope)
+    if (!root) continue
+    const found = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => (button.textContent ?? '').trim() === text,
+    )
+    if (found) return found
+  }
+  throw new Error(`首页没有入口按钮：${text}`)
+}
+
 const noteBox = (): HTMLTextAreaElement => document.querySelector<HTMLTextAreaElement>('.eink-note')!
 
 async function openAbout(): Promise<void> {
-  fireEvent.click(footerButton('About'))
+  fireEvent.click(homeEntry('About'))
   await waitFor(() => expect(document.querySelector('.eink-note')).toBeTruthy())
 }
 
 describe('首页「关于」入口与关于页', () => {
-  it('页脚有真的 <button> 入口，能进关于页并看到项目名与版本号', async () => {
+  it('首页有真的 <button> 入口，能进关于页并看到项目名与版本号', async () => {
     await mount()
-    const entry = footerButton('About')
+    const entry = homeEntry('About')
     expect(entry.tagName).toBe('BUTTON')
-    // 与设置/帮助/诊断同一排：四个入口都在页脚里
-    expect([...document.querySelectorAll('.eink-footer button')].map((b) => (b.textContent ?? '').trim())).toEqual([
-      'Settings',
-      'Help',
-      'Diagnostics',
-      'About',
-    ])
+    // 设置/帮助/诊断仍在页脚那排（关于与它们同排或在标题行，都算合格）
+    const footerLabels = [...document.querySelectorAll('.eink-footer button')].map((b) =>
+      (b.textContent ?? '').trim(),
+    )
+    expect(footerLabels).toContain('Settings')
+    expect(footerLabels).toContain('Help')
+    expect(footerLabels).toContain('Diagnostics')
 
     await openAbout()
     expect(document.querySelector('.eink-topbar h1')?.textContent).toBe('About')
