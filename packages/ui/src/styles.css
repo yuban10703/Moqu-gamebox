@@ -1521,13 +1521,21 @@ html[data-bold-lines='on'] .eink-board {
  * 两处合计把折行开销从 32px 压到 14px：英文页脚 93→75px，首页可用高度 658→677px，
  * 英文 18px 因此重新放下 6 行 12 个方块（需 612px，余 9px）。中文页脚本来就不折行，row-gap 不生效。
  *
+ * 为什么 row-gap 只敢在 ≥400px 收：400px 以下**按钮自己**就放不下一行了 ——
+ * 英文三个按钮含间距 351px，加页脚左右各 12px 需要 375px 以上；
+ * 360px 那种常见窄屏上 Diagnostics 会折到第二行，两行按钮之间再没有间距就会贴成一块。
+ * 所以 400px 以上（按钮必然同排、折下去的只可能是版本号那一行）才收，
+ * 400px 以下保持原来的 12px 行距（窄屏本来就靠折行换空间，不能把两行按钮粘起来）。
+ *
  * 为什么不让版本号缩在第一行里：那 52px 的宽度会把「v0.1.0 · 10-04 04:46」截成「v0.1.…」，
  * 版本号后面的构建时间是判断「装的是不是最新一版」的唯一依据，截掉就等于这行字白放了。
  * 整行折下去、只花 14px，比截断更划算。
  * 其余页脚在 18px 档都是单行（已逐页实测：设置/帮助/诊断/关于/详情），row-gap 对它们没有作用。
  */
-html[data-font-scale='1'] .eink-footer:not(.eink-footer--split) {
-  row-gap: 0;
+@media (min-width: 400px) {
+  html[data-font-scale='1'] .eink-footer:not(.eink-footer--split) {
+    row-gap: 0;
+  }
 }
 
 html[data-font-scale='1'] .eink-version {
