@@ -298,7 +298,7 @@ export function GameScreen({
   )
 
   return (
-    <div className="eink-screen eink-screen--game">
+    <div className="eink-screen eink-screen--game" data-game={entry.game.id}>
       <TopBar
         title={
           hasLevels

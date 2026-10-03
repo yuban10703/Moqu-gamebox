@@ -1378,3 +1378,16 @@ html[data-bold-lines='on'] .eink-board {
 .eink-board .eink-board__cell[data-selected='yes'] .eink-board__text {
   color: var(--ink-white);
 }
+
+
+/*
+ * 华容道的格子细线加粗一档（用户反馈：细线可以再粗一点）。
+ *
+ * 为什么改**变量**而不是直接写 border：格子用的是 `border: var(--board-grid-line) solid`，
+ * 覆盖变量即可整体加粗；而"同块合并"的规则是 `border-*-width: 0`（长写法、在文件更靠后），
+ * 仍然逐边优先 —— 所以同一块棋子内部依旧不会重新画出线来。
+ * 只按 `data-game` 限定，其它玩法（数独/扫雷等）的 1px 不变。
+ */
+.eink-screen[data-game='klotski'] {
+  --board-grid-line: 2px;
+}
