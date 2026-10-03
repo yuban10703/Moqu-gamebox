@@ -162,7 +162,8 @@ export function Timer({
  * 留白反而让箱子和地板混淆；占满后「箱体/通道」一眼可分。
  */
 /** 以「文字」呈现的格子：数字/符号在墨水屏上比图形更清楚，且天然是 1-bit */
-const TEXT_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(['tile', 'given', 'number', 'flag', 'mine'])
+// floor 也纳入：迷宫用 `floor` + `·` 标记已走过的路径（推箱子的 floor glyph 为空，不受影响）
+const TEXT_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(['tile', 'given', 'number', 'flag', 'mine', 'floor'])
 
 function BoardGlyph({
   kind,

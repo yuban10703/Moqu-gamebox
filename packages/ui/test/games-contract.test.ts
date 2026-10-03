@@ -13,6 +13,7 @@ import { game2048 } from '@eink/2048'
 import { fifteenGame } from '@eink/fifteen'
 import { gomokuGame } from '@eink/gomoku'
 import { connect4Game } from '@eink/connect4'
+import { mazeGame } from '@eink/maze'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
 import { reversiGame } from '@eink/reversi'
@@ -37,6 +38,7 @@ const GAMES: Array<GameDef<any, any>> = [
   gomokuGame as GameDef<any, any>,
   memoryGame as GameDef<any, any>,
   connect4Game as GameDef<any, any>,
+  mazeGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {
@@ -98,6 +100,15 @@ describe('所有游戏的存档契约', () => {
       { name: 'Note X2 横屏', width: 1176, height: 513 },
     ]
     for (const game of GAMES) {
+      /*
+       * 只对「靠点格子操作」的玩法要求格子达到触摸下限。
+       * 方向盘驱动的玩法（迷宫、数字华容道、推箱子…）不靠点格子，格子小一些仍然可玩 ——
+       * 例如 21×21 迷宫在 415px 宽下只有 19px 格子，但它用方向盘玩，实测无障碍。
+       */
+      const dpadDriven = game
+        .controls(game.create(1, game.difficulties[0]!.id))
+        .some((control) => control.role === 'dpad')
+      if (dpadDriven) continue
       for (const difficulty of game.difficulties.map((item) => item.id)) {
         const view = game.view(game.create(1, difficulty))
         if (!view.board) continue

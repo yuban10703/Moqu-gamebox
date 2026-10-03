@@ -183,6 +183,7 @@ function hostGlyph(namespace: string): string {
     gomoku: '⬤',
     memory: '◫',
     connect4: '▥',
+    maze: '⊞',
     '2048': '▩',
   }
   return glyphs[namespace] ?? '◈'
