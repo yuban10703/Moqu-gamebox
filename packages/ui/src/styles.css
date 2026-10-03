@@ -707,6 +707,42 @@ body {
   cursor: pointer;
 }
 
+/*
+ * 历史记录（无关卡玩法在详情页显示）：最多 5 行，一条一行。
+ * 行高固定（line-height + padding），且列表高度由条数决定 —— 出现/消失时不会把固定页脚顶出屏幕。
+ * 分隔线用点线（与 .eink-kv__row 同一手法），1-bit 下不靠灰度区分层次。
+ */
+.eink-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.eink-history__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px dotted var(--ink-black);
+  font-size: 0.85em;
+  line-height: 1.2;
+}
+
+.eink-history__item:last-child {
+  border-bottom: none;
+}
+
+.eink-history__difficulty {
+  min-width: 6ch;
+}
+
+.eink-history__detail {
+  color: #333;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------------ 6 对局 */
 
 /*

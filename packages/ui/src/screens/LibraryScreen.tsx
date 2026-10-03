@@ -3,7 +3,7 @@
  * 首批游戏少，保持短列表；不使用滚动跟随的复杂导航。
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { SaveEnvelope } from '@eink/core'
+import { readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
 import { ActionButton } from '../components.js'
 import { GameIcon } from '../GameIcon.js'
 import { useUi } from '../contexts.js'
@@ -225,10 +225,29 @@ export function LibraryScreen({
   )
 }
 
+/**
+ * 存档进度：关卡完成情况 + 最佳步数 + 历史记录（无关卡玩法用后者）。
+ * 三个字段都可能缺失（旧存档 / 从没玩过）—— 这里一律给安全默认值。
+ */
+export interface SaveProgress {
+  completed: string[]
+  bestMoves: Record<string, number>
+  history?: HistoryEntry[]
+}
+
 /** 关卡制玩法：注册表里登记了 levels 的才算（推箱子/华容道） */
-export function progressOf(envelope: SaveEnvelope | undefined): { completed: string[]; bestMoves: Record<string, number> } {
-  const progress = (envelope?.progress ?? {}) as { completed?: string[]; bestMoves?: Record<string, number> }
-  return { completed: progress.completed ?? [], bestMoves: progress.bestMoves ?? {} }
+export function progressOf(envelope: SaveEnvelope | undefined): SaveProgress {
+  const progress = (envelope?.progress ?? {}) as {
+    completed?: string[]
+    bestMoves?: Record<string, number>
+    history?: unknown
+  }
+  return {
+    completed: progress.completed ?? [],
+    bestMoves: progress.bestMoves ?? {},
+    // 坏数据一律退化成空数组，详情页不能因为旧存档打不开
+    history: readHistory(progress.history),
+  }
 }
 
 export function levelIdOf(envelope: SaveEnvelope | undefined): string {

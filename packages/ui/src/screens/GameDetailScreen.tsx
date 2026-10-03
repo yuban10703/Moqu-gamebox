@@ -3,7 +3,7 @@
  * 「已有存档时开新局」必须明确询问，绝不静默丢局。
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import type { SaveEnvelope } from '@eink/core'
+import { readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
 import { computeRootLayout } from '@eink/core'
 import { ActionButton, Dialog, Pager, StatBar, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
@@ -12,6 +12,24 @@ import { levelIdOf, progressOf } from './LibraryScreen.js'
 
 /** 测量失败时的兜底每页数量 */
 const LEVELS_PER_PAGE_FALLBACK = 12
+
+/** 用时格式：m:ss（超过 1 小时给 h:mm:ss）—— 纯数字，不需要走 i18n */
+function formatDuration(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0
+  const minutes = Math.floor(total / 60)
+  const secs = total % 60
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}:${pad(minutes % 60)}:${pad(secs)}`
+  return `${minutes}:${pad(secs)}`
+}
+
+/** 日期格式：MM-DD（列表要短，年份与时分秒都不值得占位宽） */
+function formatDate(at: number): string {
+  const date = new Date(at)
+  if (!Number.isFinite(date.getTime())) return '--'
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
 
 export interface GameDetailScreenProps {
   entry: GameRegistryEntry<unknown, unknown>
@@ -50,6 +68,11 @@ export function GameDetailScreen({
   const listRef = useRef<HTMLUListElement | null>(null)
 
   const levels = entry.levels ?? []
+  /**
+   * 历史记录：从存档的 progress.history 读，一律走 readHistory（旧存档缺这个字段就是空数组，
+   * 坏记录会被丢掉 —— 绝不能让详情页因为旧存档打不开）。
+   */
+  const history: HistoryEntry[] = readHistory(progress.history)
   const [pagerNeeded, setPagerNeeded] = useState(false)
 
   useLayoutEffect(() => {
@@ -184,6 +207,11 @@ export function GameDetailScreen({
         </div>
       </section>
 
+      {/*
+       * 关卡区只给有关卡的玩法（推箱子 / 华容道）；只有难度选择的玩法换成历史记录，
+       * 免得它永远显示一句「暂无进行中的局面」。
+       */}
+      {levels.length > 0 ? (
       <section className="eink-section">
         <h2>{i18n.t('shell.detail.levels')}</h2>
         {summary ? (
@@ -232,6 +260,42 @@ export function GameDetailScreen({
           </>
         )}
       </section>
+      ) : (
+      <section className="eink-section">
+        <h2>{i18n.t('shell.detail.history')}</h2>
+        {history.length === 0 ? (
+          <p className="eink-muted">{i18n.t('shell.detail.historyEmpty')}</p>
+        ) : (
+          /*
+           * 紧凑列表：一条一行（最多 5 行，数据层已限长），行高固定 ——
+           * 出现/消失时高度可控，不会把固定页脚顶出屏幕。
+           */
+          <ul className="eink-history">
+            {history.map((record, index) => {
+              // 难度标签优先用游戏声明的 labelKey；万一记录里的难度已不存在，退回原始 id（不会显示 ⟦key⟧）
+              const labelKey = entry.game.difficulties.find(
+                (option) => option.id === record.difficulty,
+              )?.labelKey
+              return (
+              <li className="eink-history__item" key={`${record.at}-${index}`}>
+                <span className="eink-history__difficulty">
+                  {labelKey ? i18n.t(labelKey) : record.difficulty}
+                </span>
+                <span className="eink-history__detail">
+                  {/* 没声明计步的玩法（如扫雷）会记 0 步：与其显示零步，不如省掉这一段 */}
+                  {record.moves > 0
+                    ? `${i18n.plural('shell.detail.historyMoves', record.moves, { count: record.moves })} · `
+                    : ''}
+                  {`${formatDuration(record.seconds)} · ${formatDate(record.at)}`}
+                  {record.won ? '' : ` · ${i18n.t('shell.detail.historyLost')}`}
+                </span>
+              </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+      )}
 
       </div>
 

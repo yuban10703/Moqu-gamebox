@@ -37,6 +37,11 @@ export const enUS: Dict = {
   'shell.detail.replace.confirm': 'Replace and start',
   'shell.detail.replace.cancel': 'Cancel',
   'shell.detail.levels': 'Levels',
+  'shell.detail.history': 'History',
+  'shell.detail.historyEmpty': 'No records yet',
+  'shell.detail.historyMoves__one': '{count} move',
+  'shell.detail.historyMoves__other': '{count} moves',
+  'shell.detail.historyLost': 'Unfinished',
 
   'shell.game.rotateHint': 'Board does not fit — try portrait',
   'shell.game.cleared': 'Cleared {done}/{total}',

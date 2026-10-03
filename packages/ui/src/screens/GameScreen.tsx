@@ -36,16 +36,26 @@ export interface GameScreenProps {
   /** 直接回到游戏库：暂停遮罩与结果面板里明确写着「返回游戏库」的按钮用 */
   onExit: () => void
   onCommitted: (envelope: SaveEnvelope) => void
+  /** 新开局时从旧存档继承的进度（目前只有历史记录） */
+  initialProgress?: Record<string, unknown>
 }
 
 
-export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: GameScreenProps): ReactNode {
+export function GameScreen({
+  entry,
+  difficulty,
+  onBack,
+  onExit,
+  onCommitted,
+  initialProgress,
+}: GameScreenProps): ReactNode {
   const { i18n, settings, platform, viewport, layoutConfig } = useUi()
   const session = useSession({
     game: entry.game,
     storage: platform.storage,
     difficulty,
     onCommitted,
+    ...(initialProgress ? { initialProgress } : {}),
   })
   const [confirmRestart, setConfirmRestart] = useState(false)
   /**

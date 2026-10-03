@@ -266,6 +266,71 @@ check(
   after.slice(0, 90),
 )
 
+/* ---------- 6) 详情页：无关卡玩法显示「历史记录」，有关卡玩法仍有「关卡」 ---------- */
+console.log('\n[6] 详情页：关卡 → 历史记录')
+
+/** 打开某款游戏的详情页（限定 .eink-tile，必要时翻页），返回各分区标题 */
+const openDetail = async (title) => {
+  await gotoLibrary()
+  let opened = false
+  for (let hop = 0; hop < 8 && !opened; hop++) {
+    const tile = page.locator('.eink-tile', { hasText: title }).first()
+    if (await tile.count()) {
+      await tile.click()
+      opened = true
+      break
+    }
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click()
+    await page.waitForTimeout(200)
+  }
+  if (!opened) throw new Error(`详情页打不开：${title}`)
+  await page.waitForSelector('.eink-rules', { timeout: 8000 })
+  await page.waitForTimeout(200)
+  return page.evaluate(() => ({
+    headings: [...document.querySelectorAll('.eink-section h2')].map((h) => (h.textContent ?? '').trim()),
+    historyRows: document.querySelectorAll('.eink-history__item').length,
+    text: (document.body.innerText || '').replace(/\n+/g, ' '),
+  }))
+}
+
+// 只有难度选择、没有关卡的玩法：不应出现「关卡」，应出现「历史记录」
+for (const title of ['数独', '扫雷', '关灯游戏', '记忆配对', '五子棋', '数字华容道', '2048']) {
+  const info = await openDetail(title)
+  const hasLevels = info.headings.includes('关卡')
+  const hasHistory = info.headings.includes('历史记录')
+  check(
+    `${title}·详情：无「关卡」、有「历史记录」`,
+    !hasLevels && hasHistory,
+    `分区=${info.headings.join('/')} 记录=${info.historyRows} 行`,
+  )
+  check(
+    `${title}·详情：历史区有内容或空态文案，且无缺键`,
+    !info.text.includes('⟦') && (info.historyRows > 0 || info.text.includes('暂无记录')),
+    info.historyRows > 0 ? `${info.historyRows} 条记录` : '空态',
+  )
+}
+
+// 有关卡的玩法（推箱子 / 华容道）：保持原样，不能出现「历史记录」
+for (const title of ['推箱子', '华容道']) {
+  const info = await openDetail(title)
+  check(
+    `${title}·详情：仍有关卡、无「历史记录」`,
+    info.headings.includes('关卡') && !info.headings.includes('历史记录'),
+    `分区=${info.headings.join('/')}`,
+  )
+}
+
+// 无关卡玩法的历史记录不该把固定页脚顶出屏幕
+await openDetail('数独')
+const footerInside = await page.evaluate(() => {
+  const footer = document.querySelector('.eink-footer')
+  return footer ? footer.getBoundingClientRect().bottom <= innerHeight + 1 : null
+})
+check('历史记录页：固定页脚仍在屏内', footerInside === true, String(footerInside))
+await gotoLibrary()
+
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 5)) console.log('  ! ' + e)
 const failed = results.filter((r) => !r.ok)

@@ -5,7 +5,7 @@
  * 浏览器返回键行为也一致（对应 E04：不重复执行旧输入、不占用系统保留键）。
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { RecoveryReport, SaveEnvelope } from '@eink/core'
+import { readHistory, type RecoveryReport, type SaveEnvelope } from '@eink/core'
 import type { Platform } from '@eink/platform'
 import { useHardwarePageKeys } from './components.js'
 import { UiProvider, useRootAttributes, useUi } from './contexts.js'
@@ -21,7 +21,17 @@ import { HelpScreen } from './screens/HelpScreen.js'
 type Screen =
   | { name: 'library' }
   | { name: 'detail'; gameId: string }
-  | { name: 'game'; gameId: string; difficulty: string; nonce: number }
+  | {
+      name: 'game'
+      gameId: string
+      difficulty: string
+      nonce: number
+      /**
+       * 新开局时从旧存档继承过来的进度（目前只有历史记录）。
+       * 「开始新游戏」会先删掉旧存档，若不显式带过去，历史战绩就会跟着局面一起消失。
+       */
+      carryProgress?: Record<string, unknown>
+    }
   | { name: 'settings' }
   | { name: 'diagnostics' }
   | { name: 'motionTest' }
@@ -151,10 +161,18 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
     library.entries.find((candidate) => candidate.game.id === gameId)
 
   const startNew = async (gameId: string, difficulty: string): Promise<void> => {
+    // 删档前先取出历史记录：它是跨局战绩，不该被「开始新游戏」清掉
+    const history = readHistory(saves[gameId]?.progress?.history)
     await platform.storage.saves.remove(gameId)
     await refreshSaves()
     nonceRef.current += 1
-    navigate({ name: 'game', gameId, difficulty, nonce: nonceRef.current })
+    navigate({
+      name: 'game',
+      gameId,
+      difficulty,
+      nonce: nonceRef.current,
+      ...(history.length > 0 ? { carryProgress: { history } } : {}),
+    })
   }
 
   const resume = (gameId: string): void => {
@@ -220,6 +238,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
             key={`${screen.gameId}-${screen.nonce}`}
             entry={target}
             difficulty={screen.difficulty}
+            {...(screen.carryProgress ? { initialProgress: screen.carryProgress } : {})}
             onBack={goBack}
             // 「返回游戏库」字面意思就是回库：原先与顶栏返回共用 goBack，
             // 点下去其实只到详情页，文案与行为不符（探索式测试发现）

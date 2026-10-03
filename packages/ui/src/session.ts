@@ -13,8 +13,11 @@ import {
   IllegalActionError,
   applyAction,
   newEnvelope,
+  readHistory,
   reseal,
   toCompletionRecord,
+  pushHistory,
+  type HistoryEntry,
   type ControlSpec,
   type GameDef,
   type GameView,
@@ -42,6 +45,8 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
 export interface GameProgress {
   completed?: string[]
   bestMoves?: Record<string, number>
+  /** 历史记录（最新在前、最多 5 条）；读取一律走 readHistory，坏数据不抛错 */
+  history?: HistoryEntry[]
 }
 
 export interface SessionOptions<S, A> {
@@ -51,6 +56,13 @@ export interface SessionOptions<S, A> {
   /** 每次成功提交后回调（用于刷新游戏库进度） */
   onCommitted?: (envelope: SaveEnvelope) => void
   now?: () => number
+  /**
+   * 首次进入（还没有存档）时带进来的进度。
+   *
+   * 为什么需要：开始新游戏会先删掉旧存档，新存档是新造的 —— 但**历史记录是战绩，不该跟着局面一起丢**。
+   * 因此上层把旧存档里的 `history` 通过这里带进来，只有历史记录会被继承，其余进度照旧从零开始。
+   */
+  initialProgress?: Record<string, unknown>
 }
 
 export interface SessionApi<S, A> {
@@ -105,7 +117,7 @@ export interface SessionApi<S, A> {
 
 
 export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A> {
-  const { game, storage, difficulty, onCommitted } = options
+  const { game, storage, difficulty, onCommitted, initialProgress } = options
   /**
    * `now` 必须稳定：它进的是加载 effect 的依赖数组。
    * 之前写成 `options.now ?? (() => Date.now())`，每次渲染都产生新函数，
@@ -240,6 +252,8 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
             state: game.encode(game.create(seed, difficulty)),
           },
           now(),
+          // 只有「历史记录」这类跨局战绩会被继承（见 SessionOptions.initialProgress）
+          initialProgress ? { ...initialProgress } : {},
         )
         envelopeRef.current = fresh
         setProgress((fresh.progress ?? {}) as GameProgress)
@@ -285,7 +299,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         setReady(true)
       }
     })()
-  }, [game, storage, difficulty, now])
+  }, [game, storage, difficulty, now, initialProgress])
 
   const persist = useCallback(
     (next: S, options: { force: boolean; progress?: GameProgress; ended?: 'won' | 'lost' }) => {
@@ -307,6 +321,25 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     [game, now, commitNow, scheduleCommit],
   )
 
+  /**
+   * 本局战绩（历史记录用）：难度取当前会话难度，步数/用时取游戏自己声明的口径。
+   * 拿不到就记 0 —— 历史记录必须是"能写进去"的，不能因为某个玩法没声明计步就整条丢掉。
+   */
+  const buildHistoryEntry = useCallback(
+    (next: S, won: boolean): HistoryEntry => {
+      const rawMoves = game.movesOf?.(next) ?? (next as { moves?: number }).moves
+      const moves =
+        typeof rawMoves === 'number' && Number.isFinite(rawMoves) && rawMoves > 0
+          ? Math.floor(rawMoves)
+          : 0
+      const elapsedMs = elapsedRef.current - levelStartRef.current
+      const seconds =
+        Number.isFinite(elapsedMs) && elapsedMs > 0 ? Math.round(elapsedMs / 1000) : 0
+      return { difficulty, moves, seconds, won, at: now() }
+    },
+    [difficulty, game, now],
+  )
+
   const finalizeLevel = useCallback(
     (next: S) => {
       // 内容 id 与计步都由游戏自己声明（原先硬编码 sokoban.stat.moves 与 state.levelId，
@@ -324,7 +357,9 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       ) {
         bestMoves[levelId] = moves
       }
-      const nextProgress: GameProgress = { completed: [...completed], bestMoves }
+      // 历史记录与「完成进度」写在同一笔提交里：分两次提交会争抢同一个提交编号（见 dispatch 里的注释）
+      const history = pushHistory(progress.history, buildHistoryEntry(next, true))
+      const nextProgress: GameProgress = { completed: [...completed], bestMoves, history }
       setProgress(nextProgress)
       persist(next, { force: true, progress: nextProgress, ended: 'won' })
 
@@ -338,7 +373,21 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         void storage.appendRecord(record)
       }
     },
-    [game, progress, persist, storage],
+    [buildHistoryEntry, game, progress, persist, storage],
+  )
+
+  /**
+   * 失败/平局的收尾：同样要落盘一条历史记录。
+   * 原先失败只是走普通的节流提交，既没有 `ended:'lost'` 标记也不写战绩 —— 历史记录里就只剩胜局了。
+   */
+  const finalizeLoss = useCallback(
+    (next: S) => {
+      const history = pushHistory(progress.history, buildHistoryEntry(next, false))
+      const nextProgress: GameProgress = { ...progress, history }
+      setProgress(nextProgress)
+      persist(next, { force: true, progress: nextProgress, ended: 'lost' })
+    },
+    [buildHistoryEntry, persist, progress],
   )
 
   const dispatch = useCallback(
@@ -347,13 +396,16 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       try {
         const current = stateRef.current
         const next = game.reduce(current, action)
-        const solvedNow = game.status(next) === 'won'
-        const wasSolved = game.status(current) === 'won'
-        if (solvedNow && !wasSolved) {
-          // 过关必须在**一次提交**里同时写入「新状态 + 完成进度 + 结束标记」：
+        const statusNow = game.status(next)
+        const wasPlaying = game.status(current) === 'playing'
+        if (statusNow !== 'playing' && wasPlaying) {
+          // 结束（过关或失败）必须在**一次提交**里同时写入「新状态 + 进度 + 历史记录 + 结束标记」：
           // 分两次提交会互相争抢同一个提交编号，后一笔被提交栅栏判为冲突，
           // 结果就是「界面显示过关、存档里却没有进度」。
-          finalizeLevel(next)
+          // 只在 `playing → 结束` 的跃迁上写历史：重载页面、重复渲染都不会触发，
+          // 因此同一局绝不会记两条（pushHistory 还会对完全相同的记录再兜一道）。
+          if (statusNow === 'won') finalizeLevel(next)
+          else finalizeLoss(next)
         } else {
           persist(next, { force: false })
         }
@@ -368,7 +420,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         return false
       }
     },
-    [game, corrupt, ready, persist, finalizeLevel],
+    [game, corrupt, ready, persist, finalizeLevel, finalizeLoss],
   )
 
   const pause = useCallback(() => {
@@ -399,6 +451,8 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const discardAndRestart = useCallback(async () => {
     await storage.saves.remove(game.id)
     const seed = nextSeed()
+    // 「重开/再来一局」丢掉的是这一局的局面，不是历史战绩 —— 历史记录跟着新存档继续
+    const carried: GameProgress = { history: readHistory(progress.history) }
     const fresh = newEnvelope(
       {
         gameId: game.id,
@@ -409,16 +463,17 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         state: game.encode(game.create(seed, difficulty)),
       },
       now(),
+      carried as Record<string, unknown>,
     )
     envelopeRef.current = fresh
     elapsedRef.current = 0
     levelStartRef.current = 0
     corruptRef.current = false
-    setProgress({})
+    setProgress(carried)
     setCorrupt(false)
     setState(game.create(0, difficulty))
     setSaveStatus('idle')
-  }, [storage, game, difficulty, now])
+  }, [storage, game, difficulty, now, progress])
 
   // 页面隐藏/退出时强制落盘
   useEffect(() => {
