@@ -356,9 +356,14 @@ body {
  * 进度并非丢失：详情页、结果页与「继续上一局」卡片都有它，而字号档位本身就是
  * 「优先可读性」的选择。只收这一行，卡片即回落到 ~85px，4 行重新放得下。
  */
+/*
+ * 大字号档位**不再隐藏进度行**（用户反馈：竖屏看不到进度）。
+ * 当初隐藏它是为了让 7 款游戏在一屏放下；现在首页是**分页**，
+ * 空间由每页数量自适应解决，不需要再牺牲信息。
+ */
 html[data-font-scale='1.25'] .eink-tile__meta,
 html[data-font-scale='1.5'] .eink-tile__meta {
-  display: none;
+  display: block;
 }
 
 /* 同一档位下再收紧网格间距与卡片最小高度，让 4 行 / 2 行都真正放得下 */
@@ -1251,12 +1256,14 @@ html[data-bold-lines='on'] .eink-board {
   padding: 10px;
 }
 
+/*
+ * 标题固定为**两行高度**：长短不一的标题（「数独」vs「数字华容道」）不能让卡片高矮不一。
+ * 恢复"图标左文字右"时我曾把这里写成 min-height: 0，于是会换行的标题把卡片撑高，
+ * 真机 26px 字号下出现 84/119 两种高度 ✗ —— 预留两行即等高。
+ */
 .eink-grid__item .eink-tile__title {
   grid-area: title;
-  min-height: 0;
-  display: block;
-  -webkit-line-clamp: none;
-  overflow: visible;
+  min-height: 2.4em;
 }
 
 .eink-grid__item .eink-tile__meta {
@@ -1282,4 +1289,10 @@ html[data-bold-lines='on'] .eink-board {
 
 .eink-pager__info {
   font-size: 0.8em;
+}
+
+
+/* 进度行始终占位：没有进度的玩法留空，但这一行的高度要在 —— 否则卡片高矮不一 */
+.eink-grid__item .eink-tile__meta {
+  min-height: 1.2em;
 }

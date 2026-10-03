@@ -198,13 +198,17 @@ export function LibraryScreen({
                   <button type="button" className="eink-tile" onClick={() => onOpenDetail(entry.game.id)}>
                     <GameIcon namespace={entry.game.i18nNamespace} />
                     <span className="eink-tile__title">{i18n.t(`${entry.game.i18nNamespace}.title`)}</span>
-                    {/* 没有进度概念的玩法（2048）不显示进度行，避免出现「0/0」这种噪音 */}
-                    {progress ? (
-                      <span className="eink-tile__meta">
-                        {i18n.t('shell.library.progress', { done: progress.done, total: progress.total })}
-                      </span>
-                    ) : null}
-                    {progress && progress.done >= progress.total && progress.total > 0 ? (
+                    {/*
+                      进度行**只有关卡制玩法才显示文字**（用户反馈：没有关卡的游戏不需要设计进度），
+                      但这一行在每张卡上都**保留占位** —— 否则有进度的卡片会比别的高，
+                      方块高度就不一致了（实测过 84/74/103 三种高度）。
+                    */}
+                    <span className="eink-tile__meta">
+                      {progress && hasLevels(entry)
+                        ? i18n.t('shell.library.progress', { done: progress.done, total: progress.total })
+                        : ''}
+                    </span>
+                    {progress && hasLevels(entry) && progress.done >= progress.total && progress.total > 0 ? (
                       <span className="eink-tile__done">{i18n.t('shell.library.completed')}</span>
                     ) : null}
                   </button>
@@ -224,6 +228,12 @@ export function LibraryScreen({
       </footer>
     </div>
   )
+}
+
+/** 关卡制玩法：注册表里登记了 levels 的才算（推箱子/华容道） */
+function hasLevels(entry: GameRegistryEntry<unknown, unknown>): boolean {
+  const levels = (entry as { levels?: ReadonlyArray<unknown> }).levels
+  return Array.isArray(levels) && levels.length > 0
 }
 
 export function progressOf(envelope: SaveEnvelope | undefined): { completed: string[]; bestMoves: Record<string, number> } {
