@@ -72,10 +72,26 @@ await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
 await page.waitForSelector('text=墨水屏游戏盒子')
 // 制造一份存档，让「继续」入口存在（更接近真实使用）
 const click = async (re, optional = false) => {
-  // 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它
-  {
+  /*
+   * 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它。
+   *
+   * 首页**可能分页**（横屏 + 存在「继续」细栏时每页更少），目标不一定在第 1 页 ——
+   * 之前只看当前页，于是"有存档"时偶发找不到游戏（实测复跑就好、再跑又坏）。
+   * 这里先回第 1 页，再逐页往后找。
+   */
+  for (let back = 0; back < 8; back++) {
+    const prev = page.locator('button[data-page="prev"]:not([disabled])').first()
+    if (!(await prev.count())) break
+    await prev.click()
+    await page.waitForTimeout(120)
+  }
+  for (let hop = 0; hop < 8; hop++) {
     const tile = page.locator('.eink-tile', { hasText: re }).first()
     if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+    const next = page.locator('button[data-page="next"]:not([disabled])').first()
+    if (!(await next.count())) break
+    await next.click()
+    await page.waitForTimeout(150)
   }
   const b = page.getByRole('button', { name: re }).first()
   if (!(await b.count())) { if (optional) return false; throw new Error(`找不到「${re}」：${(await page.evaluate(() => document.body.innerText)).replace(/\n+/g, ' ').slice(0, 70)}`) }

@@ -267,6 +267,19 @@ export function Board({
   } as CSSProperties
   // 组边界（例如数独每 3 格）画更粗的分隔线，否则分组结构看不出来
   const groups = board.groups
+  /*
+   * 同块合并：只去掉**共享的那条边**两侧的格线。
+   * 棋子朝外的那条边必须留着，否则一整块就没有外框了。
+   */
+  const mergeLeft = (index: number): boolean => {
+    const col = index % board.cols
+    return col > 0 && board.cells[index - 1]?.mergeRight === true
+  }
+  const mergeTop = (index: number): boolean => {
+    const row = Math.floor(index / board.cols)
+    return row > 0 && board.cells[index - board.cols]?.mergeBottom === true
+  }
+
   const isGroupRight = (index: number): boolean => {
     if (!groups) return false
     const col = index % board.cols
@@ -295,6 +308,10 @@ export function Board({
           {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
           {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
           {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
+          {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
+          {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
+          {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}
+          {...(mergeTop(cellView.index) ? { 'data-merge-top': 'yes' } : {})}
           aria-label={labelFor ? labelFor(cellView.kind, cellView.index, cellView.glyph) : cellView.glyph}
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}
         >
@@ -322,6 +339,38 @@ export function Board({
           />
         </div>
       ))}
+
+      {/*
+        整块文字覆盖层（华容道用）：在一整块棋子上居中显示全名。
+        绝对定位于棋盘容器内、且 pointer-events: none —— 点击仍然落到下面的格子上。
+      */}
+      {(board.labels ?? []).map((label) => {
+        const row = Math.floor(label.index / board.cols)
+        const col = label.index % board.cols
+        // 竖长的棋子（1×2）排竖排：靠 flex 方向而不是 writing-mode，行为更可预期
+        const flow = label.cols >= label.rows ? 'row' : 'column'
+        const size = label.cols >= label.rows ? cell * 0.5 : cell * 0.62
+        return (
+          <span
+            key={`label-${label.index}`}
+            className="eink-board__label"
+            data-invert={label.invert ? 'yes' : 'no'}
+            data-flow={flow}
+            aria-hidden="true"
+            style={{
+              left: col * cell,
+              top: row * cell,
+              width: label.cols * cell,
+              height: label.rows * cell,
+              fontSize: size,
+            }}
+          >
+            {[...label.text].map((char, i) => (
+              <span key={i}>{char}</span>
+            ))}
+          </span>
+        )
+      })}
     </div>
   )
 }

@@ -7,6 +7,9 @@ dist/
 .toolchain/
 .npm-cache/
 
+# 本机专属的 DSH 插件（通过 plugin_manager 装入 ~/.dsh 的 web profile，不入库）
+tools/dsh-plugins/
+
 # Android
 apps/android/.gradle/
 apps/android/build/

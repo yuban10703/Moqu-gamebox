@@ -1324,3 +1324,49 @@ html[data-bold-lines='on'] .eink-board {
 .eink-levels__pick:disabled {
   cursor: default;
 }
+
+/*
+ * 华容道：同块棋子的内部格线去掉，整块文字覆盖在棋子中央。
+ *
+ * 只去掉**共享边**两侧的线（left/right、top/bottom 成对处理），
+ * 朝外的边保留，因此一整块仍有完整外框。
+ */
+.eink-board {
+  position: relative;
+}
+
+.eink-board__cell[data-merge-right='yes'] {
+  border-right-width: 0;
+}
+
+.eink-board__cell[data-merge-left='yes'] {
+  border-left-width: 0;
+}
+
+.eink-board__cell[data-merge-bottom='yes'] {
+  border-bottom-width: 0;
+}
+
+.eink-board__cell[data-merge-top='yes'] {
+  border-top-width: 0;
+}
+
+.eink-board__label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.eink-board__label[data-flow='column'] {
+  flex-direction: column;
+}
+
+.eink-board__label[data-invert='yes'] {
+  background: var(--ink-black);
+  color: var(--ink-white);
+}

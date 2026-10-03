@@ -70,6 +70,31 @@ export interface LevelDef {
  * 棋盘字形。它们和 ● / ○ 一样是**图形符号**而不是界面文案（中文/英文界面下都显示同样的字），
  * 因此标 i18n-exempt 跳过「硬编码中文文案」扫描。
  */
+/**
+ * 棋子**全名**（覆盖在整块上的标签）。与字形同理：这是图形符号而不是界面文案，
+ * 中英文界面显示同样的字，因此同样标 i18n-exempt。
+ */
+/**
+ * 棋子**全名**（覆盖在整块上的标签）。与字形同理：这是图形符号而不是界面文案，
+ * 中英文界面显示同样的字，因此同样标 i18n-exempt。
+ *
+ * 按**字形**映射而不是棋子 id：不同关卡的棋子 id 并不统一（横将的 id 就不是 'guan'），
+ * 而字形在一套棋子里是唯一且稳定的。
+ */
+const NAMES_BY_GLYPH: Record<string, string> = {
+  曹: '曹操', // i18n-exempt
+  关: '关羽', // i18n-exempt
+  张: '张飞', // i18n-exempt
+  赵: '赵云', // i18n-exempt
+  马: '马超', // i18n-exempt
+  黄: '黄忠', // i18n-exempt
+  卒: '卒', // i18n-exempt
+}
+
+export function pieceName(glyph: string): string {
+  return NAMES_BY_GLYPH[glyph] ?? glyph
+}
+
 export const PIECE_GLYPHS = {
   cao: '曹', // i18n-exempt
   guan: '关', // i18n-exempt

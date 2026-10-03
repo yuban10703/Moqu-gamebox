@@ -8,7 +8,7 @@
  *   同一块的所有格字形相同 —— 靠「同一字形 + 连续矩形」表达形状，不靠灰阶；
  * - 选中的块：它的**每个格**都标 `selected: true`（壳层加粗内描边）。
  */
-import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
+import type { BoardLabel, BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
 import {
   CELLS,
   COLS,
@@ -18,6 +18,7 @@ import {
   PACK,
   levelOrThrow,
   type LevelDef,
+  pieceName,
 } from './board.js'
 import { gameStatus, type KlotskiState } from './rules.js'
 
@@ -63,8 +64,15 @@ export function buildBoard(state: KlotskiState): BoardView {
     const cell: CellView = { index, kind: 'empty', glyph: '' }
     if (owner !== null) {
       cell.kind = 'tile'
-      cell.glyph = pieceOf(level, owner)?.glyph ?? ''
-      cell.textScale = PIECE_TEXT_SCALE
+      /*
+       * 同一块棋子内部的格线要去掉（用户反馈：分不清哪些方块是一体的）。
+       * 只在"右下方向"标出同块的邻格，壳层会由此推出另一侧，从而把**共享的那条边**两侧都去掉；
+       * 棋子朝向外部的那条边仍然保留，所以一整块仍然有完整外框。
+       */
+      const row = Math.floor(index / COLS)
+      const col = index % COLS
+      if (col + 1 < COLS && grid[index + 1] === owner) cell.mergeRight = true
+      if (row + 1 < ROWS && grid[index + COLS] === owner) cell.mergeBottom = true
       // 选中的块：整块的每一格都标出来
       if (state.selected === owner) cell.selected = true
     } else if (EXIT_CELLS.includes(index)) {
@@ -73,8 +81,30 @@ export function buildBoard(state: KlotskiState): BoardView {
     }
     cells.push(cell)
   }
+  /*
+   * 整块文字的覆盖层：一块棋子只写**一个**标签（全名），居中铺满整块。
+   * 这样 2×2 的曹操是一整块黑底白字，而不是四个「曹」。
+   */
+  const anchorOf = new Map<string, number>()
+  for (let index = 0; index < CELLS; index++) {
+    const owner = grid[index]
+    if (owner && !anchorOf.has(owner)) anchorOf.set(owner, index)
+  }
+  const labels: BoardLabel[] = []
+  for (const piece of level.pieces) {
+    const anchor = anchorOf.get(piece.id)
+    if (anchor === undefined) continue
+    const name = pieceName(piece.glyph)
+    labels.push({
+      index: anchor,
+      text: name,
+      cols: piece.width,
+      rows: piece.height,
+      ...(piece.width === 2 && piece.height === 2 ? { invert: true } : {}),
+    })
+  }
   // 刻意不设 groups：4×5 的棋盘没有分组结构
-  return { kind: 'grid', cols: COLS, rows: ROWS, cells }
+  return { kind: 'grid', cols: COLS, rows: ROWS, cells, labels }
 }
 
 /**

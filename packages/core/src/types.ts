@@ -47,6 +47,9 @@ export interface CellView {
    */
   glyph: string
   /** 当前选中/光标所在格：壳层加重描边（黑白屏上靠线宽区分，不用灰度） */
+  /** 右/下邻格属于同一块棋子：该边不画格线（华容道用） */
+  mergeRight?: boolean
+  mergeBottom?: boolean
   selected?: boolean
   /**
    * 格内文字的字号系数（相对格子边长，缺省 0.66）。
@@ -66,6 +69,26 @@ export interface BoardView {
    * 数独的 3×3 宫就是典型用法：没有它，9×9 里所有线一样细，宫结构看不出来。
    */
   groups?: { cols: number; rows: number }
+  /**
+   * 整块文字的**覆盖层**：在 rows×cols 个格子的矩形上居中显示一段文字。
+   *
+   * 为什么需要：华容道的 2×2「曹操」如果四个格子各写一个「曹」，看上去就是四个独立小块
+   * （用户反馈"不好分辨哪些方块是一体的"）。把标签覆盖在整块上，配合格子间的 `merge*`
+   * （同块不画线），一块棋子才看得出是一个整体。
+   * 覆盖层不接收指针事件，点击仍然落到下面的格子上。
+   */
+  labels?: readonly BoardLabel[]
+}
+
+export interface BoardLabel {
+  /** 锚格（整块最左上那一格）；标签以它为原点铺满 rows×cols */
+  index: number
+  /** 逐字渲染：竖长的棋子需要竖排，靠排版而不是 writing-mode */
+  text: string
+  cols: number
+  rows: number
+  /** 反白（黑底白字）：用来强调 2×2 的大块 */
+  invert?: boolean
 }
 
 export interface StatView {

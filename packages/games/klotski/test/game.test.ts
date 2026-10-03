@@ -10,7 +10,6 @@ import {
   COLS,
   DIFFICULTY_IDS,
   EXIT_CELLS,
-  PIECE_TEXT_SCALE,
   PACK,
   ROWS,
   createState,
@@ -94,23 +93,40 @@ describe('view / 1-bit 呈现约定', () => {
     expect(view.board!.groups).toBeUndefined()
   })
 
-  it('块占用格是 tile + 该块字形 + textScale 0.62；出口空格是 goal；其余是 empty', () => {
-    const cells = klotskiGame.view(createState('level-1')).board!.cells
-    // 曹操占据 (0,1)-(1,2)
-    expect(cells[indexOf(0, 1)]).toEqual({
+  it('块占用格是 tile（无格内文字）+ 同块合并标记；整块用 labels 写全名', () => {
+    const board = klotskiGame.view(createState('level-1')).board!
+    const cells = board.cells
+    /*
+     * 契约变更（方案 A）：一块棋子**不再让每个格子各写一个字** ——
+     * 那样 2×2 的曹操是四个「曹」，看上去像四个独立小块（用户反馈）。
+     * 现在：格子只保留 kind='tile' 与"同块相邻"的合并标记，文字改由 labels 整块覆盖。
+     */
+    expect(cells[indexOf(0, 1)]).toMatchObject({
       index: indexOf(0, 1),
       kind: 'tile',
-      glyph: '曹',
-      textScale: PIECE_TEXT_SCALE,
+      glyph: '',
     })
-    expect(cells[indexOf(1, 2)]!.glyph).toBe('曹')
-    // 五虎将与卒的字形
-    expect(cells[indexOf(0, 0)]!.glyph).toBe('张')
-    expect(cells[indexOf(0, 3)]!.glyph).toBe('马')
-    expect(cells[indexOf(2, 0)]!.glyph).toBe('赵')
-    expect(cells[indexOf(2, 3)]!.glyph).toBe('黄')
-    expect(cells[indexOf(2, 1)]!.glyph).toBe('关')
-    expect(cells[indexOf(4, 0)]!.glyph).toBe('卒')
+    // 曹操 2×2：内部右/下方向带合并标记，朝外的边不带
+    expect(cells[indexOf(0, 1)]!.mergeRight).toBe(true)
+    expect(cells[indexOf(0, 1)]!.mergeBottom).toBe(true)
+    expect(cells[indexOf(0, 2)]!.mergeRight).toBeUndefined()
+    expect(cells[indexOf(1, 1)]!.mergeBottom).toBeUndefined()
+    expect(cells.filter((cell) => cell.glyph !== '' && cell.kind === 'tile')).toHaveLength(0)
+    // 整块标签：每块一个，2×2 的曹操反白
+    const labels = board.labels ?? []
+    expect(labels).toHaveLength(10)
+    expect(labels.find((l) => l.index === indexOf(0, 1))).toEqual({
+      index: indexOf(0, 1),
+      text: '曹操',
+      cols: 2,
+      rows: 2,
+      invert: true,
+    })
+    // 竖将竖排（1×2）、横将横排（2×1）、卒 1×1
+    expect(labels.find((l) => l.text === '张飞')).toMatchObject({ cols: 1, rows: 2 })
+    expect(labels.find((l) => l.text === '关羽')).toMatchObject({ cols: 2, rows: 1 })
+    expect(labels.filter((l) => l.text === '卒')).toHaveLength(4)
+    expect(labels.every((l) => l.invert !== true || (l.cols === 2 && l.rows === 2))).toBe(true)
     // 出口两格没有块 → goal
     for (const exit of EXIT_CELLS) {
       expect(cells[exit]).toEqual({ index: exit, kind: 'goal', glyph: '' })
