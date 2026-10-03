@@ -13,6 +13,7 @@ import { game2048 } from '@eink/2048'
 import { fifteenGame } from '@eink/fifteen'
 import { gomokuGame } from '@eink/gomoku'
 import { connect4Game } from '@eink/connect4'
+import { lightsoutGame } from '@eink/lightsout'
 import { mazeGame } from '@eink/maze'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
@@ -39,6 +40,7 @@ const GAMES: Array<GameDef<any, any>> = [
   memoryGame as GameDef<any, any>,
   connect4Game as GameDef<any, any>,
   mazeGame as GameDef<any, any>,
+  lightsoutGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {

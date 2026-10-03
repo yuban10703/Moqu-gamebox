@@ -15,6 +15,7 @@ export default defineConfig({
       '@eink/memory': pkg('games/memory/src/index.ts'),
       '@eink/connect4': pkg('games/connect4/src/index.ts'),
       '@eink/maze': pkg('games/maze/src/index.ts'),
+      '@eink/lightsout': pkg('games/lightsout/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
       '@eink/2048': pkg('games/2048/src/index.ts'),
       '@eink/ui': pkg('ui/src/index.ts'),

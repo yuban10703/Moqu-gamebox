@@ -184,6 +184,7 @@ function hostGlyph(namespace: string): string {
     memory: '◫',
     connect4: '▥',
     maze: '⊞',
+    lightsout: '⊙',
     '2048': '▩',
   }
   return glyphs[namespace] ?? '◈'

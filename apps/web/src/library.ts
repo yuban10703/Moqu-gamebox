@@ -14,6 +14,7 @@ import { game2048, game2048En, game2048Zh } from '@eink/2048'
 import { fifteenEn, fifteenGame, fifteenZh } from '@eink/fifteen'
 import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
 import { connect4En, connect4Game, connect4Zh } from '@eink/connect4'
+import { lightsoutEn, lightsoutGame, lightsoutZh } from '@eink/lightsout'
 import { mazeEn, mazeGame, mazeZh } from '@eink/maze'
 import { memoryEn, memoryGame, memoryZh } from '@eink/memory'
 import { reversiEn, reversiGame, reversiZh } from '@eink/reversi'
@@ -57,6 +58,16 @@ export const library: GameLibrary = {
       progressFor: (completed) => ({
         done: minesweeperGame.difficulties.filter((item) => completed.includes(item.id)).length,
         total: minesweeperGame.difficulties.length,
+      }),
+    }),
+    defineGame({
+      game: lightsoutGame,
+      cellLabelKey: (kind) => `lightsout.cell.${kind}`,
+      rulesKeys: ['lightsout.rules.body', 'lightsout.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: (completed) => ({
+        done: lightsoutGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: lightsoutGame.difficulties.length,
       }),
     }),
     defineGame({
@@ -133,7 +144,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn },
   },
 }
