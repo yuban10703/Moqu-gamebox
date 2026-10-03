@@ -64,10 +64,14 @@ export function buildBoard(state: SudokuState): BoardView {
  */
 export function buildControls(state: SudokuState): ControlSpec[] {
   const controls: ControlSpec[] = []
-  const canFill =
-    state.selected !== null &&
-    state.given[state.selected] === 0 &&
-    state.filled[state.selected] === 0
+  /*
+   * 只要选中的是**可编辑的格子**，数字键就可用 —— 包括"已经填过数字"的格子。
+   *
+   * 这里原先额外要求 `filled === 0`，于是填上一个数字后所有数字键都被禁用，
+   * 用户反馈："输入数字后，别的数字按键就不能按了"（规则层其实已经允许覆盖，
+   * 卡住的是这个可用性判断）。题目给定格仍然禁用。
+   */
+  const canFill = state.selected !== null && state.given[state.selected] === 0
   for (let value = 1; value <= SUDOKU_SIZE; value++) {
     controls.push({
       id: `digit-${value}`,

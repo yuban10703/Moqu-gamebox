@@ -226,13 +226,13 @@ describe('controls', () => {
     }
   })
 
-  it('填入后清除可用、数字键不可用（先清掉才能重填）', () => {
+  it('填入后清除可用、数字键也仍可用（可直接改写，不必先清除）', () => {
     const state = fresh()
     const index = emptyCells(state)[0]!
     const filled = fillCorrect(state, [index])
     const controls = sudokuGame.controls(filled)
     expect(controls.find((control) => control.id === 'clear')!.enabled).toBe(true)
-    expect(controls.find((control) => control.id === 'digit-1')!.enabled).toBe(false)
+    expect(controls.find((control) => control.id === 'digit-1')!.enabled).toBe(true)
   })
 
   it('选中给定格时数字键与清除都不可用', () => {
