@@ -33,6 +33,7 @@ export const enUS: Dict = {
   'shell.detail.replace.cancel': 'Cancel',
   'shell.detail.levels': 'Levels',
 
+  'shell.game.rotateHint': 'Board does not fit — try portrait',
   'shell.game.cleared': 'Cleared {done}/{total}',
   'shell.game.pause': 'Pause',
   'shell.game.resume': 'Resume',

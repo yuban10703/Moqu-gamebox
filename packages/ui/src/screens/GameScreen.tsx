@@ -112,6 +112,14 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
     return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig, BOARD_FRAME_PX)
   }, [session.view.board, boardArea, layoutConfig])
 
+  /*
+   * 棋盘放不下可用区（极矮横屏 + 密集棋盘时会这样，真机实测约 7 行以上）。
+   * 这时给出「建议竖屏游玩」的提示 —— 复用已有的状态条，不新增 UI 元素；
+   * 状态条高度固定，因此不会引起布局位移。优先级低于游戏的非法动作提示（即时反馈更重要）。
+   */
+  const boardOverflow =
+    boardBox !== null && boardLayout !== null ? boardLayout.boardHeight > boardBox.height + 1 : false
+
   /**
    * 走一步之后不再调用区域刷新。
    *
@@ -261,7 +269,13 @@ export function GameScreen({ entry, difficulty, onBack, onExit, onCommitted }: G
             className="eink-statusstrip"
             data-expanded={session.failureReason ? 'yes' : 'no'}
           >
-            <NoticeLine {...(session.view.notice ? { textKey: session.view.notice.textKey } : {})} />
+            <NoticeLine
+              {...(session.view.notice
+                ? { textKey: session.view.notice.textKey }
+                : boardOverflow
+                  ? { textKey: 'shell.game.rotateHint' }
+                  : {})}
+            />
             <SaveBadge
               status={session.saveStatus}
               failureText={

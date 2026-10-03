@@ -33,6 +33,7 @@ export const zhCN: Dict = {
   'shell.detail.replace.cancel': '取消',
   'shell.detail.levels': '关卡',
 
+  'shell.game.rotateHint': '棋盘放不下，建议竖屏游玩',
   'shell.game.cleared': '已过关 {done}/{total}',
   'shell.game.pause': '暂停',
   'shell.game.resume': '继续',
