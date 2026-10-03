@@ -31,7 +31,6 @@ export interface EinkNativeBridge {
   /** 入参为 JSON 数组 [[key,value],...]，单事务原子写入 */
   savePutMany(entriesJson: string): string
 
-  setFrontLight(level: number): void
   keepScreenOn(on: boolean): void
   setFullscreen(on: boolean): void
   setLocale(locale: string): void

@@ -12,7 +12,6 @@ import android.view.WindowManager
  * 界面也不再暴露入口。
  */
 interface EinkBackend {
-    fun setFrontLight(level: Int)
     fun setFullscreen(activity: Activity?, on: Boolean)
     fun keepScreenOn(activity: Activity?, on: Boolean)
 }
@@ -46,8 +45,6 @@ open class BaseEinkBackend(protected val context: Context) : EinkBackend {
         else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    /** 通用 Android 没有标准的厂商前光接口，如实按无操作处理 */
-    override fun setFrontLight(level: Int) = Unit
 }
 
 /** 后端工厂：只有通用实现，不做任何厂商探测 */

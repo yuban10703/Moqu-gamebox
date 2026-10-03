@@ -243,7 +243,6 @@ describe('Android 桥的存储映射', () => {
         }
         return '{"ok":true}'
       },
-      setFrontLight: vi.fn(),
       keepScreenOn: vi.fn(),
       setFullscreen: vi.fn(),
       setLocale: vi.fn(),

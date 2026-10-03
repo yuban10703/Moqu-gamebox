@@ -81,8 +81,6 @@ class JsBridge(
     }
 
     // ---------- 设备能力（与刷新无关） ----------
-    @JavascriptInterface
-    fun setFrontLight(level: Int) = host.runOnUiThread { backend.setFrontLight(level) }
 
     @JavascriptInterface
     fun keepScreenOn(on: Boolean) = host.runOnUiThread { backend.keepScreenOn(host, on) }
