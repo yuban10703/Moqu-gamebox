@@ -15,7 +15,7 @@ export const game2048Zh: Dict = {
   '2048.rules.body':
     '用方向按钮让所有方块朝该方向滑动，两个相同的数字撞在一起会合成两倍大的方块。一次移动里同一个方块只会合并一次。',
   '2048.rules.body2':
-    '每次有效移动后会自动出现一个新方块（九成是 2）。合成出目标数字即算完成；棋盘填满且四个方向都滑不动就失败。撤销只能一步一步往回退，重新开始会清空全部进度。',
+    '每次有效移动后会自动出现一个新方块（九成是 2）。合成出目标数字即算完成；棋盘填满且四个方向都滑不动就失败。撤销只能一步一步往回退，重新开始会清空全部进度。也可以滑动棋盘。',
   '2048.rules.restart': '重新开始会清空当前进度并回到该难度的初始局面，且无法撤销回重开之前。',
   '2048.stat.score': '分数',
   '2048.stat.moves': '步数',
@@ -47,7 +47,7 @@ export const game2048En: Dict = {
   '2048.rules.body':
     'Use the direction buttons to slide every tile that way. Two tiles with the same number merge into one tile of double the value, and a tile can only merge once per move.',
   '2048.rules.body2':
-    'After every valid move a new tile appears (nine times out of ten it is a 2). Reach the target number to win; you lose when the board is full and no direction moves anything. Undo steps back one move at a time, and restart clears all progress.',
+    'After every valid move a new tile appears (nine times out of ten it is a 2). Reach the target number to win; you lose when the board is full and no direction moves anything. Undo steps back one move at a time, and restart clears all progress. You can also swipe the board.',
   '2048.rules.restart':
     'Restarting clears the current progress and returns to a fresh board for this difficulty; you cannot undo back past a restart.',
   '2048.stat.score': 'Score',

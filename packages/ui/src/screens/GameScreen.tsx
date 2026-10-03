@@ -3,6 +3,7 @@
  *
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   BOARD_FRAME_PX,
@@ -153,6 +154,35 @@ export function GameScreen({
     }
   }
 
+  /**
+   * 棋盘上**滑动 = 按方向**。
+   *
+   * 为什么加：2048 / 推箱子是纯方向键玩法，一旦把方向键关掉就没法操作了。
+   * 有了滑动，这两个玩法也能"不要方向键、把棋盘留大"。
+   *
+   * 与点击不冲突：位移小于阈值就当作点击，交给格子自己的 selectAction 处理；
+   * 方向键的动作名仍由游戏决定（走 onMove → session.runControl），因此数字华容道这类
+   * 自定义动作名的玩法也一并支持。
+   */
+  const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null)
+  const onBoardPointerDown = (event: ReactPointerEvent): void => {
+    swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId }
+  }
+  const onBoardPointerUp = (event: ReactPointerEvent): void => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!start || start.id !== event.pointerId) return
+    const dx = event.clientX - start.x
+    const dy = event.clientY - start.y
+    const threshold = 24
+    if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return // 点击：交给格子
+    if (Math.abs(dx) >= Math.abs(dy)) onMove(dx > 0 ? 'right' : 'left')
+    else onMove(dy > 0 ? 'down' : 'up')
+  }
+  const onBoardPointerCancel = (): void => {
+    swipeStart.current = null
+  }
+
   useKeyboardControls({
     onMove,
     onUndo: () => session.undo(),
@@ -263,7 +293,15 @@ export function GameScreen({
       ) : (
         <>
           {/* 尺寸由 CSS flex 决定（可收缩），格子大小按实测盒子算 —— 不写死像素 */}
-          <div className="eink-board-area" ref={boardAreaRef}>
+          <div
+            className="eink-board-area"
+            ref={boardAreaRef}
+            onPointerDown={onBoardPointerDown}
+            onPointerUp={onBoardPointerUp}
+            onPointerCancel={onBoardPointerCancel}
+            /* 棋盘上滑动用于操作，因此不让它触发页面滚动/缩放（格子点击不受影响） */
+            style={{ touchAction: 'none' }}
+          >
             {session.view.board && boardLayout ? (
               <Board
                 board={session.view.board}
@@ -427,7 +465,7 @@ export function GameScreen({
                 Only games that are both tappable AND have a pad (e.g. the fifteen puzzle)
                 actually benefit: hiding the pad frees height for a larger board.
               */}
-              {entry.game.selectAction && session.controls.some((control) => control.role === 'dpad') ? (
+              {session.controls.some((control) => control.role === 'dpad') ? (
                 <ActionButton
                   text={`${i18n.t('shell.settings.dpad')}: ${settings.dpad ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
                   emphasis={settings.dpad ? 'primary' : 'normal'}

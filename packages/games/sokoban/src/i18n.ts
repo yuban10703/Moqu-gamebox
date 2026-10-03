@@ -8,7 +8,7 @@ export const sokobanZh: Dict = {
   'sokoban.title': '推箱子',
   'sokoban.rules.body':
     '用方向按钮把箱子推到目标点上，只能推不能拉。',
-  'sokoban.rules.body2': '墙和其它箱子会挡住去路；撤销与重开都会记进本局统计。',
+  'sokoban.rules.body2': '墙和其它箱子会挡住去路；撤销与重开都会记进本局统计。也可以滑动棋盘。',
   'sokoban.rules.restart': '重开本关会清空当前进度。',
   'sokoban.stat.moves': '步数',
   'sokoban.stat.pushes': '推箱次数',
@@ -47,7 +47,7 @@ export const sokobanEn: Dict = {
   'sokoban.rules.body':
     'Push every box onto a target with the direction buttons. You can only push, never pull.',
   'sokoban.rules.body2':
-    "Walls and other boxes block the way; undo and restart count in this level's stats.",
+    "Walls and other boxes block the way; undo and restart count in this level's stats. You can also swipe the board.",
   'sokoban.rules.restart': 'Restarting clears the current progress of this level.',
   'sokoban.stat.moves': 'Moves',
   'sokoban.stat.pushes': 'Pushes',
