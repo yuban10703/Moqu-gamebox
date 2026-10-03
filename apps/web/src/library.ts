@@ -16,6 +16,13 @@ import { gomokuEn, gomokuGame, gomokuZh } from '@eink/gomoku'
 import { connect4En, connect4Game, connect4Zh } from '@eink/connect4'
 import { lightsoutEn, lightsoutGame, lightsoutZh } from '@eink/lightsout'
 import { checkersEn, checkersGame, checkersZh } from '@eink/checkers'
+import {
+  PACK as KLOTSKI_PACK,
+  klotskiEn,
+  klotskiGame,
+  klotskiZh,
+  packProgress as klotskiProgress,
+} from '@eink/klotski'
 import { pegsolitaireEn, pegsolitaireGame, pegsolitaireZh } from '@eink/pegsolitaire'
 import { mazeEn, mazeGame, mazeZh } from '@eink/maze'
 import { memoryEn, memoryGame, memoryZh } from '@eink/memory'
@@ -26,6 +33,18 @@ import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
   entries: [
+    defineGame({
+      game: klotskiGame,
+      cellLabelKey: (kind) => `klotski.cell.${kind}`,
+      rulesKeys: ['klotski.rules.body', 'klotski.rules.body2'],
+      defaultDifficulty: 'starter',
+      levels: KLOTSKI_PACK.map((level) => ({ id: level.def.id })),
+      progressFor: klotskiProgress,
+      indexOfLevel: (levelId) => {
+        const index = KLOTSKI_PACK.findIndex((level) => level.def.id === levelId)
+        return index >= 0 ? index : 0
+      },
+    }),
     defineGame({
       game: sokobanGame,
       cellLabelKey: (kind) => `sokoban.cell.${kind}`,
@@ -166,7 +185,7 @@ export const library: GameLibrary = {
     }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...reversiZh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...connect4Zh, ...mazeZh, ...lightsoutZh, ...pegsolitaireZh, ...checkersZh, ...klotskiZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...reversiEn, ...fifteenEn, ...gomokuEn, ...memoryEn, ...connect4En, ...mazeEn, ...lightsoutEn, ...pegsolitaireEn, ...checkersEn, ...klotskiEn },
   },
 }

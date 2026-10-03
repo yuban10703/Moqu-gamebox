@@ -23,6 +23,8 @@
       "@eink/core/*": ["packages/core/src/*"],
       "@eink/sokoban": ["packages/games/sokoban/src/index.ts"],
       "@eink/sokoban/*": ["packages/games/sokoban/src/*"],
+      "@eink/klotski": ["packages/games/klotski/src/index.ts"],
+      "@eink/klotski/*": ["packages/games/klotski/src/*"],
       "@eink/checkers": ["packages/games/checkers/src/index.ts"],
       "@eink/checkers/*": ["packages/games/checkers/src/*"],
       "@eink/pegsolitaire": ["packages/games/pegsolitaire/src/index.ts"],
