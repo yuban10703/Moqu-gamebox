@@ -113,7 +113,14 @@ export function GameScreen({
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
+    /*
+     * 依赖里必须有 ready：棋盘区是在**加载完成之后**才渲染的，
+     * 而这个 effect 首次运行时它还不存在（`boardAreaRef.current` 为 null → 直接 return）。
+     * 只写 `[]` 的话观察器**永远不会挂上**，棋盘区从此不再被实测，
+     * 布局只能一直用推算值 —— 实测后果：数字华容道在最大字号档下按约 430 的可用区算格子（105px），
+     * 而真实容器只有 325px 高，棋盘横竖都被裁切（套件连续三次复现的 clip {t:33,b:33}）。
+     */
+  }, [session.ready, session.corrupt])
 
   // 统计栏列数：横屏一行放得下就一行；竖屏固定两列（行数恒定，不会因数值变宽而多出一行）
   const statCount = session.view.stats.length + (settings.timer ? 1 : 0)
@@ -132,8 +139,24 @@ export function GameScreen({
     if (!board) return null
     // 不传 safety：在极矮横屏下它会把格子压得更小（真机实测会坍缩到不可玩）。
     // 见 layout.ts 里关于 minCell 的说明。
-    return computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig, BOARD_FRAME_PX)
-  }, [session.view.board, boardArea, layoutConfig])
+    const layout = computeBoardLayout(boardArea, board.cols, board.rows, layoutConfig, BOARD_FRAME_PX)
+    /*
+     * 安全夹紧：渲染出来的棋盘**绝不允许超过实测容器**。
+     *
+     * 起因（实测）：数字华容道在最大字号档下，棋盘区 415×325，但格子按约 430 的可用区算成 105px
+     * （4×105 + 外框 ≈ 430），于是棋盘元素被 flex 容器压到 325 宽、内容却仍按 430 排 ——
+     * 横竖两个方向都溢出、被裁切（探索套件报 clip {t:33,b:33}，连续三次复现）。
+     * 用实测容器再夹一道，任何测量/推算偏差都不会再变成"看得见的裁切"。
+     */
+    if (!measuredUsable) return layout
+    const maxCell = Math.floor(
+      Math.min(
+        (measuredUsable.width - 2 * BOARD_FRAME_PX) / board.cols,
+        (measuredUsable.height - 2 * BOARD_FRAME_PX) / board.rows,
+      ),
+    )
+    return maxCell > 0 && maxCell < layout.cell ? { ...layout, cell: maxCell } : layout
+  }, [session.view.board, boardArea, layoutConfig, measuredUsable])
 
   /*
    * 棋盘放不下可用区（极矮横屏 + 密集棋盘时会这样，真机实测约 7 行以上）。
