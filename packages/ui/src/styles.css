@@ -706,10 +706,19 @@ body {
   overflow: hidden;
 }
 
+/*
+ * 折叠态：**高度完全由内容决定**（短说明就只有几行，不白占空间），
+ * 上限由 `.eink-rules--clamped` 的 max-height 锁住，超出即收起并出现「阅读全部」。
+ *
+ * 只有**真的溢出**时才给右下角的「…/阅读全部」留出位置 ——
+ * 之前这里无条件 padding-bottom: 1.9em，导致短说明（如数独）也白占一块高度。
+ */
 .eink-rules[data-expanded='no'] {
-  /* 给右下角的按钮让出位置，避免压住正文 */
-  padding-bottom: 1.9em;
   overflow: hidden;
+}
+
+.eink-rules[data-expanded='no'][data-overflow='yes'] {
+  padding-bottom: 1.9em;
 }
 
 .eink-rules[data-expanded='no'] .eink-text:last-of-type {

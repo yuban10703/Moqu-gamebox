@@ -184,6 +184,8 @@ export function GameDetailScreen({
           ref={rulesRef}
           /* 限高、字号、右下角按钮的定位都在 styles.css 的 .eink-rules* 里（不再用内联样式） */
           data-expanded={rulesExpanded ? 'yes' : 'no'}
+          /* 是否真的溢出：决定要不要给右下角的「…/阅读全部」留位置（留位会让短说明白占一块） */
+          data-overflow={rulesOverflow ? 'yes' : 'no'}
         >
           {entry.rulesKeys.map((key) => (
             <p key={key} className="eink-text">
