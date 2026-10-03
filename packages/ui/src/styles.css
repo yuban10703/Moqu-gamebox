@@ -105,9 +105,17 @@ body {
 }
 
 .eink-screen__header h1,
+/*
+ * 顶栏标题：**绝不换行**，超出用省略号。
+ * 「华容道 · 第 2/4 关」在竖屏 26px 档下曾折成两行（h1 高 105px，顶栏 154px），
+ * 直接吃掉棋盘的可用高度。
+ */
 .eink-topbar h1 {
   font-size: 1.35em;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .eink-section {
@@ -218,6 +226,11 @@ body {
 .eink-topbar__subtitle {
   margin: 0;
   color: #333;
+  font-size: 0.9em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .eink-stats {
@@ -230,6 +243,9 @@ body {
 /* 固定列数模式：列宽由内联 grid-template-columns 给出，行数恒定、高度不随数值宽度变化 */
 .eink-stats--fixed {
   display: grid;
+  gap: 4px;
+  align-content: start;
+  align-items: stretch;
 }
 
 .eink-stats--fixed .eink-stats__item {
@@ -237,12 +253,31 @@ body {
   overflow: hidden;
 }
 
+/*
+ * 统计项（「用时 0:00」这类）：**强制单行**，标签与数值并排。
+ *
+ * 竖屏大字号下这里曾是空间黑洞：每项长到 ~80px、4 项挤成两行共 173px，
+ * 棋盘被压到 330px。原因没有别的——内边距与行高都按默认字号写的，字号一档升就整体膨胀。
+ * 因此这里显式压到一行、并把行高钉死，高度不再随字号档位暴涨。
+ */
 .eink-stats__item {
   border: 1px solid var(--ink-black);
-  padding: 4px 10px;
+  padding: 2px 8px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: baseline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* 标签与数值各自也不许换行（否则宽度不够时会在项内折成两行，高度就翻倍） */
+.eink-stats__item dt,
+.eink-stats__item dd {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .eink-stats__item dt {
@@ -1140,6 +1175,7 @@ html[data-bold-lines='on'] .eink-board {
     padding-bottom: 2px;
   }
 
+
   .eink-screen--game .eink-statusstrip {
     height: 28px;
     min-height: 28px;
@@ -1174,4 +1210,53 @@ html[data-bold-lines='on'] .eink-board {
   margin-top: 4px;
   background: transparent;
   padding-left: 0;
+}
+
+/*
+ * 对局页的状态条：竖屏下 48px 是纯浪费 —— 它平时只放一个保存指示（成功时是 0×0）。
+ *
+ * 用 `:not([data-expanded='yes'])` 限定：保存**失败**时状态条会带 data-expanded='yes'
+ * 展开成多行（那条规则在上面），警告必须仍有完整空间，不能被这里压掉。
+ */
+.eink-screen--game .eink-statusstrip:not([data-expanded='yes']) {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+}
+
+/*
+ * 顶栏的收缩优先级：**按钮不收缩，标题收缩**。
+ *
+ * 起因：华容道这类带关卡的长标题（「华容道 · 第 2/4 关」）会把「‹ 返回」「暂停」挤窄，
+ * 按钮文字于是折成两行 —— 实测返回键高 141px、暂停 102px，顶栏被顶到 151px（数独只有 91px）。
+ * 正确做法是标题吃掉富余、按钮永远保持一行。
+ */
+.eink-topbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eink-topbar__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eink-topbar > .eink-button,
+.eink-topbar__actions .eink-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/*
+ * 压到 28px 的状态条里，保存提示也必须完整显示（大字号档下按原字号会高 39px 被裁掉）。
+ * 提示文字随之缩到 0.75em 并收紧行高；保存**失败**时走 data-expanded='yes' 的展开规则，仍是完整字号。
+ */
+.eink-screen--game .eink-statusstrip:not([data-expanded='yes']) .eink-save {
+  font-size: 0.75em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
