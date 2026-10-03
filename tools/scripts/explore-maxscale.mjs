@@ -47,9 +47,19 @@ const audit = async (label) => {
       clip = { t: Math.round(ar.top - br.top), b: Math.round(br.bottom - ar.bottom) }
     }
     const footer = document.querySelector('.eink-footer')
+    /*
+     * 统计栏截断：26px 档下统计栏是固定列宽（3 列 = 每项 136px），
+     * 曾装不下最长的「标签 + 数值」组合，被省略号截成「最少… 1…」「剩余雷… 10」。
+     * 这里守住"标签与数值都不许被截断"（玩家要读「最少步数」，不能切）。
+     */
+    const cut = (e) => e && e.scrollWidth > e.clientWidth + 1
+    const statsClip = [...document.querySelectorAll('.eink-stats__item')]
+      .filter((it) => cut(it.querySelector('dt')) || cut(it.querySelector('dd')))
+      .map((it) => (it.textContent || '').replace(/\s+/g, ' ').trim())
     return {
       off,
       clip,
+      statsClip,
       missing: document.body.innerText.includes('⟦'),
       footerOut: footer ? footer.getBoundingClientRect().bottom > innerHeight + 1 : false,
       scrollable: (() => { const c = document.querySelector('.eink-screen__content'); return c ? c.scrollHeight > c.clientHeight + 1 : false })(),
@@ -60,6 +70,7 @@ const audit = async (label) => {
   check(`${label}：固定页脚在屏内`, !r.footerOut)
   check(`${label}：无缺键`, !r.missing)
   if (r.clip) check(`${label}：棋盘未被裁切`, r.clip.t <= 1 && r.clip.b <= 1, JSON.stringify(r.clip))
+  check(`${label}：统计栏无截断`, r.statsClip.length === 0, r.statsClip.join(' | '))
 }
 
 await page.goto(PAGE_URL, { waitUntil: 'networkidle' })

@@ -298,6 +298,52 @@ body {
 }
 
 /*
+ * 26px 档的对局页统计栏：固定列宽装不下最长的「标签 + 数值」，会截断成「最少… 1…」。
+ *
+ * 实测（439×847，root 26px）：3 列时每项 136px、内容盒 120px，而
+ *   · 华容道「最少步数 116」需要 148px（4 字标签 88 + 间距 6 + 数值 54）
+ *   · 扫雷「剩余雷数 10」「已翻开 0/81」分别需要 130 / 134px
+ * 于是 label 被压成省略号、数值也被切掉（"最少步数"是玩家会读的信息，不能切）。
+ *
+ * 为什么**不**改成内容自适应或减少列数：`.eink-stats--fixed` 的固定列宽是刻意设计 ——
+ * 它保证"行数、高度不随数值宽度变化"（墨水屏纪律）。为躲截断而减列会让扫雷多出一行，
+ * 反而把棋盘挤小。所以只在**这一档**压缩统计文字本身：行数与其它档位完全不变。
+ *
+ * 数值：标签 0.85em→19px、数值 1em→22px、内边距 2px 5px、项内间距 4px，
+ * 最坏情况 4×19 + 4 + 3×11.6 ≈ 115px ≤ 每项 126px 内容盒，留有余量。
+ * 只作用于对局页（`.eink-screen--game`），22px 档实测本来就不截断，故不动。
+ */
+/*
+ * 22px 档：同样要收。真机上这一档刚好装得下（余量仅 1px），但浏览器字体数字更宽就会截断
+ * —— 浏览器同样是正式目标，不能只按真机字体调。收得比 26px 档更紧，因为这一档的列宽没变大。
+ */
+html[data-font-scale='1.25'] .eink-screen--game .eink-stats__item {
+  padding: 2px 5px;
+  gap: 4px;
+}
+
+html[data-font-scale='1.25'] .eink-screen--game .eink-stats__item dt {
+  font-size: 18px;
+}
+
+html[data-font-scale='1.25'] .eink-screen--game .eink-stats__item dd {
+  font-size: 20px;
+}
+
+html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item {
+  padding: 2px 5px;
+  gap: 4px;
+}
+
+html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dt {
+  font-size: 19px;
+}
+
+html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
+  font-size: 22px;
+}
+
+/*
  * 状态条：默认压缩成一行（提示与保存状态并排），高度**恒定**。
  *
  * 为什么必须固定高度、不能用 min-height：提示那一行的实际高度是 46px
