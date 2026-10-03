@@ -129,9 +129,14 @@ describe('游戏库 → 详情 → 游戏', () => {
     const afterMount = saveReads
     expect(afterMount).toBe(1)
 
+    /*
+     * 探针必须是**纯重渲染**：原先用「暂停→关闭菜单」来触发，菜单删掉后改成「暂停→继续」，
+     * 但继续会让会话真正提交一次，而每次提交都要读一次提交栅栏（save:*:committed:*）——
+     * 计数因此变成 2，看起来像回归，其实是测试探针选错了。
+     * 这里改用 resize 事件触发重渲染：同样走一遍渲染，却不产生任何提交。
+     */
     for (let i = 0; i < 3; i++) {
-      fireEvent.click(screen.getByText('Menu'))
-      fireEvent.click(screen.getByText('Close'))
+      fireEvent(window, new Event('resize'))
     }
     expect(saveReads).toBe(afterMount)
   })

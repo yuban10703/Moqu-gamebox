@@ -70,7 +70,6 @@ export function GameScreen({
   const [boardBox, setBoardBox] = useState<{ width: number; height: number } | null>(null)
   const boardAreaRef = useRef<HTMLDivElement | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
 
   const root = useMemo(
     () =>
@@ -423,7 +422,7 @@ export function GameScreen({
                   size="large"
                   onSelect={() => setConfirmRestart(true)}
                 />
-                <ActionButton labelKey="shell.game.menu" onSelect={() => setMenuOpen(true)} />
+                
               </div>
             </div>
           ) : null}
@@ -441,29 +440,11 @@ export function GameScreen({
               {platform.refresh.capability().fullRefresh ? (
                 <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
               ) : null}
-              <ActionButton labelKey="shell.result.library" onSelect={onExit} />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {menuOpen ? (
-        <div className="eink-dialog" role="dialog" aria-modal="true" aria-label={i18n.t('shell.game.menu')}>
-          <div className="eink-dialog__panel">
-            <h2>{i18n.t('shell.game.menu')}</h2>
-            <div className="eink-dialog__actions">
-              {platform.refresh.capability().fullRefresh ? (
-                <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
-              ) : null}
               {/*
-                Direction-pad toggle. Two conditions must both hold, otherwise the option is
-                either useless or harmful:
-                - Dpad-only games (2048, sokoban) cannot be played once the pad is hidden, so
-                  they must not offer it.
-                - Games that are tappable but never render a pad (klotski, sudoku, ...) would
-                  get an option that changes nothing.
-                Only games that are both tappable AND have a pad (e.g. the fifteen puzzle)
-                actually benefit: hiding the pad frees height for a larger board.
+                Direction-pad toggle. Only offered when the game actually renders a pad:
+                dpad-only games are unplayable once it is hidden, and games that never render
+                a pad would get an option that changes nothing. Hiding the pad frees height,
+                so the board grows.
               */}
               {session.controls.some((control) => control.role === 'dpad') ? (
                 <ActionButton
@@ -472,12 +453,12 @@ export function GameScreen({
                   onSelect={() => void updateSettings({ dpad: !settings.dpad })}
                 />
               ) : null}
-              <ActionButton labelKey="shell.storage.export" onSelect={() => void exportBackup()} />
-              <ActionButton labelKey="shell.common.close" emphasis="primary" onSelect={() => setMenuOpen(false)} />
+              <ActionButton labelKey="shell.result.library" onSelect={onExit} />
             </div>
           </div>
         </div>
       ) : null}
+
 
       {confirmRestart ? (
         <Dialog
