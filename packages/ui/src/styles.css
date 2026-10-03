@@ -1100,3 +1100,47 @@ html[data-bold-lines='on'] .eink-board {
     max-height: 28px;
   }
 }
+
+
+/*
+ * 「继续上一局」细栏：原来是一张全宽大卡（标题 + 统计 + 两个大按钮），
+ * 在小屏上占近三行高度。压成一条 40px 上下的细栏，整栏可点即继续。
+ */
+.eink-continue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eink-continue__title {
+  line-height: 1.2;
+}
+
+.eink-continue__meta {
+  margin-left: auto;
+  font-size: 0.85em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/*
+ * 方块高度必须**完全一致**。
+ * 此前用 min-height，遇到「数字华容道」这类换行成两行的标题就会比邻居高一格，
+ * 一排方块看起来参差不齐。这里把标题固定成两行高度（并把超长标题裁到两行），
+ * 于是每张卡的高度只由字号档位决定，彼此恒等。
+ */
+.eink-tile__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4em;
+}

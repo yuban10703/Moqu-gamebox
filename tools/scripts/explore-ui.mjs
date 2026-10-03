@@ -117,7 +117,30 @@ const clickOverlay = async (text) => {
 }
 
 /** 点击失败必须立刻报错：静默跳过会让后续步骤在错误的页面上继续，掩盖真实缺陷 */
+/*
+ * 点首页里的**游戏方块**：必须限定在 .eink-tile 内。
+ * 「继续上一局」细栏的可访问名里也含游戏名（对无障碍是有意的），
+ * 不限定就会先命中继续栏、直接进游戏而不是进说明页。
+ */
+const clickTile = async (text) => {
+  const tile = page.locator('.eink-tile', { hasText: text }).first()
+  if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
+  return false
+}
+
 const clickText = async (text, { optional = false } = {}) => {
+  /*
+   * 先看首页有没有同名的**游戏方块**并点它。
+   * 原因：「继续上一局」细栏的可访问名里也含游戏名（对无障碍是有意的），
+   * 直接用 getByRole(name) 会在有存档时先命中继续栏 —— 于是"点游戏进说明页"
+   * 变成了"直接继续游戏"，套件在多个步骤里都会卡住。
+   */
+  const tile = page.locator('.eink-tile', { hasText: text }).first()
+  if ((await tile.count()) > 0) {
+    await tile.click()
+    await page.waitForTimeout(250)
+    return true
+  }
   const btn = page.getByRole('button', { name: new RegExp(text) }).first()
   if (!(await btn.count())) {
     if (optional) return false
@@ -128,7 +151,8 @@ const clickText = async (text, { optional = false } = {}) => {
   return true
 }
 const startGame = async (title) => {
-  await clickText(title)
+  // 点方块而不是按名字点：首页的「继续」细栏名字里也含游戏名，按名字会先命中它
+  if (!(await clickTile(title))) await clickText(title)
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await clickText('继续', { optional: true })
   // 「继续」是异步读存档（IndexedDB），必须等棋盘真的挂载出来再决定是否新开一局，
@@ -178,7 +202,7 @@ await clickText('暂停')
 await clickOverlay('返回游戏库')
 await page.waitForTimeout(800)
 await invariants(page, '首页')
-const hasContinue = await page.locator('.eink-card--continue').count()
+const hasContinue = await page.locator('.eink-continue').count()
 check('首页出现「继续上一局」', hasContinue > 0)
 await clickText('继续')
 await page.waitForTimeout(800)

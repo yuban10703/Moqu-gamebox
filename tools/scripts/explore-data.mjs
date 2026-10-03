@@ -30,6 +30,9 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 200)) })
 const clickText = async (text, { optional = false } = {}) => {
+  // 先点同名游戏方块：「继续」细栏的可访问名里含游戏名，按名字会先命中它
+  const tile = page.locator('.eink-tile', { hasText: text }).first()
+  if ((await tile.count()) > 0) { await tile.click(); await page.waitForTimeout(250); return true }
   const btn = page.getByRole('button', { name: new RegExp(text) }).first()
   if (!(await btn.count())) {
     if (optional) return false
@@ -191,7 +194,7 @@ await play('2048', 1)
 await gotoLibrary()
 const tiles = await page.evaluate(() => [...document.querySelectorAll('.eink-tile')].map((t) => t.innerText.replace(/\n+/g, ' ')))
 check('每款游戏的进度都能显示', tiles.length >= 5 && tiles.every((t) => t.length > 0), `${tiles.length} 款：${tiles.join(' | ').slice(0, 110)}`)
-const cont = await page.evaluate(() => document.querySelector('.eink-card--continue')?.innerText.replace(/\n+/g, ' ') ?? '')
+const cont = await page.evaluate(() => document.querySelector('.eink-continue')?.innerText.replace(/\n+/g, ' ') ?? '')
 check('继续卡片指向最近玩的游戏', /2048/.test(cont), cont.slice(0, 60))
 
 /* ---------- 5) 清空全部进度 ---------- */

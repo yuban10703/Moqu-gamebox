@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from 'react'
 import type { SaveEnvelope } from '@eink/core'
-import { ActionButton, StatBar } from '../components.js'
+import { ActionButton } from '../components.js'
 import { useUi } from '../contexts.js'
 import type { GameRegistryEntry } from '../registry.js'
 
@@ -85,38 +85,33 @@ export function LibraryScreen({
       ) : null}
 
       {continued ? (
-        <section className="eink-section">
-          <h2>{i18n.t('shell.library.continue')}</h2>
-          {(() => {
-            const envelope = saves[continued.game.id]!
-            const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
-            const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
-            return (
-              <div className="eink-card eink-card--continue">
-                <div className="eink-card__main">
-                  <h3>{i18n.t(`${continued.game.i18nNamespace}.title`)}</h3>
-                  <StatBar
-                    stats={[
-                      { labelKey: 'shell.common.level', value: String(index + 1) },
-                      { labelKey: 'shell.common.moves', value: String(envelope.moves) },
-                    ]}
-                  />
-                  {/* 这里不再显示「进度 x/y」：下方同一款游戏的卡片上已经有它了，
-                      重复信息会白白占掉一行高度（大字号 + 多游戏时直接顶出屏幕） */}
-                </div>
-                <div className="eink-card__actions">
-                  <ActionButton
-                    labelKey="shell.detail.resume"
-                    emphasis="primary"
-                    size="large"
-                    onSelect={() => onContinue(continued.game.id)}
-                  />
-                  <ActionButton labelKey="shell.detail.rules" onSelect={() => onOpenDetail(continued.game.id)} />
-                </div>
-              </div>
-            )
-          })()}
-        </section>
+        /*
+         * 「继续上一局」压缩成**一条细栏**（原来是一张全宽大卡：标题 + 统计 + 两个大按钮，
+         * 在小屏上占掉近三行高度）。整栏可点即继续；「玩法说明」不再重复出现
+         * （下面同一款游戏的卡片点进去就是说明页）。
+         */
+        (() => {
+          const envelope = saves[continued.game.id]!
+          const contentId = continued.game.contentId?.(envelope.state) ?? levelIdOf(envelope)
+          const index = continued.indexOfLevel?.(contentId, envelope.state) ?? 0
+          return (
+            <button
+              type="button"
+              className="eink-continue"
+              onClick={() => onContinue(continued.game.id)}
+              aria-label={`${i18n.t('shell.library.continue')} ${i18n.t(`${continued.game.i18nNamespace}.title`)}`}
+            >
+              <span className="eink-tile__host" aria-hidden="true">
+                {hostGlyph(continued.game.i18nNamespace)}
+              </span>
+              <span className="eink-continue__title">{i18n.t(`${continued.game.i18nNamespace}.title`)}</span>
+              <span className="eink-continue__meta">
+                {i18n.t('shell.library.continue')} · {i18n.t('shell.common.level')} {index + 1} ·{' '}
+                {i18n.t('shell.common.moves')} {envelope.moves}
+              </span>
+            </button>
+          )
+        })()
       ) : null}
 
       <section className="eink-section">
@@ -175,15 +170,16 @@ export function levelIdOf(envelope: SaveEnvelope | undefined): string {
 function hostGlyph(namespace: string): string {
   // 1-bit 友好（纯几何、无灰度）：每款游戏一个可辨认的字形
   const glyphs: Record<string, string> = {
-    sokoban: '▣',
-    sudoku: '▤',
-    minesweeper: '☒',
-    fifteen: '▦',
-    gomoku: '⬤',
-    memory: '◫',
-    lightsout: '⊙',
-    klotski: '▤',
-    '2048': '▩',
+    // 每款一个**互不重复**、且能从形状联想到玩法的字形（此前华容道与数独都用了 ▤，看起来像同一款游戏）
+    sokoban: '▣', // 箱子（内嵌方块 = 箱子推到目标）
+    sudoku: '▦', // 九宫格（网格细分）
+    minesweeper: '☒', // 叉掉的格子 = 雷
+    klotski: '▥', // 并排的滑块（曹操与五虎将）
+    lightsout: '⊙', // 亮着的灯
+    memory: '◫', // 两张并排的牌
+    gomoku: '⬤', // 棋子
+    fifteen: '⊞', // 数字格
+    '2048': '▩', // 数字方块
   }
   return glyphs[namespace] ?? '◈'
 }
