@@ -280,6 +280,17 @@ export function Board({
     return row > 0 && board.cells[index - board.cols]?.mergeBottom === true
   }
 
+  // 被整块标签覆盖的格子：这些格子的选中态交给标签，避免逐格画框
+  const labelIndexes = new Set((board.labels ?? []).flatMap((label) => {
+    const row = Math.floor(label.index / board.cols)
+    const col = label.index % board.cols
+    const out: number[] = []
+    for (let r = 0; r < label.rows; r++) for (let c = 0; c < label.cols; c++) {
+      out.push((row + r) * board.cols + (col + c))
+    }
+    return out
+  }))
+
   const isGroupRight = (index: number): boolean => {
     if (!groups) return false
     const col = index % board.cols
@@ -298,7 +309,15 @@ export function Board({
       role="grid"
       aria-rowcount={board.rows}
       aria-colcount={board.cols}
+      {...((board.labels?.length ?? 0) > 0 ? { 'data-labels': 'yes' } : {})}
     >
+      /*
+
+       * 被整块标签覆盖的格子不逐格画选中框：选中标记由标签承载，
+
+       * 否则一块棋子（占 2 格）选中后看起来又是两个小方块。
+
+       */
       {board.cells.map((cellView) => (
         <div
           key={cellView.index}
@@ -307,7 +326,7 @@ export function Board({
           data-kind={cellView.kind}
           {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
           {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
-          {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
+          {...(cellView.selected && !labelIndexes.has(cellView.index) ? { 'data-selected': 'yes' } : {})}
           {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
           {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
           {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}
@@ -355,6 +374,7 @@ export function Board({
             key={`label-${label.index}`}
             className="eink-board__label"
             data-invert={label.invert ? 'yes' : 'no'}
+            data-selected={label.selected ? 'yes' : 'no'}
             data-flow={flow}
             aria-hidden="true"
             style={{

@@ -1331,7 +1331,12 @@ html[data-bold-lines='on'] .eink-board {
  * 只去掉**共享边**两侧的线（left/right、top/bottom 成对处理），
  * 朝外的边保留，因此一整块仍有完整外框。
  */
-.eink-board {
+/*
+ * 只有**带整块标签**的棋盘才需要相对定位（标签绝对定位在棋盘内）。
+ * 曾经无条件给 .eink-board 加 position: relative —— 结果十五数码的棋盘在大字号档下被裁切 33px
+ * （套件实测抓到的回归）。限定到 data-labels='yes' 后其它玩法完全不受影响。
+ */
+.eink-board[data-labels='yes'] {
   position: relative;
 }
 
@@ -1369,4 +1374,17 @@ html[data-bold-lines='on'] .eink-board {
 .eink-board__label[data-invert='yes'] {
   background: var(--ink-black);
   color: var(--ink-white);
+}
+
+/*
+ * 整块棋子的选中标记：**一个**内框套住整块（而不是每格一个框）。
+ * 反白块上用白框，否则黑底上的黑框看不见。
+ */
+.eink-board__label[data-selected='yes'] {
+  outline: 3px solid var(--ink-black);
+  outline-offset: -4px;
+}
+
+.eink-board__label[data-selected='yes'][data-invert='yes'] {
+  outline-color: var(--ink-white);
 }

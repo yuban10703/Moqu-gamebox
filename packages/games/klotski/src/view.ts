@@ -73,8 +73,7 @@ export function buildBoard(state: KlotskiState): BoardView {
       const col = index % COLS
       if (col + 1 < COLS && grid[index + 1] === owner) cell.mergeRight = true
       if (row + 1 < ROWS && grid[index + COLS] === owner) cell.mergeBottom = true
-      // 选中的块：整块的每一格都标出来
-      if (state.selected === owner) cell.selected = true
+      // 选中态由整块标签承载（见下方 labels）：逐格画框会把一块棋子又切成小方块
     } else if (EXIT_CELLS.includes(index)) {
       // 出口：空着的时候画圆环，被块压住时让位给块本身
       cell.kind = 'goal'
@@ -101,6 +100,7 @@ export function buildBoard(state: KlotskiState): BoardView {
       cols: piece.width,
       rows: piece.height,
       ...(piece.width === 2 && piece.height === 2 ? { invert: true } : {}),
+      ...(state.selected === piece.id ? { selected: true } : {}),
     })
   }
   // 刻意不设 groups：4×5 的棋盘没有分组结构

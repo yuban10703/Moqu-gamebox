@@ -89,6 +89,13 @@ export interface BoardLabel {
   rows: number
   /** 反白（黑底白字）：用来强调 2×2 的大块 */
   invert?: boolean
+  /**
+   * 该块处于选中态。
+   *
+   * 选中标记必须画在**整块**上：华容道一块占 2 格，若按格画内框，选中后又是"两个小方块"
+   * （用户反馈）。因此选中态由标签承载，格子不再逐格画框。
+   */
+  selected?: boolean
 }
 
 export interface StatView {

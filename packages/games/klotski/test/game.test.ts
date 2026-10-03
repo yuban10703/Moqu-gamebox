@@ -135,17 +135,23 @@ describe('view / 1-bit 呈现约定', () => {
     expect(cells.filter((cell) => cell.kind === 'goal')).toHaveLength(2)
   })
 
-  it('被选中的块：它的每个格都标 selected', () => {
+  it('被选中的块：选中标记落在**整块标签**上，格子逐格不标（否则一块棋子看着像两个小方块）', () => {
     const state = reduceKlotski(createState('level-1'), { type: 'select', id: CAO_ID })
-    const cells = klotskiGame.view(state).board!.cells
-    expect(cells.filter((cell) => cell.selected === true).map((cell) => cell.index)).toEqual([
-      indexOf(0, 1),
-      indexOf(0, 2),
-      indexOf(1, 1),
-      indexOf(1, 2),
-    ])
+    const board = klotskiGame.view(state).board!
+    const cells = board.cells
+    /*
+     * 用户反馈："点击选中后还是两个小方块的效果" —— 原因是选中态原先逐格画内框，
+     * 一块 1×2 的棋子会有两个框。现在选中态由整块标签承载，因此格子一律不带 selected。
+     */
+    expect(cells.filter((cell) => cell.selected === true)).toHaveLength(0)
+    const labels = board.labels ?? []
+    const marked = labels.filter((label) => label.selected === true)
+    expect(marked).toHaveLength(1)
+    expect(marked[0]!.text).toBe('曹操')
+    expect(marked[0]!.cols).toBe(2)
+    expect(marked[0]!.rows).toBe(2)
     // 未选中的块不带 selected 字段
-    expect(cells[indexOf(0, 0)]!.selected).toBeUndefined()
+    expect(labels.find((label) => label.text === '张飞')!.selected).toBeUndefined()
   })
 
   it('stats 恰好三项：步数 / 关卡 / 最少步数（内容恒定，高度不跳）', () => {
