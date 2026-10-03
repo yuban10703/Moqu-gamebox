@@ -49,7 +49,7 @@ export function GameScreen({
   onCommitted,
   initialProgress,
 }: GameScreenProps): ReactNode {
-  const { i18n, settings, platform, viewport, layoutConfig } = useUi()
+  const { i18n, settings, platform, viewport, layoutConfig, updateSettings } = useUi()
   const session = useSession({
     game: entry.game,
     storage: platform.storage,
@@ -416,6 +416,23 @@ export function GameScreen({
             <div className="eink-dialog__actions">
               {platform.refresh.capability().fullRefresh ? (
                 <ActionButton labelKey="shell.settings.fullRefreshNow" onSelect={() => platform.refresh.fullRefresh()} />
+              ) : null}
+              {/*
+                Direction-pad toggle. Two conditions must both hold, otherwise the option is
+                either useless or harmful:
+                - Dpad-only games (2048, sokoban) cannot be played once the pad is hidden, so
+                  they must not offer it.
+                - Games that are tappable but never render a pad (klotski, sudoku, ...) would
+                  get an option that changes nothing.
+                Only games that are both tappable AND have a pad (e.g. the fifteen puzzle)
+                actually benefit: hiding the pad frees height for a larger board.
+              */}
+              {entry.game.selectAction && session.controls.some((control) => control.role === 'dpad') ? (
+                <ActionButton
+                  text={`${i18n.t('shell.settings.dpad')}: ${settings.dpad ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
+                  emphasis={settings.dpad ? 'primary' : 'normal'}
+                  onSelect={() => void updateSettings({ dpad: !settings.dpad })}
+                />
               ) : null}
               <ActionButton labelKey="shell.storage.export" onSelect={() => void exportBackup()} />
               <ActionButton labelKey="shell.common.close" emphasis="primary" onSelect={() => setMenuOpen(false)} />
