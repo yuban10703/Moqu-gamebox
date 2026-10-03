@@ -6,10 +6,17 @@
  * 属于假警报。正确性由测试覆盖，不靠 StrictMode。
  */
 import { createRoot } from 'react-dom/client'
-import { createPlatform } from '@eink/platform'
+import { createPlatform, type Platform } from '@eink/platform'
 import { App } from '@eink/ui'
 import '@eink/ui/styles.css'
 import { library } from './library.js'
+
+declare global {
+  interface Window {
+    /** 真机排障用：平台对象（见 bootstrap 里的说明） */
+    __einkPlatform?: Platform
+  }
+}
 
 async function bootstrap(): Promise<void> {
   const container = document.getElementById('root')
@@ -22,7 +29,7 @@ async function bootstrap(): Promise<void> {
 
   // 真机排障用：把平台对象挂到 window，便于用 WebView DevTools 直接查看运行时状态
   // （能力缓存、刷新统计等），否则这些问题只能靠猜。
-  ;(window as unknown as { __einkPlatform?: unknown }).__einkPlatform = platform
+  window.__einkPlatform = platform
 
   createRoot(container).render(<App platform={platform} library={library} />)
 }

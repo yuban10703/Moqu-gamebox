@@ -40,6 +40,16 @@ export interface GameLibrary {
   dicts: DictSet
 }
 
+/**
+ * 把某个具体玩法登记进库。
+ *
+ * 这里的类型断言**删不掉**，原因在类型系统本身：`GameDef<S, A>` 对 `S`/`A` 是**不变**的
+ * （类型参数既出现在入参也出现在返回值），所以 `GameDef<具体状态, 具体动作>` 无法赋给
+ * `GameDef<unknown, unknown>` —— 这不是写法问题，TS 也没有存在类型（existential types）可用。
+ *
+ * 因此做法是：把抹除集中在这**唯一的登记入口**，并保证抹除之后库只按 `unknown` 使用
+ * （见 `GameLibrary.entries`），需要具体类型时由各玩法的测试直接对着 `GameDef` 断言。
+ */
 export function defineGame<S, A>(entry: GameRegistryEntry<S, A>): GameRegistryEntry<unknown, unknown> {
   return entry as unknown as GameRegistryEntry<unknown, unknown>
 }

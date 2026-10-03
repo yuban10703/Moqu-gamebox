@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
+import { useOfflineState } from '../useOfflineState.js'
 
 export interface HelpScreenProps {
   onBack: () => void
@@ -19,7 +20,8 @@ const CONTROL_KEYS = [
 export function HelpScreen({ onBack, onDiagnostics }: HelpScreenProps): ReactNode {
   const { i18n, platform } = useUi()
   const capability = platform.refresh.capability()
-  const offline = platform.offline.state()
+  // 订阅而不是读一次快照：否则 SW 就绪后这里的离线状态不会更新
+  const offline = useOfflineState(platform.offline)
 
   return (
     <div className="eink-screen eink-screen--sticky-footer">

@@ -10,6 +10,9 @@ dist/
 # 本机专属的 DSH 插件（通过 plugin_manager 装入 ~/.dsh 的 web profile，不入库）
 tools/dsh-plugins/
 
+# 手动放进来的 APK / 截图暂存目录（*.apk 已忽略，这里连截图一起忽略，避免误提交 100MB 级文件）
+tools/apk-inbox/
+
 # Android
 apps/android/.gradle/
 apps/android/build/

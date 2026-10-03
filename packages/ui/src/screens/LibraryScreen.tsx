@@ -7,6 +7,7 @@ import { readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
 import { ActionButton } from '../components.js'
 import { GameIcon } from '../GameIcon.js'
 import { useUi } from '../contexts.js'
+import { useOfflineState } from '../useOfflineState.js'
 import type { GameRegistryEntry } from '../registry.js'
 
 /**
@@ -93,7 +94,8 @@ export function LibraryScreen({
       observer?.disconnect()
     }
   }, [entries.length])
-  const offline = platform.offline.state()
+  // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
+  const offline = useOfflineState(platform.offline)
   /**
    * 「继续上一局」选**最近玩过**的那一款，而不是注册顺序里第一个有存档的。
    * 原先用 entries.find(...)，于是玩了 2048 之后首页卡片还显示推箱子（探索式测试发现）。

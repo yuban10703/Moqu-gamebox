@@ -42,6 +42,26 @@ function nextSeed(): number {
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed'
 
+/**
+ * 壳层动作：撤销 / 重开 / 下一关 / 跳关。
+ *
+ * 这些动作由**壳层**定义、所有玩法共用，不属于各游戏自己的动作联合 `A`，
+ * 所以派发时必须在类型上做一次断言。安全性由运行期保证：每个游戏的 reduce 都会明确拒绝
+ * 不认识的动作（各游戏包都有对应测试，例如「方向键 / 旧动作名明确报错」）。
+ *
+ * 抽成具名边界的意义：把"类型系统在此处故意让步"这件事写成一个有名字、有注释的概念，
+ * 而不是在四个调用点各写一次 `as unknown as`。
+ */
+export type ShellAction =
+  | { type: 'undo' }
+  | { type: 'restart' }
+  | { type: 'nextLevel' }
+  | { type: 'startLevel'; levelId: string }
+
+function asGameAction<A>(action: ShellAction): A {
+  return action as unknown as A
+}
+
 export interface GameProgress {
   completed?: string[]
   bestMoves?: Record<string, number>
@@ -554,11 +574,11 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
           },
         }
       : {}),
-    undo: () => dispatch({ type: 'undo' } as unknown as A),
-    restart: () => dispatch({ type: 'restart' } as unknown as A),
+    undo: () => dispatch(asGameAction<A>({ type: 'undo' })),
+    restart: () => dispatch(asGameAction<A>({ type: 'restart' })),
     restartFresh: () => void discardAndRestart(),
-    nextLevel: () => dispatch({ type: 'nextLevel' } as unknown as A),
-    startLevel: (levelId: string) => dispatch({ type: 'startLevel', levelId } as unknown as A),
+    nextLevel: () => dispatch(asGameAction<A>({ type: 'nextLevel' })),
+    startLevel: (levelId: string) => dispatch(asGameAction<A>({ type: 'startLevel', levelId })),
     pause,
     resume,
     retrySave,

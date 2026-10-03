@@ -71,8 +71,20 @@ export function fnv1a(text: string): string {
   return (h >>> 0).toString(16).padStart(8, '0')
 }
 
+/**
+ * 对任意可 JSON 序列化的结构算校验和。
+ *
+ * 存档信封、备份文件都用它。之所以单独抽出来：备份原先写成
+ * `computeChecksum(body as unknown as Omit<SaveEnvelopeV1,'checksum'>)` ——
+ * 那是把"备份体"伪装成"存档信封"来通过类型检查，断言本身不成立。
+ * 取值方式与 `computeChecksum` 完全一致（`fnv1a(canonicalJson(v))`），所以校验和不变、旧数据照旧可读。
+ */
+export function checksumOf(value: unknown): string {
+  return fnv1a(canonicalJson(value))
+}
+
 export function computeChecksum(envelope: Omit<SaveEnvelopeV1, 'checksum'>): string {
-  return fnv1a(canonicalJson(envelope))
+  return checksumOf(envelope)
 }
 
 export function sealEnvelope(envelope: Omit<SaveEnvelopeV1, 'checksum'>): SaveEnvelopeV1 {

@@ -8,7 +8,7 @@
 import { BACKUP_SCHEMA, APP_VERSION } from './version.js'
 import {
   canonicalJson,
-  computeChecksum,
+  checksumOf,
   fnv1a,
   parseEnvelope,
   type SaveEnvelope,
@@ -48,7 +48,7 @@ export function createBackup(input: BackupInput): BackupFileV1 {
     records: input.records,
     settings: input.settings,
   }
-  return { ...body, checksum: computeChecksum(body as unknown as Omit<SaveEnvelopeV1, 'checksum'>) }
+  return { ...body, checksum: checksumOf(body) }
 }
 
 export type BackupParseResult =
