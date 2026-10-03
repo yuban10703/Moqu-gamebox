@@ -7,7 +7,11 @@ import type { BoardView, CellKind, CellView, ControlSpec, GameView } from '@eink
 import { SUDOKU_CELLS, SUDOKU_SIZE } from './solver.js'
 import { clueCount, filledCount, isSolved, type SudokuState } from './rules.js'
 
-/** 填错（合法但不符合唯一解）的标记：形状区分，不靠灰度 */
+/**
+ * 填错（合法但不符合唯一解）的标记。
+ * 曾经做成文字前缀 `×6`；现在改为在格子上画 1px 的叉覆盖住数字（见 CellView.wrong），
+ * 数字本身保持整齐。这个常量保留给无障碍文案与测试用。
+ */
 export const WRONG_MARK = '×'
 
 export function cellKindAt(state: SudokuState, index: number): CellKind {
@@ -19,7 +23,6 @@ export function cellKindAt(state: SudokuState, index: number): CellKind {
 export function cellGlyph(state: SudokuState, index: number): string {
   const value = state.filled[index]!
   if (value === 0) return ''
-  if (state.given[index] === 0 && value !== state.solution[index]) return `${WRONG_MARK}${value}`
   return String(value)
 }
 
@@ -31,6 +34,10 @@ export function buildBoard(state: SudokuState): BoardView {
       index,
       kind,
       glyph: cellGlyph(state, index),
+      // 填错：合法但与唯一解不符。呈现交给壳层（格子上画 1px 的叉），不塞进文字
+      ...(cellKindAt(state, index) === 'tile' && state.filled[index] !== 0 && state.filled[index] !== state.solution[index]
+        ? { wrong: true }
+        : {}),
       // 题目给定 vs 玩家填入：字号 + 字重双重区分（见 styles.css）。
       // 只靠字重不够明显，字号差异在墨水屏上一眼可辨 —— 这也是纸面数独的通行做法
       // （印刷体的题目数字大，自己写的数字小）。

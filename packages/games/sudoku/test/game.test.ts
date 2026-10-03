@@ -11,7 +11,6 @@ import { IllegalActionError, baseKeys, compareDicts, createI18n, type Dict } fro
 import {
   DIFFICULTY_IDS,
   SUDOKU_CELLS,
-  WRONG_MARK,
   createSudokuState,
   reduceSudoku,
   sudokuEn,
@@ -108,7 +107,7 @@ describe('view', () => {
     expect(selected[0]!.index).toBe(index)
   })
 
-  it('填错但不冲突的数字加 × 前缀（形状区分，不靠灰度）', () => {
+  it('填错但不冲突的数字：文字保持纯数字，改由 wrong 标记（壳层在格子上画 1px 的叉）', () => {
     const state = fresh()
     const index = emptyCells(state).find((cell) => {
       const answer = state.solution[cell]!
@@ -124,7 +123,8 @@ describe('view', () => {
     )!
     const next = play(play(state, { type: 'select', index: index! }), { type: 'set', value: wrong })
     const cell = sudokuGame.view(next).board!.cells[index!]!
-    expect(cell.glyph).toBe(`${WRONG_MARK}${wrong}`)
+    expect(cell.glyph).toBe(String(wrong))
+    expect(cell.wrong).toBe(true)
     expect(cell.kind).toBe('tile')
   })
 
@@ -156,7 +156,7 @@ describe('view', () => {
     expect(decoded.filled[index]).toBe(wrong)
     // 仍然是进行中，且该格被标为「填错」
     expect(sudokuGame.status(decoded)).toBe('playing')
-    expect(sudokuGame.view(decoded).board!.cells[index]!.glyph).toContain(WRONG_MARK)
+    expect(sudokuGame.view(decoded).board!.cells[index]!.wrong).toBe(true)
   })
 
   it('stats 只有「已填 x/81」一项（总数在分母里，空格是同一信息，都算冗余）', () => {

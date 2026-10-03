@@ -47,6 +47,11 @@ export interface CellView {
    */
   glyph: string
   /** 当前选中/光标所在格：壳层加重描边（黑白屏上靠线宽区分，不用灰度） */
+  /**
+   * 该格内容"填错"（合法但不对）。壳层据此在格子上画一个 1px 的叉**覆盖**住数字 ——
+   * 墨水屏不能靠颜色，用形状标记比在文字前加前缀更干净（数字本身保持整齐）。
+   */
+  wrong?: boolean
   /** 右/下邻格属于同一块棋子：该边不画格线（华容道用） */
   mergeRight?: boolean
   mergeBottom?: boolean

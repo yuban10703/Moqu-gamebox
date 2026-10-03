@@ -1391,3 +1391,41 @@ html[data-bold-lines='on'] .eink-board {
 .eink-screen[data-game='klotski'] {
   --board-grid-line: 2px;
 }
+
+/*
+ * 填错的格子：在格子上画一个 **1px 的叉覆盖住数字**（用户要求）。
+ *
+ * 用格子自己的伪元素，而不是绝对定位在棋盘上的覆盖层 —— 覆盖层与网格是两套坐标系，
+ * 之前实测整体错位（"点到的不是我想点的那块"）。伪元素在格子内部，天然对齐。
+ * 选择器写成两级 `.eink-board .eink-board__cell[...]`：styles.css 里同优先级的规则后者胜，
+ * 这个坑我已经踩过多次。
+ */
+.eink-board .eink-board__cell[data-wrong='yes'] {
+  position: relative;
+}
+
+.eink-board .eink-board__cell[data-wrong='yes']::before,
+.eink-board .eink-board__cell[data-wrong='yes']::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 50%;
+  height: 1px;
+  background: var(--ink-black);
+  pointer-events: none;
+}
+
+.eink-board .eink-board__cell[data-wrong='yes']::before {
+  transform: rotate(45deg);
+}
+
+.eink-board .eink-board__cell[data-wrong='yes']::after {
+  transform: rotate(-45deg);
+}
+
+/* 选中格是反白（黑底白字）时，叉要用白色才看得见 */
+.eink-board .eink-board__cell[data-wrong='yes'][data-selected='yes']::before,
+.eink-board .eink-board__cell[data-wrong='yes'][data-selected='yes']::after {
+  background: var(--ink-white);
+}

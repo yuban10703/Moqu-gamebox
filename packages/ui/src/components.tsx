@@ -314,6 +314,7 @@ export function Board({
           {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
           {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
           {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
+          {...(cellView.wrong ? { 'data-wrong': 'yes' } : {})}
           {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
           {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
           {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}
