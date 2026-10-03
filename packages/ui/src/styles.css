@@ -1377,14 +1377,22 @@ html[data-bold-lines='on'] .eink-board {
 }
 
 /*
- * 整块棋子的选中标记：**一个**内框套住整块（而不是每格一个框）。
- * 反白块上用白框，否则黑底上的黑框看不见。
+ * 整块棋子的选中标记：**整块反白**（黑底白字）。
+ *
+ * 为什么不用细线框：真机实测（P6Plus，824×1648 物理像素 / dpr 1.875）下，
+ * 3px 的 outline 落在半像素上，被渲染成**破碎的斜纹带** —— 看上去既不像"选中"，
+ * 又把刚合并好的一块棋子又切碎了（用户反馈"还是不正常"）。
+ * 反白是实心区域、边缘落在整数像素，墨水屏上绝对可靠；已反白的大块（曹操）则翻转成白底黑字，
+ * 形成明确的"状态切换"而不是叠加一层线。
  */
 .eink-board__label[data-selected='yes'] {
-  outline: 3px solid var(--ink-black);
-  outline-offset: -4px;
+  background: var(--ink-black);
+  color: var(--ink-white);
+  outline: none;
 }
 
 .eink-board__label[data-selected='yes'][data-invert='yes'] {
-  outline-color: var(--ink-white);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  box-shadow: inset 0 0 0 5px var(--ink-black);
 }
