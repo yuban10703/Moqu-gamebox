@@ -1080,3 +1080,23 @@ html[data-bold-lines='on'] .eink-board {
     min-height: 74px;
   }
 }
+
+/*
+ * 极矮横屏：把棋盘区从"几乎为 0"救回来。
+ *
+ * 上一轮的账（879×407）：顶栏 68 + 统计 44 + 状态条 32 + 控制区 148 ≈ 292，加间距后棋盘区只剩 44px。
+ * 方向盘按钮 48px 是触摸下限不能再压，因此这一档继续从**信息密度**里省：
+ * 统计栏整体隐藏（黑子/步数/用时这类信息在竖屏与正常横屏都能看，而这一档棋盘才是主角），
+ * 状态条再压到 28px（必须保留：它承载「走不通」的文字反馈）。
+ */
+@media (orientation: landscape) and (max-height: 520px) {
+  .eink-screen--game .eink-stats {
+    display: none;
+  }
+
+  .eink-screen--game .eink-statusstrip {
+    height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+  }
+}
