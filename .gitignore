@@ -27,3 +27,6 @@ local.properties
 .idea/
 .vscode/
 *.log
+
+# Python 临时产物（tools/scripts 下跑 .py 时会生成）
+__pycache__/
