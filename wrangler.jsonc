@@ -27,14 +27,23 @@
     "directory": "./apps/web/dist"
   },
   /**
-   * Workers Logs（Cloudflare 面板提示补上的那块，2026-10-05 应用）。
-   * Free 计划也包含：20 万条/天、保留 3 天；Paid 为 2000 万条/月、7 天。
-   * `invocation_logs` 记录每次请求的日志（方法/URL/状态），`persist` 打开持久化。
+   * 可观测性（按 Cloudflare 面板两次提示的最终形态，2026-10-05）。
+   *
+   * logs：Workers Logs —— Free 计划也包含（20 万条/天、保留 3 天；Paid 2000 万条/月、7 天）。
+   *   `invocation_logs` 记录每次请求（方法 / URL / 状态），`persist` 打开持久化，
+   *   `head_sampling_rate: 1` = 全量采样（想省额度可以调小，例如 0.1）。
+   * traces：分布式追踪 —— 面板里是关闭的，这里如实同步（关了就不产生追踪数据）。
    */
   "observability": {
     "logs": {
       "enabled": true,
+      "head_sampling_rate": 1,
       "invocation_logs": true,
+      "persist": true
+    },
+    "traces": {
+      "enabled": false,
+      "head_sampling_rate": 1,
       "persist": true
     }
   }

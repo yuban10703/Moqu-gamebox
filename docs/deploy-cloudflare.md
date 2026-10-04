@@ -36,11 +36,18 @@
 面板提示补 `observability` 块（记录每次请求的日志），已按原样写进 `wrangler.jsonc`：
 
 ```jsonc
-"observability": { "logs": { "enabled": true, "invocation_logs": true, "persist": true } }
+"observability": {
+  "logs":   { "enabled": true, "head_sampling_rate": 1, "invocation_logs": true, "persist": true },
+  "traces": { "enabled": false, "head_sampling_rate": 1, "persist": true }
+}
 ```
 
-Free 计划**也包含** Workers Logs（20 万条/天、保留 3 天；Paid 为 2000 万条/月、7 天），最小 wrangler 版本 3.78.6。
-若某天部署因计划权限报 `persist` 相关错误，把它去掉即可（保留 `enabled` 与 `invocation_logs` 仍会记录日志）。
+（面板先给了一版只有 `logs` 的，随后又给了一版加上 `logs.head_sampling_rate` 与 `traces`；以仓库里这份为准。）
+
+- `logs`：Workers Logs。Free 计划**也包含**（20 万条/天、保留 3 天；Paid 为 2000 万条/月、7 天），最小 wrangler 版本 3.78.6。
+  `head_sampling_rate: 1` = 全量采样，嫌额度多可以调小（例如 `0.1` 只记 10%）。
+- `traces`：分布式追踪，面板里是**关闭**的，这里如实同步（关了就不产生追踪数据）。
+- 若某天部署因计划权限报 `persist` 相关错误，把它去掉即可（保留 `enabled` 与 `invocation_logs` 仍会记录日志）。
 
 ## 二、Pages
 
