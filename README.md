@@ -93,6 +93,14 @@ npm run verify       # 提交前：类型检查 + 全部测试 + 五套真浏览
 Android APK：`npm run setup:android` 装构建链，再 `npm run build:apk`。
 项目全貌与真机流程见 [docs/handover.md](docs/handover.md)，架构见 [docs/architecture.md](docs/architecture.md)。
 
+## 关于 AI
+
+本项目的代码、文档与真机审计**主要由 AI 协作完成**：主体由 **DeepSeek Harness（DSH）** 驱动的编码代理编写，
+人负责需求、决策与验收。
+
+所有产出都过自动化门禁（`npm run verify`：类型检查 + 全部单元测试 + 五套真浏览器巡检），
+涉及设备行为的部分在两台墨水屏阅读器上实测复核。
+
 ## 许可证与内容来源
 
 关卡内容为自制（房间模板 + 固定种子反向生成 + 求解器校验），不包含第三方题库。
