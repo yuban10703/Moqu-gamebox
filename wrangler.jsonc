@@ -1,0 +1,29 @@
+/**
+ * Cloudflare **Workers**（Workers Builds）部署配置。
+ *
+ * 为什么需要它：Workers 的构建流程里，「Deploy command」默认是 `npx wrangler deploy`；
+ * 仓库里没有 Wrangler 配置文件时，wrangler 会尝试「自动配置」你的项目（会去开一个 PR），
+ * 在 Builds 环境里这一步通常会失败，日志就是「Failed: error occurred while running deploy command」。
+ *
+ * 有了这个文件，Cloudflare 上只需要填：
+ *   构建命令（Build command）  npm run build:web
+ *   部署命令（Deploy command） 留默认 `npx wrangler deploy`
+ *   预览命令（Preview command）留默认 `npx wrangler preview`
+ * 其余（产物目录、纯静态站点）都由下面的 assets 声明。
+ *
+ * 注意：`name` 必须与你 Cloudflare 上那个 Worker/项目的名字一致，否则会去部署另一个 Worker。
+ * 本项目是纯静态站点：只有 assets、没有 main（不需要 Worker 脚本）。
+ *
+ * 若你用的是 **Pages** 项目（Pages 没有 Deploy command 字段，Cloudflare 自己上传产物），
+ * 本文件不起作用也不冲突 —— 见 docs/deploy-cloudflare.md。
+ */
+{
+  "name": "moqu",
+  /* 故意用一个**过去**的日期：写成未来日期 wrangler 会直接拒绝（
+     "Compatibility date ... is in the future and unsupported"），
+     而本项目是纯静态资源、没有 Worker 脚本，用不到任何新行为。 */
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "./apps/web/dist"
+  }
+}
