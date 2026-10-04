@@ -5,7 +5,7 @@
 ```
 apps/web  ─┐                     ┌─ packages/ui（React 壳层：页面、组件、会话）
            ├─ packages/platform ─┤
-apps/android┘  （平台适配：存储 / 离线 / 刷新 / 设备基线）
+apps/android┘  （平台适配：存储 / 离线 / 设备基线）
                                  └─ packages/games/*（规则 + 展示模型 + 内容）
                                           └─ packages/core（契约 / 存档 / i18n / 布局）
 ```
@@ -72,7 +72,7 @@ commit(env):
 
 ## 为什么不用 Canvas
 
-网页与 WebView 都拿不到可靠的像素级局部刷新：桥只能做到**整屏全刷**与**应用级刷新模式切换**。
+网页与 WebView 都拿不到可靠的像素级局部刷新：桥**不提供任何刷新控制**（刷新链路已整条删除，见 [handover.md](handover.md) §5b）。
 既然如此，用 Canvas 自绘再自己去算 damage 矩形收益很低，还要自己处理中文字形（打包 CJK 位图字体）。
 DOM/SVG 让系统做最小重绘，中文直接用系统字体，`1-bit` 可读性靠符号与线型而不是灰阶来保证。
 

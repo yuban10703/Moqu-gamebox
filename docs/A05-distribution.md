@@ -1,14 +1,14 @@
 # A05 · 支持与分发范围
 
-状态：建议方案（尚未定稿；取决于真机基线与你的分发渠道选择）。
+状态：建议方案（真机基线已采集，见 [A01](A01-device-baseline.md)；分发渠道仍需你定）。
 
 ## 支持的平台下限
 
 | 平台 | 下限 | 依据 |
 |---|---|---|
-| Android APK | `minSdk 23`（Android 6.0） | BOOX 老机型（Note/Nova 早期固件）为 Android 6；WebView 语法按 chrome69 降级构建 |
+| Android APK | `minSdk 23`（Android 6.0） | BOOX 老机型（Note/Nova 早期固件）为 Android 6；WebView 语法按 **chrome110 基线**构建（`apps/web/vite.config.ts`；chrome69 的老降级方案已放弃，实测目标机 WebView 是 Chrome/146） |
 | Android 目标 | `targetSdk 35` | 覆盖较新固件；未使用任何受限 API（无网络权限、无存储权限） |
-| Web | 支持 IndexedDB + ES2017 的浏览器 | Service Worker 仅作渐进增强，不可用时仍可游玩（只是不能离线冷启动） |
+| Web | chrome110 / Safari 16 级别的现代浏览器（构建目标见 `apps/web/vite.config.ts`） | Service Worker 仅作渐进增强，不可用时仍可游玩（只是不能离线冷启动） |
 
 不支持低于 Android 6.0 的设备；不支持无触摸输入的设备（主操作是可见按钮）。
 
@@ -41,4 +41,4 @@
 - [ ] 正式签名与 keystore 保管方案；
 - [ ] 上架渠道与合规材料（若公开分发）；
 - [ ] 旧版本回退策略的实测（G04：新版产生存档后回退旧代码）；
-- [ ] 支持矩阵（设备 × 版本 × 结论）——需要 [A01](A01-device-baseline.md) 与 [A06](A06-acceptance.md) 的真实记录。
+- [ ] 支持矩阵（设备 × 版本 × 结论）——[A01](A01-device-baseline.md) 与 [A06](A06-acceptance.md) 的真机记录已有，待整理成表。

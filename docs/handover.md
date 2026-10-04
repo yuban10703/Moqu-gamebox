@@ -4,16 +4,16 @@
 
 | 项 | 值 |
 |---|---|
-| 提交数 | 72（工作区干净）|
+| 提交数 | 见 `npm run status`（提交数 / 工作区状态一并打印，避免这个数字随每次提交过期）|
 | 游戏 | **14 款** |
-| 新增 | 第 13 款斗地主（单机 + 联机框架）见附 C，**已上真机审计**（P6Plus / NoteX2，见附 C 末尾）；第 14 款恶魔轮盘赌（对恶魔三档 + 双人同屏）见附 D，**尚未上真机审计** |
-| 单元测试 | **1234**（`npm run check`；另有 1 个按需套件 dump-levels 默认跳过）|
+| 新增 | 第 13 款斗地主（单机 + 联机框架）见附 C，**已上真机审计**（P6Plus / NoteX2，见附 C 末尾）；第 14 款恶魔轮盘赌（对恶魔三档 + 双人同屏 + 无尽模式）见附 D，**已上真机审计**（P6Plus / NoteX2，见附 D 末尾） |
+| 单元测试 | **1251**（`npm run check`；另有 1 个按需套件 dump-levels 默认跳过）|
 | 探索套件 | 5 个（`npm run explore`），断言数见运行输出 |
 | 一键验证 | `npm run verify` 全绿 |
 | 文档核对 | `npm run check:docs`（并入 `npm run check`）：命令/路径/游戏数与现实不符即失败 |
 | 接入完整性 | `npm run check:games`（并入 `npm run check`）：逐款核对 5 个接入点 + i18n + 无 Math.random + 有测试 |
-| 真机 | **P6Plus（10.1.1.69:5555）与 NoteX2（10.1.1.53:5555）各一轮 12/12 款审计通过**（2026-10-04：屏外按钮 0、无缺键，新三款另验「可操作 + 撤销可用 + 撤销后局面回退」）|
-| 构建 | Onyx SDK **默认内置**（3.4MB；排除后 2.5MB）|
+| 真机 | **当时 12 款那轮**：P6Plus（10.1.1.69:5555）与 NoteX2（10.1.1.53:5555）各一轮 12/12 款审计通过（2026-10-04：屏外按钮 0、无缺键，新三款另验「可操作 + 撤销可用 + 撤销后局面回退」）；**现状是 14 款**，斗地主与恶魔轮盘赌各自另有真机审计记录（见附 C / 附 D 末尾）|
+| 构建 | **不含任何厂商 SDK（单一构建配置）**——Onyx SDK 已完全移除，与 §5b 的构建决策一致 |
 | 视口覆盖 | 竖屏 / 正常横屏 / 极矮横屏 / 最大字号 / **极矮横屏+最大字号（最受限组合）** |
 | 已闭环的布局项 | 首页大字号溢出、棋盘裁切、方向盘越界、极矮横屏棋盘、密集网格坍缩 |
 
@@ -32,11 +32,11 @@ npm workspaces monorepo，TypeScript 严格模式，**DOM/SVG 优先（无 Canva
 
 ```
 packages/core          纯函数内核：GameDef 契约、种子随机、存档协议、布局计算、i18n、诊断
-packages/platform      平台适配：IndexedDB（Web）/ 原生 SQLite（Android）、Onyx 刷新、备份导入导出
+packages/platform      平台适配：IndexedDB（Web）/ 原生 SQLite（Android）、备份导入导出
 packages/ui            React 壳层：屏幕、组件、样式（styles.css 是唯一的样式来源）
 packages/games/*       14 款游戏，每款一个独立包（见下）
 apps/web               网页版入口 + library.ts（**游戏注册表，唯一一处登记**）
-apps/android           BOOX WebView 壳 + Onyx SDK（反射调用；**默认打进 APK**，见下）
+apps/android           BOOX WebView 壳（纯通用 Android 实现，无厂商 SDK，见下）
 tools/scripts          verify-all / 5 个探索套件 / 静态服务 / i18n 扫描 / 构建与部署脚本
 docs/                  架构、验收、墨水屏规范、刷新适配、真机基线、本交接说明
 ```
@@ -47,7 +47,7 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 `reduce(state,action)` `legal(state)` `status(state)` `view(state)` `controls(state)` `encode/decode`。
 
 可选钩子（**新游戏按需实现，壳层会根据是否提供来接线**）：
-- `selectAction(state,index)`：点格子 → 动作（数独/扫雷/黑白棋/数字华容道/五子棋/四子棋/记忆配对用）
+- `selectAction(state,index)`：点格子 → 动作（现役 10 款：数独 / 扫雷 / 数字华容道 / 五子棋 / 记忆配对 / 关灯游戏 / 华容道 / 消消乐 / 斗地主 / 恶魔轮盘赌）
 - `controlAction(state,controlId)`：点自定义按钮 → 动作（数字键盘、标记模式、方向键等）
 - `contentId(state)`：内容 id（无关卡玩法返回难度 id）
 - `movesOf(state)`：计步（用于"最佳成绩"）
@@ -98,7 +98,7 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
    - `tsconfig.json` paths 与 `vitest.config.ts` alias 各加一条
    - `npm install`（建立 `node_modules/@eink/<id>` 软链）
    - `apps/web/src/library.ts`：`defineGame({...})` + 两份字典合并
-   - `packages/ui/src/screens/LibraryScreen.tsx` 的 `hostGlyph` 加一个 1-bit 字形
+   - `packages/ui/src/GameIcon.tsx` 的 `SHAPES` 加一个 1-bit 字形
    - `packages/ui/test/games-contract.test.ts` 的 `GAMES` 数组加入该游戏
 5. 跑 `npm run verify`（单测 + 5 个探索套件），再上真机 `tools/device/verify-device.sh` 验收。
 
@@ -139,9 +139,9 @@ npx playwright install chromium && npx playwright install-deps chromium   # 需�
 `npm run verify` 会先检查该依赖，缺失时直接打印上面这几行命令（而不是抛 ERR_MODULE_NOT_FOUND）。
 
 ```
-npm run check      类型检查 + 707 个单测 + i18n + web 构建
-npm run explore    5 个探索套件（真实 Chromium，真实交互）：
-                   ui 98 / data 9 / flows 17 / maxscale 60 / landscape 52 项断言
+npm run check      类型检查 + 单测 + i18n + web 构建（项数见运行输出）
+npm run explore    5 个探索套件（真实 Chromium，真实交互），断言数见运行输出
+                   （最近一轮实测：ui 124 / data 38 / flows 13 / maxscale 134 / landscape 190 项）
 npm run verify     上面全部串起来，自带静态服务，结束打印汇总表与退出码
 ```
 
@@ -185,7 +185,7 @@ WebView 调试端口名带 pid（必须先取 pid 才能转发）。
 
 | 项 | 状态 |
 |---|---|
-| Note X2 的全量游戏审计 | **已完成**：设备换到 10.1.1.53 后审计通过（12/12 款屏外按钮 0、无缺键，2026-10-04 复验）|
+| Note X2 的全量游戏审计（当时 12 款那轮） | **当时已完成**：设备换到 10.1.1.53 后审计通过（12/12 款屏外按钮 0、无缺键，2026-10-04 复验）。**现状**：游戏已是 14 款，斗地主与恶魔轮盘赌各自另有真机审计（见附 C / 附 D 末尾），其余 12 款沿用该轮结论 |
 | 极矮横屏（879×407）棋盘 | **本轮改为并排布局**：棋盘在左列、控制区在右列（`min(300px, 40vw)`），棋盘不再被方向盘与状态条按**高度**扣减，只让出右侧列宽；状态条 28px 横跨底部、统计栏与副标题仍隐藏。<br>**浏览器实测**（构建产物，879×407 + 1.5×）：棋盘区 **547×270**（改前 ~117px 高），格子数独 **13 → 28px**、五子棋 **12 → 17px**、贪吃蛇 **8 → 21px**、俄罗斯方块 **5 → 14px**、推箱子 **14 → 37px**、扫雷 **20 → 28px**；12 款全部「棋盘完整落在可用区内（余量 0~4px）+ 方向盘 4/4 在屏内 + 屏外元素 0」。<br>**联动**：`isCrampedLayout` 按并排几何计算 → 这一档不再算「棋盘不可用」，自动步进回到各游戏自己的间隔（贪吃蛇 500ms，与用户要求一致）；真正矮到放不下的横屏（如 879×240）仍会减速。<br>**真机复验（2026-10-04，P6Plus 实测 879×407）**：18px 档格子 数独 **30** / 扫雷 30 / 五子棋 18 / 贪吃蛇 **22** / 俄罗斯方块 **15** / 推箱子 39 / 2048 68 / 华容道 54px（棋盘区 547×284）；26px 档 29/29/17/21/14/37/65/52px（棋盘区 547×272）。两档全部「棋盘完整落在可用区内（余量 0~5px）+ 方向盘 4/4 在屏内 + 屏外元素 0」，与浏览器实测相差 ≤1px ✓<br>**仍放不下的**：16×16 扫雷 / 15×15 五子棋在 ~270px 高里达不到 24px 期望值（只放得下 ~11 行 24px）—— 这一档的固有边界。|
 | 首页翻页行位置（本轮） | 已修：`.eink-section--games` 吃掉内容区剩余高度、翻页行 `margin-top: auto` 钉在区块底部 —— 用户反馈「最后一页卡片少时翻页按钮跟着上移」。浏览器实测 439×560@26px（2 页）翻页行 top = 415/415、879×407@26px（3 页）262/262/262 ✓；**真机**（P6Plus 439×847）第 1/2 页（8 块 vs 4 块）都是 **715**、英文 26px 档都是 **659** ✓ |
 | 极矮横屏首页要小幅滚动（本轮） | 已修：**不缩放整页**，改成这一档天生放得下 —— 卡片 92 → 72px、区块留白 12 → 4/6px、「继续上一局」的标题与细栏**并成一行**。实测 879×407（带「继续」栏的最紧情况）三档：18px 内容 262/可见 262、22px 247/247、26px 233/233，**都不需滚动**、翻页行每页都完整可见（322/322、316/316、310/310）✓ 真机复验同值。<br>为什么不用「整页自动缩放」：这一档正文就是 18px 下限，263/296 ≈ 0.89 会把正文压到 16px；1-bit 面板上分数像素缩放还会让字形边缘发虚。 |
@@ -202,7 +202,8 @@ WebView 调试端口名带 pid（必须先取 pid 才能转发）。
 | BOOX NoteX2（**10.1.1.53:5555**，此前为 10.1.1.49） | 1248×903 @1.5 | Android 11；本轮离线 |
 | ONYX P6Plus（10.1.1.69:5555） | 439×847 @1.875 | Android 13；字号档位 1.5×（根字号 26px）；横屏 879×407 |
 
-两台均：`onyxSdkFound/fullRefresh/animationMode=true`、`regionRefresh/partialProfiles=false`（区域刷新调用成功但面板整屏刷新）、
+两台均（**SDK 移除前的历史实测**）：`onyxSdkFound/fullRefresh/animationMode=true`、`regionRefresh/partialProfiles=false`（区域刷新调用成功但面板整屏刷新）——
+这些刷新探测字段**现已不存在**（SDK 与整套刷新链路已删除，诊断页不再上报，见 §5b）；
 app-scope 默认 `FAST`（系统默认，非本项目所致）、存储 `android`（SQLite）。
 
 
@@ -238,7 +239,7 @@ app-scope 默认 `FAST`（系统默认，非本项目所致）、存储 `android
 > 俄罗斯方块 19 → **26px**（26px 档 23px）。879×407 并排档与改前相同（方向键在右侧列里），1248×903 横屏屏外按钮 0。
 > 表中各行是改前的真机值，**待真机复验**。
 
-十二款全部：**屏外按钮 0、无缺键** ✓（两台真机各一轮，2026-10-04）
+表中 12 款棋盘类全部：**屏外按钮 0、无缺键** ✓（两台真机各一轮，2026-10-04）
 
 **已加自动化守卫**：`packages/ui/test/games-contract.test.ts` 里有一条用例，
 对**全部游戏 × 各难度**断言「按 minCell 算出的棋盘能放得进常用视口」——
@@ -385,4 +386,7 @@ app-scope 默认 `FAST`（系统默认，非本项目所致）、存储 `android
 写 `progress.bestScore`，破纪录标 `session.newRecord`；结果面板显示 `<ns>.result.best` 与「新纪录」角标，详情页历史记录上方显示当前模式的纪录。
 `carriedProgress`（core/history.ts）统一「开始新游戏 / 重新开始」时继承的跨局战绩：历史记录 + 最高纪录。
 
-**待办**：真机审计（P6Plus / NoteX2 上的道具格可点性与刷新残影）。
+**真机审计（已完成，P6Plus / NoteX2）**：对决面板 **415×575** 完整落在棋盘区内（裁切 0）、屏外按钮 0、道具格可点；
+「对自己开枪 → 打出空包弹 → 继续行动」的多打一手规则在真机走通；
+平板双人同屏（NoteX2 横屏，左右两栏）两侧血量与道具排都排得下、无裁切。
+（原待办里的「刷新残影」不再是应用可控制项：刷新链路已整条删除，见 §5b。）

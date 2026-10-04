@@ -29,6 +29,12 @@ import { createRequire } from 'node:module'
 const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
+/*
+ * 游戏主视区：格子玩法是 `.eink-board`，牌类玩法（斗地主）是 `.eink-cardtable`，
+ * 恶魔轮盘赌是 `.eink-duel` —— 逐款巡检只等 `.eink-board` 的话，走到第 13 款就超时。
+ */
+const SURFACE = '.eink-board, .eink-cardtable, .eink-duel'
+
 const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 const results = []
 const check = (name, ok, extra = '') => {
@@ -92,8 +98,31 @@ await page.screenshot({ path: '../shots/web-01-landscape-game.png' })
 
 await page.reload({ waitUntil: 'networkidle' })
 await page.waitForSelector('text=墨趣', { timeout: 15000 })
+/*
+ * 刷新后应用回到**首页**（不是停在游戏页）—— 这是设计如此：首页有「继续」条。
+ * 所以「存档恢复」要验三件事：继续条指向刚玩的那款、存储里的步数没变、点继续回到同一局。
+ * （原先直接抓 body 里的「步数」，刷新后页面在首页，必然读到 -1 → 假红。）
+ */
+const continueText = await page.evaluate(
+  () => document.querySelector('.eink-continue')?.innerText?.replace(/\s+/g, ' ') ?? '',
+)
+check('刷新后首页「继续」条指向刚玩的那款', /推箱子/.test(continueText), continueText || '(没有继续条)')
+const storedAfterReload = await page.evaluate(async () => {
+  const r = await window.__einkPlatform.storage.saves.loadResult('sokoban')
+  return { status: r?.status ?? null, moves: r?.envelope?.moves ?? null }
+})
+check(
+  '刷新后存储里的存档仍在（步数不变）',
+  storedAfterReload.status === 'ok' && storedAfterReload.moves === movesAfter,
+  `status=${storedAfterReload.status} 存档 ${storedAfterReload.moves} / 刷新前 ${movesAfter}`,
+)
+await page.locator('.eink-continue').first().click()
+await page.waitForTimeout(400)
+const startAgain = page.getByRole('button', { name: /开始新游戏|继续/ }).first()
+if (await startAgain.count()) await startAgain.click()
+await page.waitForSelector('.eink-board', { timeout: 8000 })
 const restored = await page.evaluate(() => Number(document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? -1))
-check('刷新后存档恢复（步数一致）', restored === movesAfter, `刷新前 ${movesAfter} → 刷新后 ${restored}`)
+check('点「继续」回到同一局（步数一致）', restored === movesAfter, `刷新前 ${movesAfter} → 恢复后 ${restored}`)
 
 /* ---------- 1b) 语言切换：默认跟随浏览器语言 ---------- */
 console.log('\n[1b] locale=en-US：界面应走英文')
@@ -172,16 +201,21 @@ console.log('\n[2b] 逐款游戏：进详情 → 开局 → 棋盘渲染 + 按�
     await p.waitForTimeout(300)
     const cf = p.getByRole('button', { name: /替换并开始/ })
     if (await cf.count()) await cf.first().click()
-    await p.waitForSelector('.eink-board', { timeout: 8000 })
+    await p.waitForSelector(SURFACE, { timeout: 8000 })
     const info = await p.evaluate(() => {
-      const cells = document.querySelectorAll('.eink-board__cell').length
+      const surface = document.querySelector('.eink-board, .eink-cardtable, .eink-duel')
+      // 格子棋盘数格子；牌桌数牌与座位；对决面板数两侧
+      const units =
+        document.querySelectorAll('.eink-board__cell').length ||
+        document.querySelectorAll('.eink-card, .eink-cardtable__seat').length ||
+        document.querySelectorAll('.eink-duel__side').length
       const off = [...document.querySelectorAll('button')].filter(
         (b) => b.getBoundingClientRect().bottom > innerHeight + 1,
       ).length
-      return { cells, off, missing: document.body.innerText.includes('⟦') }
+      return { surface: surface?.className?.split(' ')[0] ?? '(无主视区)', units, off, missing: document.body.innerText.includes('⟦') }
     })
-    check(`${title}：开局渲染 + 按钮不越界`, info.cells > 0 && info.off === 0 && !info.missing,
-      `格子 ${info.cells} 屏外 ${info.off}${info.missing ? ' 有缺键' : ''}${hasMissingKey ? '（详情页有缺键）' : ''}`)
+    check(`${title}：开局渲染 + 按钮不越界`, info.units > 0 && info.off === 0 && !info.missing,
+      `${info.surface} 元素 ${info.units} 屏外 ${info.off}${info.missing ? ' 有缺键' : ''}${hasMissingKey ? '（详情页有缺键）' : ''}`)
   }
   await c.close()
 }
@@ -233,15 +267,23 @@ console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
   }
   check('断网后重载仍能打开应用', openedOffline)
   if (openedOffline) {
-    const st = await p.evaluate(() => ({
+    const st = await p.evaluate(async () => ({
       // 首页只在**异常**时显示离线徽标（「已可离线」常驻徽标已按用户要求移除，见 LibraryScreen）：
       // 断网后正确的表现是「没有任何告警徽标」，而不是去找一个早已不再渲染的「已可离线」
       warnings: [...document.querySelectorAll('.eink-badge--warning')].map((el) => el.textContent ?? ''),
-      moves: document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? null,
+      // 断网重载同样回到首页，所以在**存储层**验存档（页面上的「步数」只在游戏页才有）
+      saved: await window.__einkPlatform.storage.saves
+        .loadResult('sokoban')
+        .then((r) => ({ status: r?.status ?? null, moves: r?.envelope?.moves ?? null }))
+        .catch(() => null),
+      continueText: document.querySelector('.eink-continue')?.innerText?.replace(/\s+/g, ' ') ?? '',
     }))
     check('断网后首页没有「无法离线」告警', st.warnings.length === 0, st.warnings.join(' | '))
-    check('离线时存档仍可读（步数一致）', st.moves === movesOffline,
-      `断网前 ${movesOffline} → 断网后 ${st.moves}`)
+    check(
+      '离线时存档仍可读（步数一致）',
+      st.saved?.status === 'ok' && String(st.saved?.moves) === String(movesOffline),
+      `断网前 ${movesOffline} → 断网后 ${st.saved?.moves}（继续条：${st.continueText || '无'}）`,
+    )
   }
   await c.setOffline(false)
   await c.close()

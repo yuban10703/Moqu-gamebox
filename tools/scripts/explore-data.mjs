@@ -94,20 +94,39 @@ const play = async (title, moves = 1) => {
     await page.waitForSelector('.eink-board', { timeout: 8000 })
   }
   /*
-   * 至少走一步 —— 存档是在**第一次动作**时落盘的（本项目"立即提交"策略），
-   * 一步不走就等于没有存档，后续"继续上一局"相关断言会全部失败。
-   * 2048 这类靠**方向盘**操作的玩法点棋盘格是无效的，所以优先按方向盘。
+   * 至少走一步，并且**确认真的落盘**（存档在第一次动作时提交）。
+   *
+   * 为什么不能"点一下就当成走了"：动作可能非法 —— 例如 2048 开局两张牌都在最左两列时，
+   * 点「左」是被拒绝的（不落盘）。原先只点一下「左」，于是"继续上一局"偶尔指向上一款，
+   * 这条断言就成了 flaky（实测约 1/5 的运行会红）。
+   *
+   * 判据用**最近一次存档时间是否前进**（`saves.list()` 的 updatedAt），与具体玩法无关。
    */
-  for (let i = 0; i < Math.max(1, moves); i++) {
-    const dpad = page.locator('.eink-dpad button').first()
-    if (await dpad.count()) {
-      await dpad.click()
-    } else {
+  const newestSavedAt = () =>
+    page.evaluate(async () => {
+      const metas = await window.__einkPlatform.storage.saves.list()
+      return metas.reduce((max, m) => Math.max(max, m.updatedAt ?? 0), 0)
+    })
+  const before = await newestSavedAt()
+  const dpad = page.locator('.eink-dpad button')
+  const dpadCount = await dpad.count()
+  let landed = false
+  for (let i = 0; i < Math.max(1, moves) && !landed; i++) {
+    if (dpadCount > 0) await dpad.nth(i % dpadCount).click()
+    else {
       const cell = page.locator('.eink-board__cell').nth(i)
       if (await cell.count()) await cell.click()
     }
     await page.waitForTimeout(240)
+    landed = (await newestSavedAt()) > before
   }
+  // 兜底：把每个方向都试一遍（总有一个合法，除非这局真的动不了）
+  for (let i = 0; i < dpadCount && !landed; i++) {
+    await dpad.nth(i).click()
+    await page.waitForTimeout(240)
+    landed = (await newestSavedAt()) > before
+  }
+  if (!landed) throw new Error(`「${title}」点了动作但没有落盘（最近存档时间没有前进）`)
 }
 
 // 每次运行从干净状态开始：本套件会故意损坏存档来验证恢复入口，
@@ -265,13 +284,24 @@ check(
  * 而是**点它、看打开了哪款游戏** —— 行为验证比文本匹配更强，也不依赖具体排版。
  */
 const contExists = (await page.locator('.eink-continue').count()) > 0
+/*
+ * 期望值不写死某一款，而是问**存储**：最近一次提交存档的是哪一款。
+ * 这样断言的仍是"继续指向最近玩过的那款"这条规则，但不会因为"这次玩的是哪款"而假红。
+ */
+const newestGameId = await page.evaluate(async () => {
+  const metas = await window.__einkPlatform.storage.saves.list()
+  return metas.slice().sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]?.gameId ?? null
+})
 if (contExists) await page.locator('.eink-continue').first().click()
 await page.waitForTimeout(900)
-const resumedTitle = await page.evaluate(() => document.querySelector('.eink-topbar')?.textContent ?? '')
+const resumed = await page.evaluate(() => ({
+  id: document.querySelector('.eink-screen')?.getAttribute('data-game') ?? null,
+  title: document.querySelector('.eink-topbar')?.textContent ?? '',
+}))
 check(
   '「继续上一局」打开的是最近玩过的那款',
-  contExists && /2048/.test(resumedTitle),
-  `细栏存在=${contExists}，打开后标题=${resumedTitle.replace(/\s+/g, ' ').slice(0, 40)}`,
+  contExists && resumed.id !== null && resumed.id === newestGameId,
+  `细栏存在=${contExists}，存储里最新=${newestGameId}，打开的是 ${resumed.id}（${resumed.title.replace(/\s+/g, ' ').slice(0, 20)}）`,
 )
 await gotoLibrary()
 

@@ -1,7 +1,7 @@
 # 新增一款游戏
 
 目标：**只补规则、内容与呈现，不用重做设置、存档、备份与恢复**。
-接入一款游戏的全部工作都在 `packages/games/<game>/` 与一行注册代码里。
+游戏逻辑全在 `packages/games/<game>/`；但接进应用还要在**另外 5 处**登记（别名 / workspace 链接 / 库登记 / 首页字形 / 跨游戏契约测试），缺一处 `npm run check:games` 就会红。
 
 ## 1. 目录
 
@@ -44,14 +44,14 @@ interface GameDef<S, A> {
 1. **确定性**：同一个 `(seed, difficulty)` 必须产出同一个初始状态；随机数只用 `@eink/core` 的 `createRng`。
 2. **状态自包含**：`encode` 的产物必须能独立还原局面（撤销历史也放进去，推箱子就是这么做的）。
 3. **拒绝非法输入**：`decode` 遇到损坏内容必须抛错——上层会把它当作「存档损坏」处理并保留原档。
-4. **展示模型不含平台概念**：不要出现 DOM、CSS、像素；尺寸由壳层用 `computeBoardLayout` 计算。
-5. **规则层零时间引用**：不要写 `setInterval` / `setTimeout` / `requestAnimationFrame` / `Date.now` /
+4. **展示模型不含平台概念**：不要出现 DOM、CSS、像素；只给列数/行数，**尺寸由壳层的 CSS 容器查询算**（JS 一个像素都不给）。`packages/core` 的 `computeBoardLayout` 是离线不变量模型，只被测试与文档引用。
+5. **规则层零时间引用**：不要写 `setInterval` / `setTimeout` / `requestAnimationFrame` / `Date.now`（贪吃蛇与俄罗斯方块各有一条源码扫描测试守着；`check-games.mjs` 另查全游戏的 `Math.random`/`Date.now`）/
    `performance.now`（有源码扫描测试守住）。需要自动步进就声明 `tickMs` 并让 `reduce` 接受
    `{ type: 'tick' }`：定时器在壳层会话里，间隔下限 400ms（墨水屏整屏刷新约 500ms），
    玩家每次有效输入后会话会重置计时。撤销语义上，tick **不单独占撤销层级** ——
    一次撤销退回玩家上一次操作之前（详见 [eink-guidelines](eink-guidelines.md)）。
 
-## 3. 注册（唯一需要改壳层之外的地方）
+## 3. 注册（除游戏包外还要在 5 处登记，清单见 `tools/scripts/check-games.mjs`）
 
 `apps/web/src/library.ts`：
 

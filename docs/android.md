@@ -24,7 +24,7 @@ adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk
 adb logcat -s MainActivity   # 壳层日志
 ```
 
-首次运行请到 **设置 → 诊断** 复制设备基线，回填 [A01](A01-device-baseline.md)。
+首次运行请到 **首页 → 诊断**（首页页脚「诊断」按钮；帮助页里也有入口，设置页没有）复制设备基线，回填 [A01](A01-device-baseline.md)。
 
 ## 关键设计
 
@@ -47,6 +47,7 @@ adb logcat -s MainActivity   # 壳层日志
 
 ## 已知限制
 
-- 本机无 `/dev/kvm`、无真机连接：**只能做编译级验证**，运行期表现必须侧载后确认；
+- 本机有 `/dev/kvm`，且两台真机常在网（`10.1.1.53:5555` / `10.1.1.69:5555`，`adb connect` 后即在线）：
+  因此除编译级验证外，**可直接侧载确认运行期表现**（WiFi ADB 掉线时先 `forward --remove-all` 再重连）；
 - 壳层是**纯通用 Android 实现**：只用平台 API 与 `androidx.webkit`，不含任何厂商 SDK；
   设备差异（屏幕/视口/WebView/存储/触摸点数等）由诊断页如实上报，见 [A01](A01-device-baseline.md)。

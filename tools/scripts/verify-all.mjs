@@ -13,7 +13,7 @@
  * 谁先占了谁就被测到（曾经 explore-data 测到另一棵工作区的旧构建），
  * 而且那个端口上的服务跑完就消失，很容易被误当成「长期预览地址」。
  * 需要固定端口时：`VERIFY_PORT=8801 npm run verify`；
- * 想长期预览最新构建：`npm run preview:web`（见 docs/verification.md）。
+ * 想长期预览最新构建：`npm run build:web && npm run serve:web`（默认 http://127.0.0.1:8790/，见 docs/verification.md）。
  *
  * 用法：npm run verify
  */

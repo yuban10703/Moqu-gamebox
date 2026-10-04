@@ -9,7 +9,8 @@
 | React / React DOM | 19.3.x | 壳层 UI | MIT |
 | TypeScript | 5.9.x（**刻意不用 7.x**：生态兼容风险） | 类型与构建 | Apache-2.0 |
 | Vite / @vitejs/plugin-react | 8.3.x / 6.1.x | Web 构建 | MIT |
-| Vitest / jsdom / @testing-library/* | 5.0.x / 30.x / 16.x | 测试 | MIT |
+| Vitest / jsdom | 5.0.x / 30.x | 测试 | MIT |
+| @testing-library/react / @testing-library/dom | 16.x / 10.x | 组件测试 | MIT |
 | fake-indexeddb | 6.x | IndexedDB 测试替身 | Apache-2.0 |
 | androidx.webkit | 1.12.1 | WebViewAssetLoader（https 源加载内置资源） | Apache-2.0 |
 | Kotlin stdlib | 2.2.21 | Android 壳 | Apache-2.0 |
