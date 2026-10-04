@@ -74,6 +74,13 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 9. **文案一律走 i18n key**，中英基础 key 集合必须一致（`tools/scripts/check-i18n.mjs` 会扫源码里的硬编码中文）。
 10. **布局修复必须在真机复验**：同一视口在 Chromium 与 Android WebView 上的可用高度能差几十像素，
     足以让结论反转（已有两次教训）。
+11. **远端 `main` 是共享的（有协作者会直接 commit）：禁止 force-push、禁止重写已推送的历史。**
+    推送前先 `git pull --rebase`（本地已设 `pull.rebase=true` + `rebase.autoStash=true`），
+    否则不是被拒（non-fast-forward）就是把协作者的提交顶掉。
+    历史重写（改署名/清大文件）只能在**仓库还没有协作者**时做 —— 本仓库建仓当天做过两次署名重写，
+    若协作者在那之前 clone 过，他那边必须先 `git fetch && git reset --hard origin/main`
+    （旧历史里出现 `b54a6d6` / `fb43d22` 就说明是重写前的副本）。
+    建议在 GitHub 上给 `main` 打开分支保护（禁 force push、禁删除）当硬保险。
 
 ## 4. 加一款新游戏：完整步骤
 
