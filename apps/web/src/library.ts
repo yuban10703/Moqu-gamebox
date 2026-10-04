@@ -148,7 +148,10 @@ export const library: GameLibrary = {
     defineGame({
       game: tetrisGame,
       cellLabelKey: (kind) => `tetris.cell.${kind}`,
-      rulesKeys: ['tetris.rules.body', 'tetris.rules.body2', 'tetris.rules.difficulty'],
+      // 只列两段：详情页规则区约 6 行就折叠（出现「阅读全部」），
+      // 第三段「每档井深/预堆」（tetris.rules.difficulty）已不在这里列出 ——
+      // 用户要求说明尽量不折叠；难度名与各档间隔都在上面两段正文里。
+      rulesKeys: ['tetris.rules.body', 'tetris.rules.body2'],
       defaultDifficulty: 'starter',
       // 无关卡：不传 levels（否则标题变成「· 第 1/3 局」）；本作没有胜利条件，也不传 progressFor
     }),

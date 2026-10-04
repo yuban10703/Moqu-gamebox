@@ -19,10 +19,16 @@ export const snakeGlyph = '蛇'
 
 export const snakeZh: Dict = {
   'snake.title': '贪吃蛇',
+  /*
+   * 玩法说明的**长度预算**（用户要求：再精简、尽量不折叠）：
+   * 详情页规则区是 `max-height: 9em`（自身字号 0.9em）≈ **6 行**，超出才出现「阅读全部」。
+   * 18px 档每行约 25.6 个汉字，两段合计 ≤ 5 行（≈128 字）就一定能整段显示，
+   * 不用点开折叠。改文案时按这个预算加，别把「阅读全部」又惹回来。
+   */
   'snake.rules.body':
-    '蛇自己往前爬：三档都是 0.5 秒一格（难度差异在规则，不在手速）。点方向键 / 方向盘 / 滑动 = 立刻朝那个方向走一格，连点就连走；每次操作后重新计时，刚点完不会又自己走一格。',
+    '蛇自己往前爬：三档都是 0.5 秒一格。方向键 / 滑动 = 立刻走一格，连点就连走；每次操作后重新计时。',
   'snake.rules.body2':
-    '不能原地掉头（按钮会变暗）。入门可穿墙；熟练是实心墙；挑战还有障碍，且吃一个食物长两节。撞墙 / 障碍 / 自己身体当场结束（这一步算你的操作，可撤销）；填满棋盘即取胜；「暂停」时棋盘完全不动。',
+    '不能原地掉头（按钮会变暗）。入门可穿墙、熟练实心墙、挑战有障碍且吃一个长两节；撞到即结束（可撤销）；填满即胜，「暂停」时完全不动。',
   'snake.rules.restart':
     '重新开始会回到同一种子的初始局面并清空撤销记录，无法撤销回重开之前。',
   'snake.stat.score': '分数',
@@ -60,9 +66,9 @@ export const snakeZh: Dict = {
 export const snakeEn: Dict = {
   'snake.title': 'Snake',
   'snake.rules.body':
-    'The snake crawls on its own: 0.5s per cell on every difficulty (difficulty changes the rules, not the speed). A direction key, the pad or a swipe moves it one cell that way at once - tap again to keep going, and every input restarts the clock.',
+    'Crawls on its own: 0.5s per cell on every difficulty. Keys or swipes step one cell at once; each input restarts the clock.',
   'snake.rules.body2':
-    'It cannot turn back on itself (that button is dimmed). Starter wraps at the edges, Skilled has solid walls, Challenging adds obstacles and two extra segments per meal. Hitting a wall, an obstacle or itself ends the run at once - that step counts as your input, so Undo takes it back. Fill the board to win; Pause freezes everything.',
+    'No turning back (that button dims). Starter wraps, Skilled has walls, Challenging adds obstacles; a crash ends the run. Pause freezes it.',
   'snake.rules.restart':
     'Restarting returns to the opening position for the same seed and clears the undo history; you cannot undo back past a restart.',
   'snake.stat.score': 'Score',
