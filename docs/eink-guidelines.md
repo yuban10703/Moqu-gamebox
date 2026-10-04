@@ -908,3 +908,32 @@ const cell = fit >= config.minCell ? Math.floor(fit) : Math.max(ABSOLUTE_MIN_CEL
 `!important` 2 → 0；3 处内联样式已收回类样式）。
 教训补充：**先看构建产物**（`apps/web/dist/assets/*.css`）再动手 —— 源码里看不出的嵌套/失效，
 在产物里一眼可见。
+
+
+## 关于页：邮箱可点即复制（含非安全上下文的兜底）
+
+用户要求「邮箱改成可复制的」。做法与三条硬约束：
+
+1. **整块是按钮**（地址 + 右对齐的「复制」两个字），点一下即复制，那两个字就地变成
+   「已复制 / 复制失败」。墨水屏没有 hover，"能点"只能靠**看得见的边框**与**写在里面的字**，
+   所以提示必须常驻，不能只放在 aria-label 里。
+2. **不做自动消失**：为抹掉提示多刷一次屏不值得；失败提示尤其要留住（用户得知道要手抄）。
+3. **复制结果必须如实**：`copyText()`（`packages/ui/src/clipboard.ts`）返回布尔值，
+   失败时显示「复制失败」，绝不假装成功 —— 墨水屏上"以为复制了、粘出来是空的"最糟。
+
+两层实现（为什么不能只用 `navigator.clipboard`）：
+
+| 场景 | 可用的 API |
+|---|---|
+| APK 的 WebView（`https://appassets.androidplatform.net`）、localhost | `navigator.clipboard.writeText` ✓（安全上下文）|
+| 网页版从局域网 `http://10.1.1.x:端口` 打开（见 [lan-access](lan-access.md)） | clipboard **不存在** → 退回 `execCommand('copy')` + 临时 textarea |
+
+临时 textarea 必须用 `finally` 摘掉：兜底路径本身会抛（老环境没有 `execCommand` 时是 TypeError），
+抛出去之前节点也要收干净 —— 单测（`packages/ui/test/clipboard.test.ts`）专门盯这条，
+还有「空字符串不算复制成功」这条防呆。
+
+诊断页的「复制诊断信息」也改用同一个 `copyText`（同样受益于兜底与失败反馈）。
+
+> 顺带一个坑：`check-i18n` 判断硬编码文案的方式是「先按引号取字符串字面量，再看里面有没有中文」，
+> 所以**注释里用英文引号包起来的中文**也会被判违规（本轮就被它拦下一次）。
+> 注释里的引文一律用「」，与项目其它注释保持一致。

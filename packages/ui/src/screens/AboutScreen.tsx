@@ -11,6 +11,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { APP_VERSION } from '@eink/core'
 import { TopBar } from '../components.js'
+import { copyText } from '../clipboard.js'
 import { useUi } from '../contexts.js'
 import { AUTHOR_INFO } from './authorInfo.js'
 
@@ -50,6 +51,12 @@ function useDonateImage(src: string): string | null {
 
 export function AboutScreen({ onBack }: AboutScreenProps): ReactNode {
   const { i18n } = useUi()
+  /*
+   * 邮箱的复制状态：null = 还没点过（不显示任何附加文字），
+   * true/false = 上次点的结果。**不做自动消失**：墨水屏上多一次刷新只为把提示抹掉不值得，
+   * 而且失败提示留在屏幕上才看得见（复制失败时用户需要知道要手抄）。
+   */
+  const [copied, setCopied] = useState<boolean | null>(null)
   /*
    * 构建时注入的版本信息（首页页脚那个版本号按用户要求去掉后，这里是**唯一**能看到
    * 构建时间的地方 —— 用户据此判断设备上是不是最新版）；单测 / 非 vite 环境下不存在，
@@ -93,7 +100,31 @@ export function AboutScreen({ onBack }: AboutScreenProps): ReactNode {
               {AUTHOR_INFO.email ? (
                 <>
                   <dt>{i18n.t('shell.about.author.email')}</dt>
-                  <dd>{AUTHOR_INFO.email}</dd>
+                  <dd>
+                    {/*
+                      邮箱做成**点一下即复制**（用户要求）。墨水屏没有 hover，
+                      所以「能点」必须看得见：整块带边框 + 里面那两个字直接写「复制」，
+                      点完就地变成「已复制 / 复制失败」（同一个按钮，不额外占一行）。
+                      aria-label 补上完整地址：读屏读按钮时不会漏掉「复制的是什么」。
+                    */}
+                    <button
+                      type="button"
+                      className="eink-about__email"
+                      aria-label={`${i18n.t('shell.about.author.copy')} ${AUTHOR_INFO.email}`}
+                      onClick={() => {
+                        void copyText(AUTHOR_INFO.email).then(setCopied)
+                      }}
+                    >
+                      <span className="eink-about__email-value">{AUTHOR_INFO.email}</span>
+                      <span className="eink-about__email-action" role="status">
+                        {copied === null
+                          ? i18n.t('shell.about.author.copy')
+                          : copied
+                            ? i18n.t('shell.about.author.copied')
+                            : i18n.t('shell.about.author.copyFailed')}
+                      </span>
+                    </button>
+                  </dd>
                 </>
               ) : null}
             </dl>

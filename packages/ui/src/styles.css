@@ -1704,6 +1704,45 @@ html[data-bold-lines='on'] .eink-board {
 }
 
 /*
+ * 关于页的邮箱：**点一下即复制**（用户要求）。
+ *
+ * 墨水屏没有 hover，"这个能点"只能靠**看得见的边框**和**写在里面的字**：
+ * 整块是一个按钮（地址 + 「复制」两个字），点完那两个字就地变成「已复制 / 复制失败」，
+ * 不额外占一行、也不会自己消失（多一次刷新只为抹掉提示不值得；失败提示更要留住）。
+ * 触摸目标与其它按钮同档：min-height 48px。
+ * 值为正常字重（不是 700）：地址是一长串 ASCII，加粗后在 26px 档会挤满整行。
+ */
+.eink-about__email {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 12px;
+  border: var(--line) solid var(--ink-black);
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.eink-about__email-value {
+  /* 地址可以断行，但不允许被压成 0 宽 */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 「复制 / 已复制 / 复制失败」：次要文字用 #333（1-bit 上仍是纯黑，但视觉权重低） */
+.eink-about__email-action {
+  margin-left: auto;
+  color: #333;
+  white-space: nowrap;
+}
+
+/*
  * 打赏码图片：墨水屏只有黑白，图片必须**事先转成 1-bit**（灰度/彩色会被抖动成噪点）。
  * 这里只做尺寸与边框，不做任何滤镜/缩放插值：width:100% + max-width 让它自适应内容区，
  * height:auto 保持正方形二维码不被拉变形，image-rendering:pixelated 让放大后的模块边缘保持锐利。

@@ -12,6 +12,7 @@ import {
   type SaveMeta,
 } from '@eink/core'
 import { ActionButton, TopBar } from '../components.js'
+import { copyText } from '../clipboard.js'
 import { useUi } from '../contexts.js'
 
 export interface DiagnosticsScreenProps {
@@ -119,11 +120,8 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
           emphasis="primary"
           onSelect={() => {
             const payload = `${text}\nstorage: ${platform.storage.kind}\nmissingKeys: ${i18n.missingKeys().join(',')}`
-            if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              void navigator.clipboard.writeText(payload).then(() => setCopied(true))
-            } else {
-              setCopied(false)
-            }
+            // 复制走共用的 copyText（含非安全上下文兜底，见 ../clipboard.ts），失败如实反馈
+            void copyText(payload).then(setCopied)
           }}
         />
         {copied ? <span className="eink-muted">{i18n.t('shell.diagnostics.copied')}</span> : null}

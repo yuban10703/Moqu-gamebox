@@ -153,5 +153,10 @@ export const enUS: Dict = {
   'shell.about.author.title': 'Author',
   'shell.about.author.name': 'Author',
   'shell.about.author.email': 'Email',
+  // The email is a tap-to-copy button (user request): the label says what a tap does,
+  // and turns into the copied/failed state afterwards.
+  'shell.about.author.copy': 'Copy',
+  'shell.about.author.copied': 'Copied',
+  'shell.about.author.copyFailed': 'Copy failed',
   'shell.about.author.donate': 'Tip code',
 }

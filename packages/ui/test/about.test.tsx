@@ -127,10 +127,50 @@ describe('关于页的作者信息区块', () => {
     const labels = [...dl!.querySelectorAll('dt')].map((dt) => dt.textContent)
     const values = [...dl!.querySelectorAll('dd')].map((dd) => dd.textContent)
     expect(labels).toEqual(['Author', 'Email'])
-    expect(values).toEqual(['墨小白', 'hi@example.com'])
+    expect(values[0]).toBe('墨小白')
+    // 邮箱那一格现在是「地址 + 复制按钮」（用户要求可复制），因此只断言地址在其中
+    expect(values[1]).toContain('hi@example.com')
     // 用户要求：删掉「我的信息」的 textarea 与保存按钮
     expect(document.querySelector('.eink-note')).toBeNull()
     expect(document.querySelector('textarea')).toBeNull()
+  })
+
+  it('邮箱可点即复制：复制的是完整地址，并就地变成「已复制」', async () => {
+    author.email = 'hi@example.com'
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await mount()
+    await openAbout()
+
+    const button = document.querySelector<HTMLButtonElement>('.eink-about__email')!
+    expect(button).toBeTruthy()
+    // 点之前就写着"能干什么"，墨水屏没有 hover，这行字是唯一的可见提示
+    expect(button.textContent).toContain('Copy')
+    // 读屏读按钮时要能听出复制的是什么
+    expect(button.getAttribute('aria-label')).toBe('Copy hi@example.com')
+
+    fireEvent.click(button)
+    await waitFor(() => expect(button.textContent).toContain('Copied'))
+    expect(writeText).toHaveBeenCalledWith('hi@example.com')
+    // 地址本身不能因为换状态而消失
+    expect(button.textContent).toContain('hi@example.com')
+    Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard')
+  })
+
+  it('复制失败时如实提示，不假装成功', async () => {
+    author.email = 'hi@example.com'
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockRejectedValue(new Error('NotAllowedError')) },
+      configurable: true,
+    })
+    await mount()
+    await openAbout()
+
+    const button = document.querySelector<HTMLButtonElement>('.eink-about__email')!
+    fireEvent.click(button)
+    await waitFor(() => expect(button.textContent).toContain('Copy failed'))
+    expect(button.textContent).not.toContain('Copied')
+    Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard')
   })
 
   /** jsdom 不会真的加载图片：用一个「一设 src 就触发 onload/onerror」的假 Image 驱动探针 */

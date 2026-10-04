@@ -152,5 +152,9 @@ export const zhCN: Dict = {
   'shell.about.author.title': '作者信息',
   'shell.about.author.name': '作者',
   'shell.about.author.email': '邮箱',
+  // 邮箱做成可点即复制（用户要求）：按钮里那两个字是"点它会发生什么"，点完换成"已复制"
+  'shell.about.author.copy': '复制',
+  'shell.about.author.copied': '已复制',
+  'shell.about.author.copyFailed': '复制失败',
   'shell.about.author.donate': '打赏码',
 }
