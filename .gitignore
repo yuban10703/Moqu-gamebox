@@ -21,6 +21,10 @@ local.properties
 *.apk
 *.aab
 *.keystore
+# 签名密钥与它的 base64 副本（正式签名用；只应存在于密码管理器与 GitHub Secrets 里）
+*.jks
+*.p12
+*.b64
 
 # 编辑器 / 系统
 .DS_Store

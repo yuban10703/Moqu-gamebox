@@ -80,18 +80,43 @@ adb logcat -s MainActivity   # 壳层日志
 #### 配正式签名：三步
 
 ```bash
-# 1) 生成 keystore（30 年有效期；RSA 2048；JDK 9+ 默认 PKCS12，JKS 也行）
-keytool -genkeypair -v -keystore moqu-release.jks -alias moqu \
+# 0) 用项目自带 JDK 17（或任意 JDK 17+）：source .toolchain/env.sh 后 $JAVA_HOME/bin/keytool
+
+# 1) 生成 keystore —— 放在仓库**外面**（例如 ~/keys），别放工作区里
+mkdir -p ~/keys && cd ~/keys
+"$JAVA_HOME/bin/keytool" -genkeypair -v -keystore moqu-release.jks -alias moqu \
   -keyalg RSA -keysize 2048 -validity 10950
+#    会交互式问 store 密码 / key 密码（别写进命令行，免得留在 shell 历史里）；
+#    PKCS12 格式（JDK 9+ 默认）要求 key 密码与 store 密码相同，JDK 会提示；
+#    CN/OU/O 随便填，但别填 Android Debug。
 
-# 2) 转成 base64（Linux；macOS 用 base64 -i moqu-release.jks）
-base64 -w0 moqu-release.jks > moqu-release.jks.b64
+# 1b) 记下指纹备查（Release 日志里会打印同一个指纹）
+"$JAVA_HOME/bin/keytool" -list -v -keystore moqu-release.jks | grep -E "Alias|SHA256|Valid"
 
+# 2) 转 base64（内容粘进 Secret 时带不带换行都行，workflow 会先 tr -d 掉）
+base64 -w0 moqu-release.jks > moqu-release.jks.b64          # Linux / WSL
+# macOS（没有 -w）：base64 -i moqu-release.jks -o moqu-release.jks.b64
+```
+
+Windows PowerShell（不借 WSL 时）：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\keys\moqu-release.jks")) |
+  Set-Content -NoNewline "$HOME\keys\moqu-release.jks.b64"
+```
+
+```bash
 # 3) 到 GitHub 仓库 → Settings → Secrets and variables → Actions，加四个 Secret：
-#    ANDROID_KEYSTORE_BASE64     ← moqu-release.jks.b64 的内容
+#    ANDROID_KEYSTORE_BASE64     ← moqu-release.jks.b64 的全部内容
 #    ANDROID_KEYSTORE_PASSWORD   ← 第 1 步设的 store 密码
 #    ANDROID_KEY_ALIAS           ← moqu
 #    ANDROID_KEY_PASSWORD        ← 第 1 步设的 key 密码
+#    （名字必须一字不差；`.gitignore` 已忽略 *.jks / *.p12 / *.b64，但仍别把密钥放进工作区）
+
+# 4) 触发一次正式签名的发布：**必须改版本号** —— 已经发过的版本号（例如 v0.1.0）
+#    因为 tag 已存在会被 workflow 直接跳过，不会重新构建：
+#      apps/android/app/build.gradle.kts：versionName = "0.1.1"、versionCode = 2
+#      package.json：version = "0.1.1"（两者不一致 workflow 会直接失败）
 ```
 
 配好之后下次发布就会用正式签名（工作流会打印签名者与有效期，可据此确认不再是 Debug）。
