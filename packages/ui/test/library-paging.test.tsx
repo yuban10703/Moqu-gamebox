@@ -93,6 +93,110 @@ describe('首页分页：位置与显示条件', () => {
   })
 })
 
+describe('首页分页：左右滑动翻页', () => {
+  /** 在首页上滑一把：pointerdown → pointerup（方向由 dx 决定，dy 默认 0） */
+  const swipe = (dx: number, dy = 0): void => {
+    const screen = document.querySelector('.eink-screen--library')!
+    const from = { pointerId: 7, clientX: 220, clientY: 400 }
+    fireEvent.pointerDown(screen, from)
+    fireEvent.pointerUp(screen, { ...from, clientX: 220 + dx, clientY: 400 + dy })
+  }
+
+  it('左滑进入下一页，右滑回到上一页（内容跟着手指走）', async () => {
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    expect(pagerInfo()).toBe('Page 1/2')
+
+    swipe(-120)
+    await waitFor(() => expect(pagerInfo()).toBe('Page 2/2'))
+    expect(tileTitles()[0]).toBe('Game 25')
+
+    swipe(120)
+    await waitFor(() => expect(pagerInfo()).toBe('Page 1/2'))
+    expect(tileTitles()[0]).toBe('Game 1')
+  })
+
+  it('到头的方向不动：第 1 页右滑、最后一页左滑都不越界', async () => {
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    swipe(140)
+    expect(pagerInfo()).toBe('Page 1/2')
+
+    fireEvent.click(pageButton('next')!)
+    await waitFor(() => expect(pagerInfo()).toBe('Page 2/2'))
+    swipe(-140)
+    expect(pagerInfo()).toBe('Page 2/2')
+  })
+
+  it('触摸滑动也翻页（真机上 pointer 流会被浏览器 cancel，只有 touch 流能撑到抬手）', async () => {
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    const screen = document.querySelector('.eink-screen--library')!
+    fireEvent.touchStart(screen, { touches: [{ clientX: 300, clientY: 400, identifier: 3 }] })
+    fireEvent.touchEnd(screen, { changedTouches: [{ clientX: 180, clientY: 400, identifier: 3 }] })
+    await waitFor(() => expect(pagerInfo()).toBe('Page 2/2'))
+    // 触摸还会同时产生 pointer 事件（pointerType='touch'）：必须被忽略，否则一次滑动翻两页
+    fireEvent.pointerDown(screen, { pointerId: 9, pointerType: 'touch', clientX: 300, clientY: 400 })
+    fireEvent.pointerUp(screen, { pointerId: 9, pointerType: 'touch', clientX: 180, clientY: 400 })
+    expect(pagerInfo()).toBe('Page 2/2')
+  })
+
+  it('触摸的纵向拖动不翻页（那是滚动，浏览器随后会 touchcancel）', async () => {
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    const screen = document.querySelector('.eink-screen--library')!
+    fireEvent.touchStart(screen, { touches: [{ clientX: 220, clientY: 300, identifier: 4 }] })
+    fireEvent.touchMove(screen, { touches: [{ clientX: 210, clientY: 460, identifier: 4 }] })
+    fireEvent.touchCancel(screen, { touches: [] })
+    fireEvent.touchEnd(screen, { changedTouches: [{ clientX: 210, clientY: 460, identifier: 4 }] })
+    expect(pagerInfo()).toBe('Page 1/2')
+  })
+
+  it('触摸滑动中途的 pointercancel 不许作废这次触摸（真机就长这样）', async () => {
+    /*
+     * 真机探针实测的事件序列：pointerdown(touch) → touchstart → **pointercancel** → touchend。
+     * 浏览器用 pointercancel 表示"这个 pointer 流我接管了"（滚动手势仲裁），
+     * 但 touch 流会照常走到 touchend —— 早先的实现把 pointercancel 当成"手势结束"，
+     * 结果横滑永远算不出位移（首页滑动翻页完全失效）。
+     */
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    const screen = document.querySelector('.eink-screen--library')!
+    fireEvent.pointerDown(screen, { pointerId: 11, pointerType: 'touch', clientX: 300, clientY: 400 })
+    fireEvent.touchStart(screen, { touches: [{ clientX: 300, clientY: 400, identifier: 11 }] })
+    fireEvent.pointerCancel(screen, { pointerId: 11, pointerType: 'touch' })
+    fireEvent.touchEnd(screen, { changedTouches: [{ clientX: 170, clientY: 400, identifier: 11 }] })
+    await waitFor(() => expect(pagerInfo()).toBe('Page 2/2'))
+
+    // 反过来：touchcancel（浏览器真的接管去滚动了）必须作废，不能翻页
+    fireEvent.touchStart(screen, { touches: [{ clientX: 300, clientY: 400, identifier: 12 }] })
+    fireEvent.touchCancel(screen, { touches: [] })
+    fireEvent.touchEnd(screen, { changedTouches: [{ clientX: 160, clientY: 400, identifier: 12 }] })
+    expect(pagerInfo()).toBe('Page 2/2')
+  })
+
+  it('小位移与纵向拖动都**不**翻页（点击/滚动不能被误判）', async () => {
+    await mount(manyLibrary)
+    rewindToFirstPage()
+    // 轻点：位移小于阈值 → 当成点击（卡片的 onClick 该照常走，这里只断言不翻页）
+    swipe(-12)
+    expect(pagerInfo()).toBe('Page 1/2')
+    // 纵向为主：竖屏内容比一屏高时这是「滚动」，不是翻页
+    swipe(-120, 180)
+    expect(pagerInfo()).toBe('Page 1/2')
+    swipe(-90, -140)
+    expect(pagerInfo()).toBe('Page 1/2')
+  })
+
+  it('只有一页时滑动不做任何事（也没有翻页控件）', async () => {
+    await mount(smallLibrary)
+    expect(pager()).toBeNull()
+    swipe(-160)
+    expect(tileTitles().length).toBe(3)
+    expect(tileTitles()[0]).toBe('Game 1')
+  })
+})
+
 describe('首页分页：页码保留', () => {
   it('在第 2 页点进游戏、返回首页后仍在第 2 页', async () => {
     await mount(manyLibrary)

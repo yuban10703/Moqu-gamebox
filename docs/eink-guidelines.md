@@ -1034,3 +1034,44 @@ node tools/scripts/qr-center.mjs      # 缺省处理 about/donate.png 与 about/
 > 量这类几何时**别用 `clientWidth - scrollWidth` 当余量**：提示元素是 `flex: 0 1 auto`，
 > 放得下时会缩到内容宽度，那个差值恒为 0，看上去像「刚好放得下」，其实什么也没说明 ——
 > 余量要相对**可用上限**（状态条宽 − 间距 − 内边距）算。
+
+## 首页左右滑动翻页（用户要求）
+
+首页原先只能按「上一页/下一页」按钮翻页（游标在横屏/有存档时才需要）。现在整屏都能左右滑：
+
+- **判定**：抬手时算位移，`|dx| ≥ 36px` 且 **`|dx| ≥ |dy|`** 才翻页。
+  小于阈值当点击（卡片的 `onClick` 照常触发）；纵向为主当滚动（竖屏内容比一屏高时要能滚）；
+  到头的方向不动，与按钮 `disabled` 的行为一致。一次滑动只翻一页（换页 = 整屏重绘，连翻两页只是多花钱）。
+- **`touch-action: pan-y`**（`.eink-screen--library`）：横向手势归我们，纵向滚动仍交给浏览器。
+  对局页棋盘是 `touch-action: none`（它要吃掉全部手势），两者互不干扰。
+
+### 这里踩到一个非常隐蔽的坑：`pointercancel` ≠ 手势结束
+
+真机事件序列（探针实测）是：
+
+```
+pointerdown(type=touch) → touchstart → **pointercancel** → touchmove… → touchend
+```
+
+浏览器为了判定「这是不是滚动手势」，会把 **pointer 流 cancel 掉**，但 **touch 流照常走到 touchend**。
+第一版把 `pointercancel` 当作"手势结束"清掉起点，于是横滑永远算不出位移 ——
+表现就是"滑动完全没反应"（而鼠标拖动在同一份代码上是好的，因为鼠标没有这条 cancel 路径）。
+
+修法：手势状态记住它属于哪条流，**各清各的** —— `pointercancel` 只清 pointer 手势，
+`touchcancel` 只清触摸手势（那才是"这次触摸真的被浏览器接管去滚动了"，必须作废）。
+`packages/ui/test/library-paging.test.tsx` 用这个真实序列做了回归。
+
+### 为什么用原生监听而不是 React 的 onTouchStart 等 props
+
+同样来自实测：真实触摸下 React 的合成 touch 事件收不到（页面自己 `new TouchEvent(...)` 派发能触发，
+CDP / 真机的真实触摸不行），而 `addEventListener` 两种流都稳定收到。
+所以滑动用 `ref` + `useEffect` 里的原生监听，React props 只留常规交互。
+
+### 验证
+
+- 单测 `library-paging.test.tsx`：鼠标拖动、触摸滑动、`pointercancel` 不作废触摸、
+  `touchcancel` 必须作废、小位移不翻页、纵向不翻页、到头不越界、单页时不动（12 条）。
+- 探索套件 `explore-ui.mjs` 的 `[6a]`：**独立 `hasTouch` 上下文 + CDP 真实触摸**（横屏 879×407，
+  竖屏 12 款一页放得下、没有分页可翻）—— 8 项断言。
+- 真机 P6Plus：横屏 879×407（3 页）与竖屏 439×847（2 页）各一轮 `adb shell input swipe`：
+  左滑逐页前进、最后一页不越界、右滑回退、纵向 200px 不翻页、14px 小位移不翻页，卡片随页变化 ✓。

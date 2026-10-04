@@ -619,6 +619,17 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
 /* ------------------------------------------------------------------ 4 首页 */
 
 /*
+ * 首页支持左右滑动翻页（用户要求），逻辑在 LibraryScreen 的 pointer 处理里。
+ * `touch-action: pan-y` 是这件事的前提：横向手势不被浏览器的平移/缩放手势抢走
+ * （否则浏览器会发 pointercancel，我们收不到 pointerup），纵向滚动仍交给浏览器 ——
+ * 竖屏内容比一屏高时用户要能照常上下滚。页面本身已 `user-scalable=no`，不会与缩放冲突。
+ * 对局页的棋盘是 `touch-action: none`（那边要自己吃掉全部手势），两者互不影响。
+ */
+.eink-screen--library {
+  touch-action: pan-y;
+}
+
+/*
  * 游戏卡片网格。最小列宽取 180px：
  * 原先 220px 在 439 宽竖屏（内容约 415px）下 auto-fill 只能算出一列，
  * 4 款游戏就排成 4 行、把页脚顶出屏幕（用户实测反馈）。180px 同宽下能排两列。

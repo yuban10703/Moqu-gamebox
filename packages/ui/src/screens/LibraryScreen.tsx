@@ -24,6 +24,15 @@ let lastLibraryPage = 0
 const PAGE_SIZE_FALLBACK = 24
 
 /**
+ * 左右滑动翻页的最小横向位移（px）。
+ *
+ * 比棋盘上的方向滑动（24px）大一些：那里滑动只是移动一格，误判的代价小；
+ * 这里一次误判会**整屏换页**，墨水屏上还得多刷一次。36px 在 439px 宽的屏上约 8%，
+ * 手指轻轻一划就能过，而点卡片时的抖动远到不了这个量。
+ */
+const SWIPE_PAGE_MIN_PX = 36
+
+/**
  * 分页器占用的一行高度（含它与网格之间的间距）。只用于**测量阶段的高度预留**，
  * 不参与任何样式计算。
  *
@@ -118,6 +127,94 @@ export function LibraryScreen({
   }, [page, current, measured])
   const pageEntries = entries.slice(current * pageSize, current * pageSize + pageSize)
   const gridRef = useRef<HTMLUListElement | null>(null)
+
+  /*
+   * 首页左右滑动翻页（用户要求）。
+   *
+   * 判定规则：**横向明显占优**（|dx| ≥ |dy|）且位移 ≥ SWIPE_PAGE_MIN_PX 才翻一页。
+   * 小于阈值当点击（卡片的 onClick 照常触发）；纵向为主当滚动（竖屏内容比一屏高时要能滚）；
+   * 到头的方向不动，与翻页按钮 disabled 的行为一致。
+   *
+   * 为什么用**原生监听 + ref**，而不是 React 的 onTouchStart / onPointerUp props：
+   * 真实触摸下浏览器把横滑当"滚动手势候选"，会 **cancel 掉 pointer 流**（`pointercancel`），
+   * 实测 React 的合成 touch 事件在这条路径上也收不到（页面自己派发的合成 TouchEvent 能触发，
+   * CDP/真机的真实触摸不行）。原生 addEventListener 两种流都稳定收到 —— 探针实测过。
+   *
+   * 两条流必须**互斥**：触摸同时会产生带 `pointerType === 'touch'` 的 pointer 事件，
+   * 直接忽略，否则一次滑动翻两页。
+   * 触摸优先走 touch 流：只有它还活到抬手；鼠标/触控笔没有 touch 流，走 pointer。
+   */
+  const screenRef = useRef<HTMLDivElement | null>(null)
+  const swipeRef = useRef({ current, pageCount, setPage })
+  swipeRef.current = { current, pageCount, setPage }
+  useEffect(() => {
+    const node = screenRef.current
+    if (!node) return
+    /*
+     * 手势状态要记住它属于哪条流。**这是本功能最关键的一处**：
+     * 真机实测，横滑时浏览器会发 `pointercancel`（它要先判定这是不是滚动手势），
+     * 但 touch 流照常走到 `touchend`。如果 pointercancel 无差别地清掉状态，
+     * 随后的 touchend 就没有起点可算 —— 滑动手感完全失效（探针实测：begin → pointercancel → touchend，dx 丢失）。
+     * 因此：pointer 的 cancel 只清 pointer 手势，touch 的 cancel 只清触摸手势。
+     * touchcancel 才是「这次触摸真的被取消了」（例如浏览器接管去滚动），那时必须作废。
+     */
+    let start: { x: number; y: number; id: number; stream: 'touch' | 'pointer' } | null = null
+    const begin = (x: number, y: number, id: number, stream: 'touch' | 'pointer'): void => {
+      if (swipeRef.current.pageCount <= 1) return
+      start = { x, y, id, stream }
+    }
+    const finish = (x: number, y: number, id: number, stream: 'touch' | 'pointer'): void => {
+      const from = start
+      start = null
+      if (!from || from.stream !== stream || from.id !== id) return
+      const dx = x - from.x
+      const dy = y - from.y
+      if (Math.abs(dx) < SWIPE_PAGE_MIN_PX || Math.abs(dx) < Math.abs(dy)) return
+      const { current: shown, pageCount: total, setPage: go } = swipeRef.current
+      // 左滑（dx < 0）= 下一页，右滑 = 上一页：内容跟着手指走
+      if (dx < 0) {
+        if (shown < total - 1) go(shown + 1)
+      } else if (shown > 0) {
+        go(shown - 1)
+      }
+    }
+    const cancelPointer = (): void => {
+      if (start?.stream === 'pointer') start = null
+    }
+    const cancelTouch = (): void => {
+      if (start?.stream === 'touch') start = null
+    }
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.pointerType === 'touch') return
+      begin(event.clientX, event.clientY, event.pointerId, 'pointer')
+    }
+    const onPointerUp = (event: PointerEvent): void => {
+      if (event.pointerType === 'touch') return
+      finish(event.clientX, event.clientY, event.pointerId, 'pointer')
+    }
+    const onTouchStart = (event: TouchEvent): void => {
+      const touch = event.touches[0]
+      if (touch) begin(touch.clientX, touch.clientY, touch.identifier, 'touch')
+    }
+    const onTouchEnd = (event: TouchEvent): void => {
+      const touch = event.changedTouches[0]
+      if (touch) finish(touch.clientX, touch.clientY, touch.identifier, 'touch')
+    }
+    node.addEventListener('pointerdown', onPointerDown)
+    node.addEventListener('pointerup', onPointerUp)
+    node.addEventListener('pointercancel', cancelPointer)
+    node.addEventListener('touchstart', onTouchStart, { passive: true })
+    node.addEventListener('touchend', onTouchEnd)
+    node.addEventListener('touchcancel', cancelTouch)
+    return () => {
+      node.removeEventListener('pointerdown', onPointerDown)
+      node.removeEventListener('pointerup', onPointerUp)
+      node.removeEventListener('pointercancel', cancelPointer)
+      node.removeEventListener('touchstart', onTouchStart)
+      node.removeEventListener('touchend', onTouchEnd)
+      node.removeEventListener('touchcancel', cancelTouch)
+    }
+  }, [])
   // 订阅而不是读一次快照：否则 SW 就绪后「离线准备中」这个徽标不会更新
   const offline = useOfflineState(platform.offline)
   /**
@@ -185,7 +282,12 @@ export function LibraryScreen({
   }, [entries.length, corruptGameIds.length, continued?.game.id, offline, platform.storage.persistent])
 
   return (
-    <div className="eink-screen eink-screen--library eink-screen--sticky-footer">
+    /*
+     * 滑动翻页挂在整个首页上（不是只挂在网格上）：用户滑的是"这一屏"，
+     * 从卡片、继续栏甚至页脚起手都应该算。touch-action 在 CSS 里设成 pan-y，
+     * 于是横向手势归我们、纵向滚动仍交给浏览器。
+     */
+    <div ref={screenRef} className="eink-screen eink-screen--library eink-screen--sticky-footer">
       <header className="eink-screen__header">
         <h1>{i18n.t('shell.app.title')}</h1>
         <p className="eink-badges">

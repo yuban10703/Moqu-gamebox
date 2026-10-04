@@ -361,6 +361,92 @@ check('最大字号档位下首页无不可达按钮且页脚固定',
   maxScale.不可达 === 0 && maxScale.页脚在屏内,
   `根字号 ${maxScale.root}、${maxScale.游戏数} 款、不可达 ${maxScale.不可达}、可滚动 ${maxScale.可滚动}`)
 await invariants(page, '首页·最大字号')
+
+/*
+ * [6a] 首页左右滑动翻页（用户要求）。
+ *
+ * 为什么单独开一个 `hasTouch` 上下文：`touch-action: pan-y` **只对触摸输入生效**，
+ * 用 page.mouse 拖动走的是另一条路径（浏览器不会因 pan-y 取消手势），等于没测；
+ * 而在主上下文上打开 hasTouch 会改变 `pointer: coarse` 之类的媒体查询，
+ * 可能影响本套件其它布局断言 —— 所以隔离成一次性上下文，测完就关。
+ */
+console.log('\n[6a] 首页左右滑动翻页（真实触摸）')
+{
+  /*
+   * 用**横屏 879×407**：竖屏 439×847 上 12 款一页就放得下（三档字号都是 1 页），
+   * 没有分页可翻 —— 分页正是横屏/极矮屏才会出现的东西，滑动翻页也是为它加的。
+   */
+  const touchCtx = await browser.newContext({
+    viewport: { width: 879, height: 407 },
+    locale: 'zh-CN',
+    hasTouch: true,
+  })
+  const touchPage = await touchCtx.newPage()
+  touchPage.on('pageerror', (e) => errors.push('touch: ' + String(e).slice(0, 160)))
+  await touchPage.goto(PAGE_URL, { waitUntil: 'networkidle' })
+  await touchPage.waitForSelector('text=墨趣', { timeout: 15000 })
+  await touchPage.waitForTimeout(600)
+
+  const cdp = await touchCtx.newCDPSession(touchPage)
+  /**
+   * 真实触摸滑动：分 6 步移动，模拟手指而不是瞬移。
+   * `where` 选起手区域：卡片上起手时，**小于阈值的位移会（正确地）当成点击卡片**，
+   * 所以「小位移不翻页」那条要在非交互区（标题栏）上测。
+   */
+  const swipeTouch = async (dx, dy = 0, where = 'grid') => {
+    const box = await touchPage.evaluate((w) => {
+      const sel = w === 'header' ? '.eink-screen__header' : '.eink-screen--library'
+      const r = document.querySelector(sel).getBoundingClientRect()
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    }, where)
+    const x0 = box.x - dx / 2
+    const y0 = box.y - dy / 2
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] })
+    for (let i = 1; i <= 6; i++) {
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: x0 + (dx * i) / 6, y: y0 + (dy * i) / 6 }],
+      })
+      await touchPage.waitForTimeout(16)
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await touchPage.waitForTimeout(350)
+  }
+  const pagerInfo = () =>
+    touchPage.evaluate(() => document.querySelector('.eink-pager__info')?.textContent?.trim() ?? '（无分页）')
+  const firstTiles = () =>
+    touchPage.evaluate(() => [...document.querySelectorAll('.eink-tile__title')].map((e) => e.textContent.trim()))
+
+  const first = await pagerInfo()
+  check('横屏首页有多页（滑动的前提）', /1\/[2-9]/.test(first), first)
+  const firstPageTiles = await firstTiles()
+  await swipeTouch(-150)
+  const second = await pagerInfo()
+  check('左滑翻到下一页', second !== first, `${first} → ${second}`)
+  check('翻页后卡片确实换了', JSON.stringify(await firstTiles()) !== JSON.stringify(firstPageTiles))
+  await swipeTouch(-150)
+  await swipeTouch(-150)
+  await swipeTouch(-150)
+  const last = await pagerInfo()
+  check('最后一页继续左滑不越界', last === (await pagerInfo()) && last !== first, last)
+  await swipeTouch(150)
+  check('右滑回到上一页', (await pagerInfo()) !== last, `${last} → ${await pagerInfo()}`)
+  // 回到第 1 页，再验证不翻页的两种情况
+  for (let i = 0; i < 4; i++) {
+    if ((await pagerInfo()).startsWith('第 1/') || (await pagerInfo()).includes('1/')) break
+    await swipeTouch(150)
+  }
+  const backToFirst = await pagerInfo()
+  await swipeTouch(-150, 200)
+  check('纵向为主的拖动不翻页（那是滚动）', (await pagerInfo()) === backToFirst, await pagerInfo())
+  await swipeTouch(-14, 0, 'header')
+  check('小位移不翻页（那是点击）', (await pagerInfo()) === backToFirst, await pagerInfo())
+  // 点卡片仍要能进详情页：滑动判定不许把点击吃掉
+  await touchPage.locator('.eink-tile').first().tap()
+  await touchPage.waitForSelector('text=玩法说明', { timeout: 8000 }).catch(() => {})
+  check('滑动判定不影响点卡片进详情', (await touchPage.locator('text=玩法说明').count()) > 0)
+  await touchCtx.close()
+}
 // 上一步（最大档位断言）已经回到首页，这里容忍「没有返回可点」
 await clickText('返回', { optional: true })
 await page.waitForTimeout(800)
