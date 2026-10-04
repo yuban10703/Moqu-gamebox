@@ -106,8 +106,8 @@ const gotoLibrary = async () => {
  * 不限定作用域就会命中浮层后面那个（被遮挡，点击会被拦截）。
  */
 const clickOverlay = async (text) => {
-  // 浮层有两种容器：暂停/结果为 .eink-overlay，菜单/确认为 .eink-dialog
-  const overlay = page.locator('.eink-overlay, .eink-dialog').last()
+  // 两种容器：暂停菜单为 .eink-pausebar（原地替换控制区，不再是整屏浮层），确认框为 .eink-dialog
+  const overlay = page.locator('.eink-pausebar, .eink-dialog').last()
   const btn = overlay.getByRole('button', { name: new RegExp(text) }).first()
   if (!(await btn.count())) {
     throw new Error(`浮层里找不到「${text}」：${(await overlay.innerText()).replace(/\n+/g, ' ').slice(0, 90)}`)
@@ -198,7 +198,7 @@ for (const [w, h, tag] of [[1248, 903, '切横屏'], [439, 847, '切回竖屏']]
 console.log('\n[2] 暂停、恢复、重开确认')
 await clickText('暂停')
 await page.waitForTimeout(300)
-await invariants(page, '暂停遮罩')
+await invariants(page, '暂停菜单')
 await clickOverlay('继续')
 await clickText('重新开始')
 await page.waitForTimeout(300)
@@ -208,7 +208,7 @@ await page.waitForTimeout(300)
 
 /* ---------- 3) 退出后从首页继续 ---------- */
 console.log('\n[3] 退出 → 首页继续')
-// 「返回游戏库」在暂停遮罩里（暂停面板只有继续/重新开始/返回游戏库）
+// 「返回游戏库」在暂停菜单里（暂停时控制区原地换成：继续/重新开始/[方向键开关]/返回游戏库）
 await clickText('暂停')
 await clickOverlay('返回游戏库')
 await page.waitForTimeout(800)
@@ -225,7 +225,7 @@ await gotoLibrary()
 await startGame('数独')
 await clickText('暂停')
 await page.waitForTimeout(300)
-check('暂停面板可打开', (await page.locator('.eink-overlay').count()) > 0)
+check('暂停菜单可打开（原地替换控制区）', (await page.locator('.eink-pausebar').count()) > 0)
 check('对局页不再有「菜单」按钮', (await page.locator('button', { hasText: '菜单' }).count()) === 0)
 await invariants(page, '暂停面板')
 await clickOverlay('继续')

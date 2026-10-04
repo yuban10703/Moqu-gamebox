@@ -67,7 +67,7 @@ const clickText = async (text, { optional = false } = {}) => {
   await btn.click(); await page.waitForTimeout(220); return true
 }
 const clickDialog = async (text) => {
-  await page.locator('.eink-overlay, .eink-dialog').last()
+  await page.locator('.eink-pausebar, .eink-dialog').last()
     .getByRole('button', { name: new RegExp(text) }).first().click()
   await page.waitForTimeout(220)
 }
@@ -98,7 +98,7 @@ const ensurePlaying = async () => {
   if ((await page.locator('.eink-section--result').count()) > 0) {
     await clickText('再来一次')
     await page.waitForTimeout(300)
-    if (await page.locator('.eink-overlay, .eink-dialog').count()) await clickDialog('确定|重新开始')
+    if (await page.locator('.eink-pausebar, .eink-dialog').count()) await clickDialog('确定|重新开始')
     await page.waitForTimeout(600)
   }
 }

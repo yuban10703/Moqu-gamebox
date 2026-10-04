@@ -53,7 +53,8 @@ export const enUS: Dict = {
   'shell.game.restartShort': 'Restart',
   'shell.game.undo': 'Undo',
   'shell.game.paused': 'Paused',
-  'shell.game.review': 'This screen is read-only and does not change the result',
+  'shell.game.dpadToggle': 'D-pad: {state}',
+  'shell.game.libraryShort': 'Library',
   'shell.game.menu': 'Menu',
 
   'shell.result.won': 'Solved',

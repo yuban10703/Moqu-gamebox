@@ -98,7 +98,7 @@ const click = async (re, optional = false) => {
   if (!(await b.count())) { if (optional) return false; throw new Error(`找不到「${re}」：${(await page.evaluate(() => document.body.innerText)).replace(/\n+/g, ' ').slice(0, 70)}`) }
   await b.click(); await page.waitForTimeout(220); return true
 }
-const dialog = async (re) => { await page.locator('.eink-overlay, .eink-dialog').last().getByRole('button', { name: new RegExp(re) }).first().click(); await page.waitForTimeout(220) }
+const dialog = async (re) => { await page.locator('.eink-pausebar, .eink-dialog').last().getByRole('button', { name: new RegExp(re) }).first().click(); await page.waitForTimeout(220) }
 await click(/推箱子/); await page.waitForSelector('text=玩法说明'); await click(/开始新游戏/); await page.waitForSelector('.eink-board')
 await page.locator('button[aria-label="左"]').first().click(); await page.waitForTimeout(700)
 

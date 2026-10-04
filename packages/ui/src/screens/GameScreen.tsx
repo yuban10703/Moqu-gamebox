@@ -4,7 +4,7 @@
  * 结果页不覆盖棋盘（「查看过程不改变结果」）：过关面板与棋盘同时可见。
  */
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   computeRootLayout,
   dpadTeeKeySize,
@@ -43,6 +43,9 @@ export interface GameScreenProps {
   startLevelId?: string
 }
 
+
+/** 暂停菜单两行之间的间距（px），与 styles.css 的 .eink-pausebar gap 一致 */
+const PAUSE_ROW_GAP_PX = 8
 
 export function GameScreen({
   entry,
@@ -249,8 +252,30 @@ export function GameScreen({
    * 撤销 / 重开：倒 T 时收进方向键上排两侧（actionsInPad），否则在控制区单独一行。
    * 玩法真的有方向键这一行时才收进去 —— Dpad 在没有方向控件时整块不渲染，那时必须留着这一行。
    */
-  const actionsInPad =
-    dpadOn && dpadLayout === 'tee' && session.controls.some((control) => control.role === 'dpad')
+  const hasDpadControls = session.controls.some((control) => control.role === 'dpad')
+  const actionsInPad = dpadOn && dpadLayout === 'tee' && hasDpadControls
+  // 暂停菜单：取代控制区（损坏存档时没有控制区，也就不出菜单）
+  const pauseMenuOpen = session.paused && !session.corrupt
+  const pauseKey = actionsInPad ? dpadTeeKeySize(root.buttonHeight) : root.buttonHeight
+  /*
+   * 暂停菜单排一行还是两行：**按菜单所在区域的实测高度**决定，而不是按玩法猜。
+   * 量的是叠放容器（= 菜单真正能用的区域）：竖屏 / 正常横屏下它等于原控制区高度，
+   * 极矮横屏下它是整个右侧控制列 —— 量原控制区的内容高度会在那一档误判成单行、把键拉成竖条。
+   * 菜单绝对定位、叠在原控制区上，本身不改变控制区高度（棋盘因此不会因暂停而变大变小）；
+   * 但原控制区只有一行高时（数字华容道 / 消消乐 / 华容道，或宽横屏下排成一行的俄罗斯方块、数独），
+   * 两行键会挤出这块区域 —— 那时改成一行，并换用短文案。
+   * 测量放在 useLayoutEffect：在浏览器绘制前完成，墨水屏上不会先画一次两行再改成一行。
+   */
+  const controlsRef = useRef<HTMLDivElement | null>(null)
+  const [pauseCompact, setPauseCompact] = useState(false)
+  useLayoutEffect(() => {
+    if (!pauseMenuOpen) return
+    const height = controlsRef.current?.getBoundingClientRect().height ?? 0
+    // 量不到（0：没有布局的环境）就按两行处理，不凭空切到单行短文案
+    setPauseCompact(height > 0 && height < layoutConfig.minTouchTarget * 2 + PAUSE_ROW_GAP_PX)
+  }, [pauseMenuOpen, viewport, layoutConfig, dpadOn, actionsInPad, gameActions.length])
+  // 状态条：暂停时写「已暂停」（盖过玩法提示），否则照常显示玩法提示
+  const stripNoticeKey = pauseMenuOpen ? 'shell.game.paused' : (session.view.notice?.textKey ?? null)
   const undoButton = entry.hideShellControls?.includes('undo') ? null : (
     <ActionButton
       labelKey="shell.game.undo"
@@ -366,9 +391,9 @@ export function GameScreen({
              * 有游戏提示（非法动作）时收紧提示自身的行高与内边距，让它装进固定高度的状态条里。
              * 状态条本身的高度恒定（48px；极矮横屏 28px），不随提示出现/消失变化。
              */
-            data-notice={session.view.notice ? 'yes' : 'no'}
+            data-notice={stripNoticeKey ? 'yes' : 'no'}
           >
-            <NoticeLine {...(session.view.notice ? { textKey: session.view.notice.textKey } : {})} />
+            <NoticeLine {...(stripNoticeKey ? { textKey: stripNoticeKey } : {})} />
             <SaveBadge
               status={session.saveStatus}
               failureText={
@@ -443,7 +468,13 @@ export function GameScreen({
               注意：方向键受「显示方向按钮」设置控制，**游戏自定义按钮与壳层按钮不受它影响** ——
               否则数独、扫雷这类没有方向控件的游戏会连自己的按钮都不显示。 */}
           {!session.finished ? (
-            <div className="eink-controls">
+            /*
+             * 暂停不再弹整屏遮罩（用户要求）：棋盘照常可见，状态条写「已暂停」，
+             * 控制区**原地**换成暂停菜单。原控制区只是隐藏（visibility），仍占着原来的高度，
+             * 暂停菜单叠在同一格里 —— 于是暂停 / 继续时棋盘尺寸不变，墨水屏上不会整块跳动。
+             */
+            <div className="eink-controls-stack" ref={controlsRef} data-paused={pauseMenuOpen ? 'yes' : 'no'}>
+            <div className="eink-controls" {...(pauseMenuOpen ? { 'aria-hidden': true, inert: true } : {})}>
               {dpadOn ? (
                 <Dpad
                   controls={session.controls}
@@ -483,37 +514,43 @@ export function GameScreen({
                 </div>
               )}
             </div>
+            {pauseMenuOpen ? (
+              <div
+                className="eink-pausebar"
+                {...(pauseCompact ? { 'data-compact': 'yes' } : {})}
+                role="group"
+                aria-label={i18n.t('shell.game.paused')}
+                // 按钮与方向键同高：倒 T 时取放大后的键，否则取普通按钮高
+                style={{ ['--pause-key' as string]: `${pauseKey}px` } as CSSProperties}
+              >
+                <ActionButton labelKey="shell.game.resume" emphasis="primary" onSelect={session.resume} />
+                <ActionButton
+                  labelKey={pauseCompact ? 'shell.game.restartShort' : 'shell.game.restart'}
+                  onSelect={() => setConfirmRestart(true)}
+                />
+                {/*
+                  方向键开关：只给真的有方向键的玩法（没有方向键的玩法给了也不起作用）。
+                  关掉方向键能让棋盘更大；靠方向键操作的玩法关掉后改用滑动。
+                */}
+                {hasDpadControls ? (
+                  <ActionButton
+                    text={i18n.t('shell.game.dpadToggle', {
+                      state: dpadOn ? i18n.t('shell.common.on') : i18n.t('shell.common.off'),
+                    })}
+                    // 状态写在文字里（开 / 关）；不用黑底，免得和「继续」抢主操作
+                    onSelect={() => void updateGameSettings(entry.game.id, { dpad: !dpadOn })}
+                  />
+                ) : null}
+                <ActionButton
+                  labelKey={pauseCompact ? 'shell.game.libraryShort' : 'shell.result.library'}
+                  onSelect={onExit}
+                />
+              </div>
+            ) : null}
+            </div>
           ) : null}
         </>
       )}
-
-      {session.paused && !session.corrupt ? (
-        <div className="eink-overlay" role="dialog" aria-modal="true" aria-label={i18n.t('shell.game.paused')}>
-          <div className="eink-overlay__panel">
-            <h2>{i18n.t('shell.game.paused')}</h2>
-            <p className="eink-muted">{i18n.t('shell.game.review')}</p>
-            <div className="eink-dialog__actions">
-              <ActionButton labelKey="shell.game.resume" emphasis="primary" size="large" onSelect={session.resume} />
-              <ActionButton labelKey="shell.game.restart" onSelect={() => setConfirmRestart(true)} />
-              {/*
-                Direction-pad toggle. Only offered when the game actually renders a pad:
-                dpad-only games are unplayable once it is hidden, and games that never render
-                a pad would get an option that changes nothing. Hiding the pad frees height,
-                so the board grows.
-              */}
-              {session.controls.some((control) => control.role === 'dpad') ? (
-                <ActionButton
-                  text={`${i18n.t('shell.settings.dpad')}: ${dpadOn ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
-                  emphasis={dpadOn ? 'primary' : 'normal'}
-                  onSelect={() => void updateGameSettings(entry.game.id, { dpad: !dpadOn })}
-                />
-              ) : null}
-              <ActionButton labelKey="shell.result.library" onSelect={onExit} />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
 
       {confirmRestart ? (
         <Dialog

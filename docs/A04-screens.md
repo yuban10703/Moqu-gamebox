@@ -9,7 +9,7 @@
 | 首页 / 游戏库 | `packages/ui/src/screens/LibraryScreen.tsx` | 继续游戏、全部游戏、进度、离线状态、持久化警告、损坏存档警告、设置/帮助/诊断入口 |
 | 游戏详情 | `screens/GameDetailScreen.tsx` | 玩法说明、难度选择、内容列表（分页）、进度、继续 / 开始新游戏 |
 | 游戏界面 | `screens/GameScreen.tsx` | 顶栏（返回 / 暂停）、统计、棋盘、提示行、保存状态、方向控制 + 操作按钮、结果面板 |
-| 暂停层 | `screens/GameScreen.tsx` | 已暂停说明（只读提示）、继续、重新开始、全刷（如支持）、返回游戏库 |
+| 暂停菜单 | `screens/GameScreen.tsx` | **不弹页面**：棋盘照常可见，状态条写「已暂停」，控制区原地换成「继续 / 重新开始 / 方向键开关（有方向键时）/ 返回游戏库」 |
 | 结果面板 | `screens/GameScreen.tsx` | 完成标题、统计（步数/推箱/撤销/最佳）、下一关、再来一次、返回游戏库 |
 | 设置 | `screens/SettingsScreen.tsx` | 语言、字号、计时、方向盘、线条、数据管理、帮助入口（页脚） |
 | 数据管理 | `screens/SettingsScreen.tsx` | 导出、导入、清除（需确认）、备份副本列表与恢复 |

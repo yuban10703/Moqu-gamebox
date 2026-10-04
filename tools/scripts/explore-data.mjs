@@ -52,7 +52,7 @@ const clickText = async (text, { optional = false } = {}) => {
   await btn.click(); await page.waitForTimeout(250); return true
 }
 const clickDialog = async (text) => {
-  const d = page.locator('.eink-overlay, .eink-dialog').last()
+  const d = page.locator('.eink-pausebar, .eink-dialog').last()
   await d.getByRole('button', { name: new RegExp(text) }).first().click()
   await page.waitForTimeout(250)
 }

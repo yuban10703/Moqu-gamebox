@@ -586,8 +586,7 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   line-height: 1;
 }
 
-.eink-dialog,
-.eink-overlay {
+.eink-dialog {
   position: fixed;
   inset: 0;
   /* 墨水屏不做半透明遮罩：整屏不透明白底 + 明显边框 */
@@ -599,8 +598,7 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   overflow: auto;
 }
 
-.eink-dialog__panel,
-.eink-overlay__panel {
+.eink-dialog__panel {
   border: 4px solid var(--ink-black);
   padding: calc(var(--gap) * 1.5);
   display: flex;
@@ -1282,6 +1280,66 @@ html[data-font-scale='1.5'] .eink-tile__title {
 
 .eink-dpad--row .eink-dpad__button {
   flex: 1 1 0;
+}
+
+/*
+ * 暂停：控制区原地换成暂停菜单（不再弹整屏遮罩，棋盘照常可见）。
+ * 原控制区 visibility: hidden 仍占着原来的高度；暂停菜单**绝对定位**叠在它上面，
+ * 自身不参与高度计算 —— 暂停 / 继续时控制区高度不变，棋盘从原理上就不会跳。
+ * 排一行还是两行由组件按原控制区的实测高度决定（data-compact）。
+ */
+.eink-controls-stack {
+  position: relative;
+}
+
+.eink-controls-stack[data-paused='yes'] > .eink-controls {
+  visibility: hidden;
+}
+
+/* 两行版：两列等宽，键高取方向键高（--pause-key），但不超过可用高度的一半；整组垂直居中 */
+.eink-pausebar {
+  position: absolute;
+  inset: 0;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(48px, min(var(--pause-key, 48px), calc((100% - 8px) / 2)));
+  align-content: center;
+  gap: 8px;
+  width: min(100%, 24em);
+}
+
+.eink-pausebar .eink-button {
+  width: 100%;
+  height: 100%;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/* 按钮数为奇数时（没有方向键开关），最后一个占满整行，不留半格空白 */
+.eink-pausebar:not([data-compact]) > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/*
+ * 单行版（原控制区只有一行高）：所有键排成一行、等宽、填满这一行的高度。
+ * 四个键挤一行时每键不到 100px：字收小一档、内边距收紧，长文案允许在键内折两行。
+ */
+.eink-pausebar[data-compact] {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-rows: 100%;
+  align-content: stretch;
+  width: 100%;
+}
+
+.eink-pausebar[data-compact] .eink-button {
+  min-height: 0;
+  padding: 2px;
+  font-size: 0.9em;
+  white-space: normal;
+  line-height: 1.1;
 }
 
 /* 游戏自定义按钮（数独数字键、扫雷标记模式等）：可换行、居中 */

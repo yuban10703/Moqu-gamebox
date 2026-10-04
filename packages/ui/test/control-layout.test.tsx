@@ -8,7 +8,7 @@
  * - 俄罗斯方块是平铺一行，撤销 / 重开照旧单独一行；
  * - 能滑动的玩法在详情页补一句「暂停菜单里关掉方向按钮，棋盘更大」，点格子的玩法不提。
  */
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { coreDictEn, createMemoryKv } from '@eink/core'
 import { createPlatform } from '@eink/platform'
@@ -17,6 +17,7 @@ import { library } from '../../../apps/web/src/library.js'
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   delete window.__einkHandleBack
 })
 
@@ -74,8 +75,8 @@ describe('数字华容道：方向键默认收起', () => {
     expect(container.querySelector('.eink-controls__actions')?.textContent).toContain('Undo')
 
     fireEvent.click(screen.getByText('Pause'))
-    fireEvent.click(screen.getByText('Show direction buttons: Off'))
-    await waitFor(() => expect(screen.getByText('Show direction buttons: On')).toBeTruthy())
+    fireEvent.click(screen.getByText('D-pad: Off'))
+    await waitFor(() => expect(screen.getByText('D-pad: On')).toBeTruthy())
     fireEvent.click(screen.getAllByText('Resume')[0]!)
     await waitFor(() => expect(container.querySelector('.eink-dpad--tee')).not.toBeNull())
     expect(container.querySelector('.eink-controls__actions')).toBeNull()
@@ -108,4 +109,99 @@ describe('详情页的「关方向键、棋盘更大」提示', () => {
       expect(screen.queryByText(SWIPE_HINT)).toBeNull()
     })
   }
+})
+
+/*
+ * 暂停：不弹整屏遮罩（用户要求），棋盘照常可见、状态条写「已暂停」，
+ * 控制区原地换成暂停菜单；原控制区只隐藏不移除（高度不变，棋盘不跳）。
+ */
+describe('暂停：原地换成暂停菜单，不弹页面', () => {
+  it('暂停后没有对话框；棋盘仍在；状态条写 Paused；控制区换成四个菜单键', async () => {
+    const { container } = await mount()
+    await startGame('Sokoban')
+    fireEvent.click(screen.getByText('Pause'))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('grid')).toBeTruthy()
+    expect(container.querySelector('.eink-statusstrip')?.textContent).toContain('Paused')
+
+    const stack = container.querySelector('.eink-controls-stack') as HTMLElement
+    expect(stack.dataset.paused).toBe('yes')
+    // 原控制区仍在 DOM 里占位，但对读屏与点击都不可达
+    const controls = stack.querySelector('.eink-controls') as HTMLElement
+    expect(controls.getAttribute('aria-hidden')).toBe('true')
+    expect(controls.hasAttribute('inert')).toBe(true)
+
+    const menu = stack.querySelector('.eink-pausebar') as HTMLElement
+    expect(menu.getAttribute('role')).toBe('group')
+    expect([...menu.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+      'Resume',
+      'Restart',
+      'D-pad: On',
+      'Back to library',
+    ])
+  })
+
+  it('继续：菜单消失、方向键回来、状态条不再写 Paused', async () => {
+    const { container } = await mount()
+    await startGame('Sokoban')
+    fireEvent.click(screen.getByText('Pause'))
+    const menu = container.querySelector('.eink-pausebar') as HTMLElement
+    fireEvent.click([...menu.querySelectorAll('button')].find((button) => button.textContent === 'Resume')!)
+
+    expect(container.querySelector('.eink-pausebar')).toBeNull()
+    expect((container.querySelector('.eink-controls-stack') as HTMLElement).dataset.paused).toBe('no')
+    expect(container.querySelector('.eink-controls')?.hasAttribute('inert')).toBe(false)
+    expect(container.querySelector('.eink-statusstrip')?.textContent ?? '').not.toContain('Paused')
+  })
+
+  it('菜单里的「重新开始」照旧先确认；「返回游戏库」回到首页', async () => {
+    const { container } = await mount()
+    await startGame('Sokoban')
+    fireEvent.click(screen.getByText('Pause'))
+    const button = (label: string): HTMLButtonElement =>
+      [...(container.querySelector('.eink-pausebar') as HTMLElement).querySelectorAll('button')].find(
+        (node) => node.textContent === label,
+      )!
+    fireEvent.click(button('Restart'))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(screen.getByText('Cancel'))
+    // 取消重开：仍处于暂停，菜单还在原处
+    expect(container.querySelector('.eink-pausebar')).not.toBeNull()
+    fireEvent.click(button('Back to library'))
+    await waitFor(() => expect(screen.getByText(/All games/)).toBeTruthy())
+  })
+
+  it('没有方向键的玩法：菜单里不给方向键开关（三个键）', async () => {
+    const { container } = await mount()
+    await startGame('Sudoku')
+    fireEvent.click(screen.getByText('Pause'))
+    const labels = [...(container.querySelector('.eink-pausebar') as HTMLElement).querySelectorAll('button')].map(
+      (button) => button.textContent,
+    )
+    expect(labels).toEqual(['Resume', 'Restart', 'Back to library'])
+  })
+})
+
+describe('暂停菜单：原控制区只有一行高时排成一行', () => {
+  it('实测高度放不下两行 48px 键：菜单单行 + 短文案（重开 / 游戏库）', async () => {
+    // jsdom 没有布局：把控制区叠放容器的实测高度模拟成「一行按钮」的 60px
+    const real = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('eink-controls-stack')) {
+        return { x: 0, y: 0, top: 0, left: 0, right: 415, bottom: 60, width: 415, height: 60, toJSON: () => ({}) } as DOMRect
+      }
+      return real.call(this)
+    })
+    const { container } = await mount()
+    await startGame('Klotski')
+    fireEvent.click(screen.getByText('Pause'))
+    const menu = container.querySelector('.eink-pausebar') as HTMLElement
+    expect(menu.dataset.compact).toBe('yes')
+    expect([...menu.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+      'Resume',
+      'Restart',
+      'Library',
+    ])
+  })
 })

@@ -68,7 +68,7 @@ const SNAP = () => {
     autoTick: screen?.dataset.autoTick ?? null,
     paused: screen?.dataset.paused ?? null,
     result: (document.querySelector('.eink-section--result h2')?.textContent ?? '').trim(),
-    overlay: document.querySelector('.eink-overlay') !== null,
+    overlay: document.querySelector('.eink-pausebar') !== null,
   }
 }
 const snap = () => page.evaluate(SNAP)
@@ -178,7 +178,7 @@ async function run(game) {
      * 顶栏那个按钮的可访问名也是「继续」，DOM 里排在前面，`.first()` 会命中它 ——
      * 而它被遮罩盖住，Playwright 等可点击性会一直等到超时（实测踩到）。
      */
-    await page.locator('.eink-overlay').getByRole('button', { name: '继续', exact: true }).first().click()
+    await page.locator('.eink-pausebar').getByRole('button', { name: '继续', exact: true }).first().click()
     await page.waitForTimeout(300)
     const resumed = await sample(tick + 1600, 150)
     record(

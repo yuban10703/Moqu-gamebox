@@ -53,7 +53,10 @@ export const zhCN: Dict = {
   'shell.game.restartShort': '重开',
   'shell.game.undo': '撤销',
   'shell.game.paused': '已暂停',
-  'shell.game.review': '此界面仅用于查看，不会改变结果',
+  // 暂停菜单里的方向键开关（{state} = 开 / 关）
+  'shell.game.dpadToggle': '方向键：{state}',
+  // 单行暂停菜单用的短文案（控制区只有一行时）
+  'shell.game.libraryShort': '游戏库',
   'shell.game.menu': '菜单',
 
   'shell.result.won': '完成',
