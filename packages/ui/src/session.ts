@@ -315,6 +315,14 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       if (isStale()) return
       if (result.status === 'empty') {
         const seed = nextSeed()
+        /*
+         * 界面状态与存档必须是**同一个**新局面。
+         * 原先这里只把新种子写进了存档信封，界面却还停在 useState 的占位局面 `create(0, …)` 上，
+         * 于是第一次进入任何游戏看到的都是「种子 0」那一局（扫雷同一张雷图、2048 同一个开局、
+         * 斗地主同一副牌），走第一步后存档也被这个种子 0 的局面覆盖 —— 与 nextSeed 的初衷相反。
+         */
+        const initial = game.create(seed, difficulty)
+        setState(initial)
         const fresh = newEnvelope(
           {
             gameId: game.id,
@@ -322,7 +330,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
             contentVersion: game.contentVersion,
             difficulty,
             seed,
-            state: game.encode(game.create(seed, difficulty)),
+            state: game.encode(initial),
           },
           now(),
           // 只有「历史记录」这类跨局战绩会被继承（见 SessionOptions.initialProgress）

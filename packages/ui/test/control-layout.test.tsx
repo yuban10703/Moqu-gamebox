@@ -205,3 +205,29 @@ describe('暂停菜单：原控制区只有一行高时排成一行', () => {
     ])
   })
 })
+
+/*
+ * 回归：第一次开局曾经永远是「种子 0」那一局 —— 新种子只写进了存档信封，界面还停在占位局面上，
+ * 走第一步后存档也被种子 0 的局面覆盖（扫雷同一张雷图、2048 同一个开局、斗地主同一副牌）。
+ */
+describe('第一次开局用的是新种子，不是占位的种子 0', () => {
+  it('2048：开局后走一步，存档里的局面种子等于信封里的新种子（且不是 0）', async () => {
+    const kv = createMemoryKv()
+    const platform = await createPlatform({ kv, now: () => 1_700_000_000_000 })
+    const { container } = render(<App platform={platform} library={library} />)
+    await waitFor(() => expect(screen.getByText(/All games/)).toBeTruthy())
+    await startGame('2048')
+    // 四个方向总有一个走得通（走通的那一步会立即落盘）
+    for (const dir of ['left', 'right', 'up', 'down']) {
+      fireEvent.click(container.querySelector(`.eink-dpad__${dir}`) as HTMLButtonElement)
+    }
+    let saved: { seed: number; state: { seed: number } } | null = null
+    await waitFor(async () => {
+      const text = await kv.get('save:1:committed:2048')
+      expect(text).toBeTruthy()
+      saved = JSON.parse(text!) as { seed: number; state: { seed: number } }
+    })
+    expect(saved!.state.seed).not.toBe(0)
+    expect(saved!.state.seed).toBe(saved!.seed >>> 0)
+  })
+})
