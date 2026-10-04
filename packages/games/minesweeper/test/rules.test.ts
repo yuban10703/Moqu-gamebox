@@ -522,7 +522,7 @@ describe('难度与板面', () => {
     const state = fresh(1, 'skilled')
     const board = game.view(state).board!
     expect(board.cells.every((cell) => cell.kind === 'hidden')).toBe(true)
-    // 标记由壳层按用户选的风格画（暂停菜单可切），玩法只声明 kind
+    // 未翻格不带字形：底纹由壳层铺在棋盘上，玩法只声明 kind
     expect(board.cells.every((cell) => cell.glyph === '')).toBe(true)
     expect(statValue(state, 'minesweeper.stat.mines')).toBe('25')
     expect(statValue(state, 'minesweeper.stat.progress')).toBe('0/144')

@@ -51,7 +51,7 @@ export function buildBoard(state: MemoryState): BoardView {
   const cells: CellView[] = []
   for (let index = 0; index < cellCount(config); index++) {
     if (!faceUp.has(index) && !matched.has(index)) {
-      // 盖着的牌：标记由壳层按用户选的风格画（暂停菜单可切）
+      // 盖着的牌：底纹由壳层画（整块棋盘一份斜纹，见 styles.css 的 .eink-board[data-cover]）
       cells.push({ index, kind: 'hidden', glyph: '' })
       continue
     }

@@ -17,7 +17,7 @@ import {
 
 // 只覆盖扫雷用到的 kind（CellKind 还包含其它玩法的通用 kind）
 export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
-  // 未翻格的标记由**壳层**按用户选的风格画（暂停菜单可切），玩法只声明 kind
+  // 未翻格不带字形：壳层在棋盘上铺一层斜纹（styles.css 的 .eink-board[data-cover]），玩法只声明 kind
   hidden: '',
   flag: '⚑',
   mine: '✳',

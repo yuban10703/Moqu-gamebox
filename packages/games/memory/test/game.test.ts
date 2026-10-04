@@ -70,7 +70,7 @@ describe('view / 1-bit 呈现约定', () => {
     }
   })
 
-  it('开局全部是扣着的牌：kind hidden、glyph 空、无 textScale、无高亮（标记由壳层按设置画）', () => {
+  it('开局全部是扣着的牌：kind hidden、glyph 空、无 textScale、无高亮（底纹由壳层画）', () => {
     const view = memoryGame.view(fresh(2, 'skilled'))
     for (const cell of view.board!.cells) {
       expect(cell.kind).toBe('hidden')
