@@ -6,7 +6,7 @@
  * - 计时等每秒变化的内容隔离在小组件里，不驱动整页重绘。
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { type BoardView, type CellKind, type ControlSpec, type MoveDir } from '@eink/core'
+import { type BoardView, type CellKind, type ControlSpec, type DpadLayout, type MoveDir } from '@eink/core'
 import { useUi } from './contexts.js'
 
 export interface ActionButtonProps {
@@ -333,26 +333,46 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
 export interface DpadProps {
   controls: readonly ControlSpec[]
   onMove: (dir: MoveDir) => void
+  /** 方向键边长（px）：tee 用放大后的键（core 的 dpadTeeKeySize），row 用普通按钮高 */
   size: number
   labelKey: string
+  /** 摆法，见 core 的 DpadLayout：`tee`（缺省）倒 T、`row` 平铺一行 */
+  layout?: DpadLayout
+  /**
+   * 倒 T 上排两侧的格子（壳层放「撤销」「重开」）。
+   * 它们**不在** `.eink-dpad` 元素里：那个元素只装方向键（role=group 的无障碍名是"方向控制"，
+   * 探索脚本也按 `.eink-dpad button` 找方向键），这里只是借同一张网格摆位置。
+   */
+  corners?: { left?: ReactNode; right?: ReactNode }
 }
 
+/** 平铺时的键序：左右放两端（与平移方向一致），上 / 下居中 */
+const ROW_ORDER: readonly MoveDir[] = ['left', 'up', 'down', 'right']
+
+/** 倒 T 的 DOM 顺序：方向键在前（键盘焦点先走方向），位置由 CSS 的 grid-template-areas 决定 */
+const TEE_ORDER: readonly MoveDir[] = ['up', 'left', 'down', 'right']
+
 /** 方向盘：四个方向始终可点（走不通时给文字反馈），符合「明确模式、不静默」的要求 */
-export function Dpad({ controls, onMove, size, labelKey }: DpadProps): ReactNode {
+export function Dpad({ controls, onMove, size, labelKey, layout = 'tee', corners }: DpadProps): ReactNode {
   const { i18n } = useUi()
-  const buttonStyle: CSSProperties = { width: size, height: size }
   const find = (dir: MoveDir): ControlSpec | undefined => controls.find((control) => control.dir === dir)
   // 没有方向控件（例如数独、扫雷）时整块不渲染，避免在窄屏上白占一块高度
   if (!controls.some((control) => control.role === 'dpad')) return null
 
-  const render = (dir: MoveDir, className: string): ReactNode => {
+  /*
+   * 键的高度由 JS 给（一个与 DOM 无关的推算值），宽度只给下限：
+   * 两种摆法都让键按列/按行平分可用宽度，比方键更好点。
+   */
+  const keyStyle: CSSProperties = { minWidth: size, height: size }
+  const render = (dir: MoveDir): ReactNode => {
     const control = find(dir)
-    if (!control) return <span className="eink-dpad__empty" />
+    if (!control) return <span key={dir} className={`eink-dpad__empty eink-dpad__${dir}`} />
     return (
       <button
+        key={dir}
         type="button"
-        className={`eink-button eink-dpad__button ${className}`}
-        style={buttonStyle}
+        className={`eink-button eink-dpad__button eink-dpad__${dir}`}
+        style={keyStyle}
         data-tone={control.tone ?? 'normal'}
         aria-label={i18n.t(control.labelKey)}
         onClick={() => onMove(dir)}
@@ -361,17 +381,21 @@ export function Dpad({ controls, onMove, size, labelKey }: DpadProps): ReactNode
       </button>
     )
   }
+  if (layout === 'row') {
+    // 平铺：只有一行按钮高，省下的两行全部让给棋盘
+    return (
+      <div className="eink-dpad eink-dpad--row" role="group" aria-label={i18n.t(labelKey)}>
+        {ROW_ORDER.map(render)}
+      </div>
+    )
+  }
   return (
-    <div className="eink-dpad" role="group" aria-label={i18n.t(labelKey)}>
-      <span className="eink-dpad__empty" />
-      {render('up', 'eink-dpad__up')}
-      <span className="eink-dpad__empty" />
-      {render('left', 'eink-dpad__left')}
-      <span className="eink-dpad__center" aria-hidden="true" />
-      {render('right', 'eink-dpad__right')}
-      <span className="eink-dpad__empty" />
-      {render('down', 'eink-dpad__down')}
-      <span className="eink-dpad__empty" />
+    <div className="eink-dpad-tee" style={{ ['--dpad-key' as string]: `${size}px` } as CSSProperties}>
+      <div className="eink-dpad eink-dpad--tee" role="group" aria-label={i18n.t(labelKey)}>
+        {TEE_ORDER.map(render)}
+      </div>
+      {corners?.left ? <div className="eink-dpad-tee__corner eink-dpad-tee__corner--left">{corners.left}</div> : null}
+      {corners?.right ? <div className="eink-dpad-tee__corner eink-dpad-tee__corner--right">{corners.right}</div> : null}
     </div>
   )
 }

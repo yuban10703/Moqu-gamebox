@@ -38,6 +38,7 @@ export const zhCN: Dict = {
   'shell.detail.replace.cancel': '取消',
   'shell.detail.levels': '关卡',
   'shell.detail.pickLevel': '点任意一关直接开始',
+  'shell.detail.swipeHint': '在暂停菜单里关掉方向按钮，棋盘会更大（关掉后在棋盘上滑动来操作）。',
   'shell.detail.history': '历史记录',
   'shell.detail.historyEmpty': '暂无记录',
   'shell.detail.historyMoves__other': '{count} 步',
@@ -48,6 +49,8 @@ export const zhCN: Dict = {
   'shell.game.pause': '暂停',
   'shell.game.resume': '继续',
   'shell.game.restart': '重新开始',
+  // 方向键旁的窄格用的短文案（确认框里仍是完整的「重新开始」）
+  'shell.game.restartShort': '重开',
   'shell.game.undo': '撤销',
   'shell.game.paused': '已暂停',
   'shell.game.review': '此界面仅用于查看，不会改变结果',

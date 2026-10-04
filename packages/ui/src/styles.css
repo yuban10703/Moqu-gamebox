@@ -1188,23 +1188,84 @@ html[data-bold-lines='on'] .eink-board {
   flex-wrap: wrap;
 }
 
-.eink-dpad {
-  display: grid;
-  grid-template-columns: repeat(3, auto);
-  gap: 8px;
-  align-items: center;
-  justify-items: center;
-}
-
+/*
+ * 方向键（摆法见 packages/core 的 DpadLayout）。键高由 JS 内联给出，宽度一律交给这里平分。
+ */
 .eink-dpad__empty {
   width: 0;
   height: 0;
 }
 
-.eink-dpad__center {
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--ink-black);
+/*
+ * 倒 T（缺省）：键盘方向键式 —— 上排「撤销 · 上 · 重开」、下排「左 · 下 · 右」，三列等宽。
+ * 十字方向盘的四个角与中心原本是空的，撤销 / 重开还要另起一行（竖屏共 4 行、232px）；
+ * 倒 T 只占 2 行。`.eink-dpad` 本身用 display: contents 只当语义分组（role=group），
+ * 方向键和两侧的撤销 / 重开一起排进这张网格。上限 24em 防止大屏上键被拉成长条。
+ */
+.eink-dpad-tee {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    'corner-left up corner-right'
+    'left down right';
+  gap: 8px;
+  width: min(100%, 24em);
+}
+
+.eink-dpad--tee {
+  display: contents;
+}
+
+.eink-dpad--tee .eink-dpad__up {
+  grid-area: up;
+}
+
+.eink-dpad--tee .eink-dpad__left {
+  grid-area: left;
+}
+
+.eink-dpad--tee .eink-dpad__down {
+  grid-area: down;
+}
+
+.eink-dpad--tee .eink-dpad__right {
+  grid-area: right;
+}
+
+.eink-dpad--tee .eink-dpad__button {
+  width: 100%;
+}
+
+.eink-dpad-tee__corner--left {
+  grid-area: corner-left;
+}
+
+.eink-dpad-tee__corner--right {
+  grid-area: corner-right;
+}
+
+/* 两侧的撤销 / 重开与方向键同高（--dpad-key 由组件给出），窄列里收紧左右内边距 */
+.eink-dpad-tee__corner .eink-button {
+  width: 100%;
+  height: var(--dpad-key, 48px);
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+/*
+ * 平铺（GameRegistryEntry.dpadLayout = 'row'，目前只有俄罗斯方块）：
+ * 四个键排成一行、平分宽度，控制区只占一行按钮高 —— 省下的两行全部让给棋盘。
+ * 竖屏时控制区是上下两段（方向键一行、操作一行），这里让方向键这一行占满宽度；
+ * 上限 32em 防止大屏上四个键被拉成长条。
+ */
+.eink-dpad--row {
+  display: flex;
+  gap: 8px;
+  width: min(100%, 32em);
+}
+
+.eink-dpad--row .eink-dpad__button {
+  flex: 1 1 0;
 }
 
 /* 游戏自定义按钮（数独数字键、扫雷标记模式等）：可换行、居中 */
@@ -1373,13 +1434,20 @@ html[data-bold-lines='on'] .eink-board {
     max-height: 48px;
   }
 
-  .eink-screen--game .eink-dpad {
-    gap: 2px;
+  .eink-screen--game .eink-dpad-tee,
+  .eink-screen--game .eink-dpad--row {
+    gap: 4px;
   }
 
-  .eink-screen--game .eink-dpad__button {
-    /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
+  .eink-screen--game .eink-dpad__button,
+  .eink-screen--game .eink-dpad-tee__corner .eink-button {
+    /* 键高由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
     max-height: 44px;
+  }
+
+  /* 右侧控制列只有 ~100px 一格：两侧「撤销 / 重开」的字收小一档，避免大字号下溢出 */
+  .eink-screen--game .eink-dpad-tee__corner .eink-button {
+    font-size: 0.8em;
   }
 
   /*

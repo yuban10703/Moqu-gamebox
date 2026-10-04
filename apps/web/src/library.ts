@@ -115,6 +115,8 @@ export const library: GameLibrary = {
     }),
     defineGame({
       game: fifteenGame,
+      // 点方块就能滑动，方向键只是重复入口：默认收起，让棋盘直接长到宽度上限（暂停菜单里可重新打开）
+      dpadDefault: false,
       cellLabelKey: (kind) => `fifteen.cell.${kind}`,
       rulesKeys: ['fifteen.rules.body'],
       defaultDifficulty: 'starter',
@@ -147,6 +149,8 @@ export const library: GameLibrary = {
     }),
     defineGame({
       game: tetrisGame,
+      // 上 = 旋转、下 = 下落一格，十字摆法没有空间对应：四键平铺成一行，省下的高度给棋盘
+      dpadLayout: 'row',
       cellLabelKey: (kind) => `tetris.cell.${kind}`,
       // 只列两段：详情页规则区约 6 行就折叠（出现「阅读全部」），
       // 第三段「每档井深/预堆」（tetris.rules.difficulty）已不在这里列出 ——

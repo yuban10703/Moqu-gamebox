@@ -7,6 +7,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   computeRootLayout,
+  dpadTeeKeySize,
   isCrampedLayout,
   type CellKind,
   type MoveDir,
@@ -25,7 +26,7 @@ import {
   useKeyboardControls,
 } from '../components.js'
 import { useUi } from '../contexts.js'
-import type { GameRegistryEntry } from '../registry.js'
+import { supportsSwipe, type GameRegistryEntry } from '../registry.js'
 import { CRAMPED_TICK_SLOWDOWN, useSession } from '../session.js'
 
 export interface GameScreenProps {
@@ -61,7 +62,8 @@ export function GameScreen({
    * 推箱子也会跟着没有方向键 —— 而推箱子主要靠方向键玩（用户反馈："推箱子的方向键默认开启"）。
    * 现在各游戏互不影响，且每个游戏默认都是开。
    */
-  const dpadOn = settings.perGame[entry.game.id]?.dpad ?? settings.dpad
+  const dpadOn =
+    settings.perGame[entry.game.id]?.dpad ?? (entry.dpadDefault === false ? false : settings.dpad)
 
   /**
    * 极矮横屏（实测 BOOX P6Plus 强制横屏 879×407）下棋盘区只剩 ~70px、格子贴住 12px 下限：
@@ -69,9 +71,10 @@ export function GameScreen({
    * 改为把间隔放大（见 CRAMPED_TICK_SLOWDOWN），让"看得清"先于"跑得快"。
    * 只用布局纯函数判定，不读 DOM，因此可在测试里对各个参考视口断言。
    */
+  const dpadLayout = entry.dpadLayout ?? 'tee'
   const cramped = useMemo(
-    () => isCrampedLayout(viewport, layoutConfig, dpadOn),
-    [viewport, layoutConfig, dpadOn],
+    () => isCrampedLayout(viewport, layoutConfig, dpadOn, dpadLayout),
+    [viewport, layoutConfig, dpadOn, dpadLayout],
   )
 
   const session = useSession({
@@ -96,8 +99,9 @@ export function GameScreen({
         // 过关后方向盘不显示（showDpad 必须跟着改，否则会白留一大块高度）
         showDpad: dpadOn && !session.finished,
         showStats: true,
+        dpadLayout,
       }),
-    [viewport, layoutConfig, dpadOn, session.finished],
+    [viewport, layoutConfig, dpadOn, session.finished, dpadLayout],
   )
 
   // 统计栏列数：横屏一行放得下就一行；竖屏固定两列（行数恒定，不会因数值变宽而多出一行）
@@ -149,7 +153,7 @@ export function GameScreen({
    * 墨水屏触摸本身有抖动，24px 的阈值太松，一次轻点很容易被判成滑动，
    * 于是棋子被意外移动/换选。华容道、数独、扫雷这些玩法本身就能点，根本不需要滑动。
    */
-  const swipeEnabled = entry.game.selectAction === undefined
+  const swipeEnabled = useMemo(() => supportsSwipe(entry), [entry])
   const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null)
   const onBoardPointerDown = (event: ReactPointerEvent): void => {
     swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId }
@@ -239,6 +243,28 @@ export function GameScreen({
   const SHELL_CONTROL_IDS = new Set(['undo', 'restart', 'nextLevel', 'next-level'])
   const gameActions = session.controls.filter(
     (control) => control.role === 'action' && !SHELL_CONTROL_IDS.has(control.id),
+  )
+
+  /*
+   * 撤销 / 重开：倒 T 时收进方向键上排两侧（actionsInPad），否则在控制区单独一行。
+   * 玩法真的有方向键这一行时才收进去 —— Dpad 在没有方向控件时整块不渲染，那时必须留着这一行。
+   */
+  const actionsInPad =
+    dpadOn && dpadLayout === 'tee' && session.controls.some((control) => control.role === 'dpad')
+  const undoButton = entry.hideShellControls?.includes('undo') ? null : (
+    <ActionButton
+      labelKey="shell.game.undo"
+      size={actionsInPad ? 'normal' : 'large'}
+      disabled={!session.controls.some((control) => control.id === 'undo' && control.enabled)}
+      onSelect={() => {
+        session.clearNotice()
+        session.undo()
+      }}
+    />
+  )
+  // 方向键旁的格子窄：用短文案「重开」，确认框里仍写完整的「重新开始」
+  const restartButton = (
+    <ActionButton labelKey="shell.game.restartShort" onSelect={() => setConfirmRestart(true)} />
   )
 
   return (
@@ -422,8 +448,11 @@ export function GameScreen({
                 <Dpad
                   controls={session.controls}
                   onMove={onMove}
-                  size={root.buttonHeight}
+                  size={dpadLayout === 'tee' ? dpadTeeKeySize(root.buttonHeight) : root.buttonHeight}
                   labelKey={`${entry.game.i18nNamespace}.dpad.label`}
+                  layout={dpadLayout}
+                  // 倒 T：撤销 / 重开收进上排两侧，不再另起一行（没有方向键的玩法照旧用下面那一行）
+                  {...(dpadLayout === 'tee' ? { corners: { left: undoButton, right: restartButton } } : {})}
                 />
               ) : null}
               {gameActions.length > 0 ? (
@@ -443,26 +472,16 @@ export function GameScreen({
                   ))}
                 </div>
               ) : null}
-              <div className="eink-controls__actions">
-                {/* 玩法没有撤销能力时不渲染（见 GameRegistryEntry.hideShellControls） */}
-                {entry.hideShellControls?.includes('undo') ? null : (
+              {actionsInPad ? null : (
+                <div className="eink-controls__actions">
+                  {undoButton}
                   <ActionButton
-                    labelKey="shell.game.undo"
+                    labelKey="shell.game.restart"
                     size="large"
-                    disabled={!session.controls.some((control) => control.id === 'undo' && control.enabled)}
-                    onSelect={() => {
-                      session.clearNotice()
-                      session.undo()
-                    }}
+                    onSelect={() => setConfirmRestart(true)}
                   />
-                )}
-                <ActionButton
-                  labelKey="shell.game.restart"
-                  size="large"
-                  onSelect={() => setConfirmRestart(true)}
-                />
-                
-              </div>
+                </div>
+              )}
             </div>
           ) : null}
         </>

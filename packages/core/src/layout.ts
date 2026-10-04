@@ -65,6 +65,26 @@ export interface BoardLayout {
  */
 export const CRAMPED_LANDSCAPE_MAX_HEIGHT = 520
 
+/**
+ * 方向键摆法：
+ * - `tee`（缺省）：键盘方向键式的倒 T —— 上排「撤销 · 上 · 重开」、下排「左 · 下 · 右」。
+ *   十字方向盘的四个角与中心原本都空着，还要在下面另起一行放撤销 / 重开（竖屏共 4 行）；
+ *   倒 T 只占 2 行，省下的高度先让棋盘长到宽度上限，余下的用来把键放大（墨水屏上更好按）。
+ * - `row`：四键平铺一行（左 · 上 · 下 · 右），用于上 / 下不是空间方向的玩法（俄罗斯方块）。
+ */
+export type DpadLayout = 'tee' | 'row'
+
+/** 方向键之间的间距（px），与 styles.css 的 .eink-dpad-tee / .eink-dpad--row 的 gap 一致 */
+export const DPAD_KEY_GAP_PX = 8
+
+/** 倒 T 方向键相对普通按钮的放大系数（省出来的高度有富余，给拇指更大的目标） */
+export const DPAD_TEE_KEY_SCALE = 1.2
+
+/** 倒 T 方向键的边长（px）：壳层渲染与布局模型共用这一个算法 */
+export function dpadTeeKeySize(buttonHeight: number): number {
+  return Math.round(buttonHeight * DPAD_TEE_KEY_SCALE)
+}
+
 /** 并排布局里右侧控制列的宽度上限（CSS 的 `--controls-column: min(300px, 40vw)`） */
 export const SIDE_CONTROLS_WIDTH_PX = 300
 
@@ -93,8 +113,11 @@ export function computeRootLayout(
     showStats?: boolean
     /** 底部需要额外预留的高度（例如过关面板）：从棋盘区里扣掉，避免为了看结果去滚动 */
     extraBottom?: number
+    /** 方向键摆法（与 ui 注册表的 dpadLayout 同义，见 DpadLayout）；缺省 tee */
+    dpadLayout?: DpadLayout
   } = {},
-): RootLayout {  const showDpad = options.showDpad ?? true
+): RootLayout {
+  const showDpad = options.showDpad ?? true
   const showStats = options.showStats ?? true
   const extraBottom = Math.max(0, Math.round(options.extraBottom ?? 0))
   const margin = Math.max(config.margin, Math.round(viewport.width * 0.015))
@@ -114,8 +137,19 @@ export function computeRootLayout(
    */
   const sideBySide = isCrampedLandscape(viewport)
   const statsHeight = sideBySide ? 0 : showStats ? Math.round(baseFont * 2.6) : 0
-  const dpadHeight = showDpad ? buttonHeight * 2 + gap * 2 : buttonHeight
-  const controlsHeight = dpadHeight + (showDpad ? buttonHeight : 0) + gap * 2 + statsHeight
+  /*
+   * 控制区高度（统计栏另算；上下各留一份区块间距）：
+   * - 不显示方向键：只剩「撤销 / 重开」一行；
+   * - 倒 T（tee）：两行放大的键，撤销 / 重开已收进上排两侧，不再单独占一行；
+   * - 平铺（row）：方向键一行 + 撤销 / 重开一行。
+   */
+  const teeKey = dpadTeeKeySize(buttonHeight)
+  const controlsBody = !showDpad
+    ? buttonHeight
+    : options.dpadLayout === 'row'
+      ? buttonHeight * 2 + gap
+      : teeKey * 2 + DPAD_KEY_GAP_PX
+  const controlsHeight = controlsBody + gap * 2 + statsHeight
   const controlsWidth = sideBySide
     ? Math.min(SIDE_CONTROLS_WIDTH_PX, Math.round(viewport.width * SIDE_CONTROLS_WIDTH_RATIO))
     : 0
@@ -245,9 +279,10 @@ export function isCrampedLayout(
   viewport: Viewport,
   config: LayoutConfig = DEFAULT_LAYOUT,
   showDpad = true,
+  dpadLayout: DpadLayout = 'tee',
 ): boolean {
   return (
-    computeRootLayout(viewport, config, { showDpad, showStats: true }).boardArea.height <
+    computeRootLayout(viewport, config, { showDpad, showStats: true, dpadLayout }).boardArea.height <
     CRAMPED_BOARD_AREA_PX
   )
 }

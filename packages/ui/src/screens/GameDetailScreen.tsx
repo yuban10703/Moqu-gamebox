@@ -2,12 +2,12 @@
  * 游戏详情：玩法说明、难度、当前进度、关卡列表、开始/继续。
  * 「已有存档时开新局」必须明确询问，绝不静默丢局。
  */
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
 import { computeRootLayout } from '@eink/core'
 import { ActionButton, Dialog, Pager, StatBar, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
-import type { GameRegistryEntry } from '../registry.js'
+import { supportsSwipe, type GameRegistryEntry } from '../registry.js'
 import { levelIdOf, progressOf } from './LibraryScreen.js'
 
 /** 测量失败时的兜底每页数量 */
@@ -155,6 +155,7 @@ export function GameDetailScreen({
    * 只管折叠态的溢出：展开后 scrollHeight 会等于 clientHeight，
    * 若那时重算就会把「收起」按钮弄没，用户就收不回去了。
    */
+  const swipeHint = useMemo(() => supportsSwipe(entry), [entry])
   const [rulesExpanded, setRulesExpanded] = useState(false)
   const [rulesOverflow, setRulesOverflow] = useState(false)
   const rulesRef = useRef<HTMLDivElement | null>(null)
@@ -192,6 +193,11 @@ export function GameDetailScreen({
               {i18n.t(key)}
             </p>
           ))}
+          {/*
+            能滑动的玩法补一句通用提示（壳层文案，不进各游戏的规则文本）：
+            各游戏的说明里已经写了「可以滑动」，但「暂停菜单里关掉方向按钮 → 棋盘更大」藏得深，不说玩家不会知道。
+          */}
+          {swipeHint ? <p className="eink-text">{i18n.t('shell.detail.swipeHint')}</p> : null}
           {/*
             收起时：右下角放「…」与「阅读全部」，两者都是**覆盖**在说明右下角（绝对定位）。
             墨水屏没有渐变可用，硬截断 + 显式省略号是唯一诚实的表达。

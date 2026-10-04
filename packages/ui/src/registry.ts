@@ -2,7 +2,7 @@
  * 游戏注册表：游戏盒子只需要认识这一个结构。
  * 新增一款游戏 = 补规则/内容/呈现 + 在这里登记一条，壳层代码不用改（对应 C 阶段完成条件）。
  */
-import type { CellKind, DictSet, GameDef } from '@eink/core'
+import type { CellKind, DictSet, DpadLayout, GameDef } from '@eink/core'
 
 export interface GameRegistryEntry<S = unknown, A = unknown> {
   game: GameDef<S, A>
@@ -21,6 +21,18 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
    * 目前：数独不提供撤销，因此隐藏 'undo'（用户要求"数独的撤销直接隐藏"）。
    */
   hideShellControls?: readonly string[]
+  /**
+   * 方向键的摆法（见 core 的 DpadLayout）：缺省 `tee` = 倒 T，撤销 / 重开收在上排两侧，共两行；
+   * `row` = 四键平铺一行，用于「上/下」不是空间方向的玩法 ——
+   * 俄罗斯方块的上是旋转、下是下落一格（用户要求：方向键平铺、画面最大化）。
+   */
+  dpadLayout?: DpadLayout
+  /**
+   * 方向键**默认**是否显示（玩家在暂停菜单里按游戏改过之后以玩家的为准）。缺省跟随全局设置。
+   * 设成 false 的场景：方向键只是重复入口、点格子本来就能玩 —— 数字华容道点方块即可滑动，
+   * 默认收起方向键让棋盘直接长到宽度上限。
+   */
+  dpadDefault?: boolean
   defaultDifficulty: string
   /** 详情页展示的内容列表（关卡等） */
   levels?: readonly { id: string }[]
@@ -37,6 +49,19 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
    */
   cellLabelKey?(kind: CellKind): string | undefined
 
+}
+
+/**
+ * 这个玩法是否支持「在棋盘上滑动 = 按方向」：有方向键、且不靠点格子操作。
+ *
+ * 点格子的玩法（数字华容道、华容道、数独…）必须禁用滑动：墨水屏触摸有抖动，
+ * 轻点很容易被判成滑动（真机反馈过"点到的不是我想点的那块"）。
+ * 对局页（是否接管滑动）与详情页（是否提示可以滑动）共用这一个判定。
+ */
+export function supportsSwipe(entry: GameRegistryEntry<unknown, unknown>): boolean {
+  if (entry.game.selectAction !== undefined) return false
+  const first = entry.game.difficulties[0]?.id ?? entry.defaultDifficulty
+  return entry.game.controls(entry.game.create(0, first)).some((control) => control.role === 'dpad')
 }
 
 export type AnyRegistryEntry = GameRegistryEntry<never, never> | GameRegistryEntry<unknown, unknown>

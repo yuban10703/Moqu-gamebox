@@ -517,15 +517,26 @@ const DRIVERS = {
   },
   fifteen: {
     title: '数字华容道',
+    /*
+     * 方向键默认收起（点方块即可滑动，见 library.ts 的 dpadDefault: false），
+     * 因此只靠点方块驱动；非法输入 = 点一块不挨着空格的方块（规则层不产生动作 → 壳层给提示）。
+     */
     valid: (snap, step) => {
       const taps = snap.cells.map((c, i) => (c.t ? i : -1)).filter((i) => i >= 0)
       const shuffled = taps.slice(step % 5).concat(taps.slice(0, step % 5))
-      return shuffled
-        .slice(0, 4)
-        .map((i) => ({ t: 'cell', i }))
-        .concat(dirs.map((dir) => ({ t: 'dpad', dir })))
+      return shuffled.slice(0, 8).map((i) => ({ t: 'cell', i }))
     },
-    invalid: 'auto-dpad',
+    invalid: (snap) => {
+      const blank = snap.cells.findIndex((c) => !c.t)
+      if (blank < 0 || !snap.cols) return null
+      const [br, bc] = [Math.floor(blank / snap.cols), blank % snap.cols]
+      const far = snap.cells.findIndex((c, i) => {
+        if (!c.t) return false
+        const [r, col] = [Math.floor(i / snap.cols), i % snap.cols]
+        return Math.abs(r - br) + Math.abs(col - bc) > 1
+      })
+      return far < 0 ? null : { t: 'cell', i: far }
+    },
   },
   2048: {
     title: '2048',
@@ -749,7 +760,8 @@ async function clickUndo(settle = SETTLE) {
 }
 
 async function confirmRestart(settle = SETTLE) {
-  const btn = page.getByRole('button', { name: '重新开始' }).first()
+  // 倒 T 方向键的玩法把重开收在方向键旁的窄格里，文案是短的「重开」；确认框里仍是「重新开始」
+  const btn = page.getByRole('button', { name: /^(重新开始|重开)$/ }).first()
   await btn.click()
   await page.waitForTimeout(500)
   const dialog = page.locator('.eink-dialog').last()
@@ -931,7 +943,7 @@ async function runGame(id, driver) {
       )
     }
   } else if (driver.invalid === 'auto-dpad' || driver.invalid === undefined) {
-    // 方向盘：四向里总有一个走不通（推箱子/数字华容道/2048）
+    // 方向盘：四向里总有一个走不通（推箱子/2048）
     const blocked = await findBlockedDir()
     if (!blocked) {
       record(id, '非法输入有明确反馈且局面不变', false, '四个方向全部可走，找不到非法输入')

@@ -11,6 +11,7 @@ export {
 } from './contexts.js'
 export {
   defineGame,
+  supportsSwipe,
   type GameRegistryEntry,
   type GameLibrary,
   type AnyRegistryEntry,

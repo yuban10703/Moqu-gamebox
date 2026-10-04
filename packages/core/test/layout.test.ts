@@ -13,6 +13,9 @@ import {
   DEFAULT_LAYOUT,
   REFERENCE_VIEWPORTS,
   ABSOLUTE_MIN_CELL,
+  BOARD_FRAME_PX,
+  DPAD_KEY_GAP_PX,
+  dpadTeeKeySize,
   SIDE_CONTROLS_WIDTH_PX,
   computeBoardLayout,
   computeRootLayout,
@@ -250,5 +253,62 @@ describe('极矮横屏（并排布局）与棋盘不可用判定', () => {
     const board = computeBoardLayout(area, 12, 12)
     expect(board.cell).toBe(ABSOLUTE_MIN_CELL)
     expect(board.boardHeight).toBeGreaterThan(area.height)
+  })
+})
+
+/*
+ * 方向键摆法（core 的 DpadLayout，ui 注册表的 dpadLayout）：
+ * 倒 T（缺省）把撤销 / 重开收进上排两侧，只占两行；平铺（俄罗斯方块）方向键一行 + 操作一行。
+ * 两种都必须比旧的「十字方向盘 + 下面另起一行操作」矮，省下的高度回到棋盘区。
+ */
+describe('方向键摆法（dpadLayout）', () => {
+  const P6PLUS_PORTRAIT: Viewport = { width: 439, height: 847, dpr: 1.875 }
+
+  it('倒 T 与平铺的控制区都比旧十字口径（3 行按钮 + 4 份间距）矮，差额全部归棋盘区', () => {
+    for (const fontScale of FONT_SCALES) {
+      const config = { ...DEFAULT_LAYOUT, fontScale }
+      const tee = computeRootLayout(P6PLUS_PORTRAIT, config, { showDpad: true })
+      const row = computeRootLayout(P6PLUS_PORTRAIT, config, { showDpad: true, dpadLayout: 'row' })
+      const stats = Math.round(tee.baseFont * 2.6)
+      const legacyCross = tee.buttonHeight * 3 + tee.gap * 4 + stats
+      expect(tee.controlsHeight).toBe(dpadTeeKeySize(tee.buttonHeight) * 2 + DPAD_KEY_GAP_PX + tee.gap * 2 + stats)
+      expect(tee.controlsHeight).toBeLessThan(legacyCross)
+      expect(row.controlsHeight).toBeLessThan(legacyCross)
+      // 控制区少多少，棋盘区就多多少（其余预算不变）
+      expect(row.boardArea.height - tee.boardArea.height).toBe(tee.controlsHeight - row.controlsHeight)
+    }
+  })
+
+  it('倒 T 的键比普通按钮大（省出来的高度有一部分给了拇指），且不低于触摸下限', () => {
+    for (const fontScale of FONT_SCALES) {
+      const { buttonHeight } = computeRootLayout(P6PLUS_PORTRAIT, { ...DEFAULT_LAYOUT, fontScale })
+      expect(dpadTeeKeySize(buttonHeight)).toBeGreaterThan(buttonHeight)
+      expect(dpadTeeKeySize(buttonHeight)).toBeGreaterThanOrEqual(DEFAULT_LAYOUT.minTouchTarget)
+    }
+  })
+
+  it('竖屏标准字号：倒 T 下方形棋盘（2048 4×4 / 贪吃蛇 12×12）被宽度而不是高度卡住', () => {
+    const area = computeRootLayout(P6PLUS_PORTRAIT, DEFAULT_LAYOUT, { showDpad: true }).boardArea
+    for (const n of [4, 12]) {
+      const board = computeBoardLayout(area, n, n)
+      expect(board.cell).toBe(Math.floor((area.width - 2 * BOARD_FRAME_PX) / n))
+    }
+  })
+
+  it('不传 dpadLayout 就是倒 T；关掉方向键时摆法无关紧要', () => {
+    const viewport = REFERENCE_VIEWPORTS[0]!.viewport
+    expect(computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: true })).toEqual(
+      computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: true, dpadLayout: 'tee' }),
+    )
+    expect(computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: false, dpadLayout: 'row' })).toEqual(
+      computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: false }),
+    )
+  })
+
+  it('极矮横屏并排档：方向键在右侧列，摆法不影响棋盘区高度', () => {
+    const landscape: Viewport = { width: 879, height: 407, dpr: 2 }
+    expect(computeRootLayout(landscape, DEFAULT_LAYOUT, { dpadLayout: 'row' }).boardArea).toEqual(
+      computeRootLayout(landscape, DEFAULT_LAYOUT).boardArea,
+    )
   })
 })
