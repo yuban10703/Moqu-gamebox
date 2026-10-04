@@ -30,3 +30,6 @@ local.properties
 
 # Python 临时产物（tools/scripts 下跑 .py 时会生成）
 __pycache__/
+
+# Cloudflare wrangler 的本地缓存（跑 preview:cf / deploy --dry-run 会生成）
+.wrangler/
