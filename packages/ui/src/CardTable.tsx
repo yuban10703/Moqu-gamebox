@@ -162,7 +162,8 @@ export function CardTable({ table, onCardSelect }: CardTableProps): ReactNode {
   const right = seat('right')
   const self = seat('bottom')
 
-  // 手牌超过 10 张分两排（前一排是大牌），两排叠压：上一排露出点数与花色那一截
+  // 手牌超过 10 张分两排（前一排是大牌），两排叠压：上一排露出点数与花色那一截，
+  // 并给下一排的选中牌留出抬高的余量（选中的牌不能压住上一排）
   const hand = table.hand
   const perRow = hand.length <= 10 ? Math.max(1, hand.length) : Math.ceil(hand.length / 2)
   const rows = hand.length <= 10 ? [hand] : [hand.slice(0, perRow), hand.slice(perRow)]
@@ -170,6 +171,7 @@ export function CardTable({ table, onCardSelect }: CardTableProps): ReactNode {
   return (
     <div
       className="eink-cardtable"
+      data-hand-rows={rows.length}
       style={{ ['--hand-cols' as string]: perRow, ['--hand-total' as string]: Math.max(1, hand.length) } as CSSProperties}
     >
       {left ? <SeatBlock seat={left} /> : null}
