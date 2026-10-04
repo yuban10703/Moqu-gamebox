@@ -5,7 +5,7 @@
  * - BACKUP_SCHEMA：跨端备份格式
  * 游戏自身的 rulesVersion / contentVersion 由各游戏在 GameDef 上声明。
  */
-export const APP_VERSION = '0.1.0'
+export const APP_VERSION = '0.1.1'
 export const SAVE_SCHEMA = 1
 export const BACKUP_SCHEMA = 1
 

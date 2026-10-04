@@ -194,7 +194,8 @@ jobs:
           if [ "$SIGNED" = "yes" ]; then
             cat >> release-notes.md <<EOF
 
-          - 本次为**正式 keystore 签名**，可以直接覆盖安装升级。
+          - 本次为**正式 keystore 签名**：若你装的是更早的 debug 签名版本（v0.1.0），
+            需要先卸载一次；这之后各版本之间都能直接覆盖升级。
           EOF
           else
             cat >> release-notes.md <<EOF

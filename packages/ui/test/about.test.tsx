@@ -10,9 +10,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { coreDictEn, coreDictZh, createMemoryKv } from '@eink/core'
+import { coreDictEn, coreDictZh, createMemoryKv, APP_VERSION } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import { sokobanEn, sokobanGame, sokobanZh } from '@eink/sokoban'
+import { PROJECT_INFO } from '../src/screens/projectInfo.js'
 import { App } from '../src/App.js'
 import { defineGame, type GameLibrary } from '../src/registry.js'
 
@@ -100,7 +101,8 @@ describe('首页「关于」入口与关于页', () => {
     const shown = document.body.textContent ?? ''
     expect(shown).toContain('Moqu')
     // 版本号：jsdom 里没有 __BUILD_INFO__，回落到 @eink/core 的 APP_VERSION
-    expect(shown).toContain('v0.1.0')
+    // 断言用常量而不是写死字符串 —— 否则每次抬版本号都要改一次测试
+    expect(shown).toContain(`v${APP_VERSION}`)
     expect(shown).not.toContain('⟦')
     // 作者信息三项在真实配置里是空的 → 整块不渲染（不显示假数据、也不显示「待填写」）
     expect(document.querySelector('.eink-about__meta')).toBeNull()
@@ -142,7 +144,13 @@ describe('关于页的作者信息区块', () => {
     await mount()
     await openAbout()
 
-    const button = document.querySelector<HTMLButtonElement>('.eink-about__email')!
+    // 地址本身是链接：手点一下能交给系统邮件应用（壳层负责转交）
+    const link = document.querySelector<HTMLAnchorElement>('.eink-about__email .eink-about__link')!
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe('mailto:hi@example.com')
+    expect(link.textContent).toContain('hi@example.com')
+
+    const button = document.querySelector<HTMLButtonElement>('.eink-about__email .eink-about__copy')!
     expect(button).toBeTruthy()
     // 点之前就写着"能干什么"，墨水屏没有 hover，这行字是唯一的可见提示
     expect(button.textContent).toContain('Copy')
@@ -152,8 +160,9 @@ describe('关于页的作者信息区块', () => {
     fireEvent.click(button)
     await waitFor(() => expect(button.textContent).toContain('Copied'))
     expect(writeText).toHaveBeenCalledWith('hi@example.com')
-    // 地址本身不能因为换状态而消失
-    expect(button.textContent).toContain('hi@example.com')
+    // 地址本身不能因为换状态而消失，且仍可点
+    expect(link.textContent).toContain('hi@example.com')
+    expect(link.getAttribute('href')).toBe('mailto:hi@example.com')
     Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard')
   })
 
@@ -166,10 +175,36 @@ describe('关于页的作者信息区块', () => {
     await mount()
     await openAbout()
 
-    const button = document.querySelector<HTMLButtonElement>('.eink-about__email')!
+    const button = document.querySelector<HTMLButtonElement>('.eink-about__email .eink-about__copy')!
     fireEvent.click(button)
     await waitFor(() => expect(button.textContent).toContain('Copy failed'))
     expect(button.textContent).not.toContain('Copied')
+    Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard')
+  })
+
+  it('开源地址既显示为可点链接，也能一键复制完整地址', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    await mount()
+    await openAbout()
+
+    // 链接：手点一下交给系统浏览器
+    const link = document.querySelector<HTMLAnchorElement>('.eink-about__source .eink-about__link')!
+    expect(link).toBeTruthy()
+    expect(link.getAttribute('href')).toBe(PROJECT_INFO.repoUrl)
+    // 地址必须完整可见（墨水屏上没法 hover 看提示，也不能被截断）
+    expect(link.textContent).toContain(PROJECT_INFO.repoUrl)
+
+    const button = document.querySelector<HTMLButtonElement>('.eink-about__source .eink-about__copy')!
+    expect(button.textContent).toContain('Copy')
+    expect(button.getAttribute('aria-label')).toBe(`Copy ${PROJECT_INFO.repoUrl}`)
+
+    fireEvent.click(button)
+    await waitFor(() => expect(button.textContent).toContain('Copied'))
+    expect(writeText).toHaveBeenCalledWith(PROJECT_INFO.repoUrl)
+    // 状态变化不能把地址本身挤掉，链接也仍然可点
+    expect(link.textContent).toContain(PROJECT_INFO.repoUrl)
+    expect(link.getAttribute('href')).toBe(PROJECT_INFO.repoUrl)
     Reflect.deleteProperty(navigator as unknown as Record<string, unknown>, 'clipboard')
   })
 
