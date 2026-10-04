@@ -628,7 +628,7 @@ export function GameScreen({
 
   async function exportBackup(): Promise<void> {
     const text = await platform.storage.createBackupText(platform.baseline(), Date.now())
-    await platform.exportBackup(`eink-gamebox-${Date.now()}.json`, text)
+    await platform.exportBackup(`moqu-${Date.now()}.json`, text)
   }
 }
 

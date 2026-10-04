@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "eink-gamebox"
+rootProject.name = "moqu"
 include(":app")

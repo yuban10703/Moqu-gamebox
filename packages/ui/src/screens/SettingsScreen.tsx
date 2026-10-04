@@ -31,7 +31,7 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
 
   const doExport = async (): Promise<void> => {
     const text = await storage.createBackupText(platform.baseline(), Date.now())
-    const fileName = `eink-gamebox-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const fileName = `moqu-backup-${new Date().toISOString().slice(0, 10)}.json`
     const result = await platform.exportBackup(fileName, text)
     setMessage(result.ok ? i18n.t('shell.storage.exported') : i18n.t('shell.storage.importFailed', { reason: result.error ?? '' }))
   }

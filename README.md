@@ -79,7 +79,7 @@
 ## 装到墨水屏阅读器
 
 - **最省事**：用阅读器自带的浏览器打开 <https://moqu.2333.world/>，菜单里选「添加到主屏幕」——之后就当一个离线应用在用。
-- **想要独立图标**：从 [Releases](https://github.com/yuban10703/eink-gamebox/releases) 下载 `moqu-<版本>.apk`，传到阅读器上点开安装即可（Android 6.0 以上都行，BOOX 全系适配）。想自己构建见 [docs/android.md](docs/android.md)。
+- **想要独立图标**：从 [Releases](https://github.com/yuban10703/Moqu-gamebox/releases) 下载 `moqu-<版本>.apk`，传到阅读器上点开安装即可（Android 6.0 以上都行，BOOX 全系适配）。想自己构建见 [docs/android.md](docs/android.md)。
 
 ## 自己构建
 

@@ -7,5 +7,5 @@
 -->
 <resources>
     <string name="app_name">Moqu</string>
-    <string name="backup_file_name">eink-gamebox-backup.json</string>
+    <string name="backup_file_name">moqu-backup.json</string>
 </resources>
