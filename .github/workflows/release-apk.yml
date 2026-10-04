@@ -1,0 +1,149 @@
+name: 打包 APK 并发布 Release
+
+# 发布规则：**只有版本号变了才发布**。
+# 判断方式不是看"这次提交改了什么"，而是看 `v<versionName>` 这个 tag/release 是否已经存在 ——
+# 版本号没变 → tag 已存在 → 整个构建与发布流程直接跳过（不会重复发、也不会白烧构建时间）。
+# 改版本号（apps/android/app/build.gradle.kts 的 versionName / versionCode，package.json 同步）即触发。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 也允许手动跑一次（重试失败、补发布）
+
+permissions:
+  contents: write # 创建 Release 需要
+
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取代码（连同全部 tag，用来判断版本是否已发布）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 读取版本号并校验两处一致
+        id: v
+        run: |
+          set -euo pipefail
+          GRADLE_FILE=apps/android/app/build.gradle.kts
+          NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$GRADLE_FILE" | head -1)
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$GRADLE_FILE" | head -1)
+          if [ -z "$NAME" ] || [ -z "$CODE" ]; then
+            echo "::error::没能从 $GRADLE_FILE 读到 versionName / versionCode"
+            exit 1
+          fi
+          # package.json 的 version 必须与 versionName 一致，避免"改了一个忘另一个"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$PKG" != "$NAME" ]; then
+            echo "::error::package.json 是 $PKG，build.gradle.kts 是 $NAME —— 请改成一致再发布"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "版本 v$NAME（versionCode $CODE）"
+
+      - name: 判断这个版本是否已经发布过
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.v.outputs.name }}"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null || gh release view "$TAG" >/dev/null 2>&1; then
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG 已存在 —— 版本号没变，跳过构建与发布"
+          else
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG 尚未发布，开始构建"
+          fi
+
+      - name: 装 Node（Gradle 的 syncWebAssets 会调 npm run build:web）
+        if: steps.gate.outputs.publish == 'yes'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        if: steps.gate.outputs.publish == 'yes'
+        run: npm ci
+
+      - name: 发布前跑全门禁（类型检查 + 单测 + i18n + 构建 + 文档/接入核对）
+        if: steps.gate.outputs.publish == 'yes'
+        run: npm run check
+
+      - name: 装 JDK 17（与 tools/scripts/setup-android-toolchain.sh 一致）
+        if: steps.gate.outputs.publish == 'yes'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 装 Android SDK
+        if: steps.gate.outputs.publish == 'yes'
+        uses: android-actions/setup-android@v3
+
+      - name: 装 SDK 组件（与 setup-android-toolchain.sh 的清单对齐）
+        if: steps.gate.outputs.publish == 'yes'
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: 装 Gradle 8.14.3（本仓库没有 gradle wrapper）
+        if: steps.gate.outputs.publish == 'yes'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: 构建 APK（debug 签名，可直接侧载）
+        if: steps.gate.outputs.publish == 'yes'
+        working-directory: apps/android
+        run: gradle --no-daemon assembleDebug
+
+      - name: 整理产物并算校验和
+        if: steps.gate.outputs.publish == 'yes'
+        id: apk
+        run: |
+          set -euo pipefail
+          SRC=apps/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$SRC" || { echo "::error::没找到 $SRC"; exit 1; }
+          NAME="moqu-${{ steps.v.outputs.name }}.apk"
+          cp "$SRC" "$NAME"
+          SHA=$(sha256sum "$NAME" | cut -d' ' -f1)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          ls -lh "$NAME"
+          echo "SHA-256: $SHA"
+
+      - name: 发布 Release
+        if: steps.gate.outputs.publish == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.v.outputs.name }}
+          CODE: ${{ steps.v.outputs.code }}
+          SHA: ${{ steps.apk.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # 注意：这里用**不带引号**的 heredoc（要让 $VERSION/$CODE/$SHA 展开），
+          # 因此正文里的反引号必须转义成 \`，否则会被当成命令替换执行。
+          cat > release-notes.md <<EOF
+          **墨趣** —— 为墨水屏而生的离线游戏合集，14 款游戏，中文 / 英文，完全离线、不申请任何权限。
+
+          ## 下载安装
+
+          - **手机 / 平板**：下载下面的 \`moqu-$VERSION.apk\`，点开安装（需允许「安装未知来源的应用」）。
+          - **墨水屏阅读器（BOOX 等）**：把 APK 传到设备上点开安装即可，Android 6.0 以上都行。
+          - **不想装应用**：用浏览器打开 <https://moqu.2333.world/>，在阅读器上选「添加到主屏幕」后断网也能玩。
+
+          ## 说明
+
+          - 这是 **debug 签名**的可侧载包（自用分发），与任何应用商店无关；升级时直接覆盖安装即可。
+          - 包名 \`com.einkgamebox\`，\`versionCode $CODE\`，SHA-256 \`$SHA\`。
+          EOF
+          gh release create "v$VERSION" "moqu-$VERSION.apk" \
+            --title "墨趣 v$VERSION" \
+            --notes-file release-notes.md

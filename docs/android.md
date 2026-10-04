@@ -51,3 +51,18 @@ adb logcat -s MainActivity   # 壳层日志
   因此除编译级验证外，**可直接侧载确认运行期表现**（WiFi ADB 掉线时先 `forward --remove-all` 再重连）；
 - 壳层是**纯通用 Android 实现**：只用平台 API 与 `androidx.webkit`，不含任何厂商 SDK；
   设备差异（屏幕/视口/WebView/存储/触摸点数等）由诊断页如实上报，见 [A01](A01-device-baseline.md)。
+
+## 发布（GitHub Release）
+
+`.github/workflows/release-apk.yml`：push 到 `main` 时先看 `v<versionName>` 这个 tag / release **是否存在** ——
+**存在就整个跳过**（版本号没变，不重复发也不白烧构建时间），不存在才走
+「`npm ci` → `npm run check` → 装 JDK 17 / Android SDK 35 / Gradle 8.14.3 → `gradle assembleDebug` → 发 Release」。
+
+所以**发新版本只需要改版本号**：
+
+1. `apps/android/app/build.gradle.kts`：`versionName`（例如 `0.2.0`）与 `versionCode`（必须递增，否则设备覆盖安装会被拒）；
+2. `package.json` 的 `version` 改成同一个值 —— workflow 会校验两者一致，不一致直接失败（避免改了一个忘另一个）；
+3. 提交并 push 到 `main`。
+
+产物是 `moqu-<版本>.apk`（**debug 签名**，可直接侧载；Release 说明里带 `versionCode` 与 SHA-256）。
+也可以在 Actions 页面手动触发（`workflow_dispatch`）来重试或补发。
