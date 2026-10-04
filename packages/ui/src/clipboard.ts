@@ -7,7 +7,7 @@
  * - `navigator.clipboard` 只存在于**安全上下文**：APK 里的 WebView
  *   （https://appassets.androidplatform.net）与 localhost 都有；
  *   但从局域网用 `http://10.1.1.x:端口` 打开网页版时它是 undefined
- *   （见 docs/lan-access.md 的用法）—— 而"复制邮箱"恰恰是那种场景下最需要的。
+ *   —— 而"复制邮箱"恰恰是那种场景下最需要的。
  * - 兜底用 `execCommand('copy')` + 一个临时 textarea：老 WebView 与不安全上下文仍可用。
  *   execCommand 已废弃但没被移除，且是这些环境下唯一可用的同步方案。
  */

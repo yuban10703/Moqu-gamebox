@@ -126,7 +126,7 @@ storage: android
 | 波形 | `onyx waveform sg` |
 | 侧载注意 | 与 Note X2 相同：安装后包被置为 `enabled=3`（DISABLED_USER），**需要再执行一次 `pm enable --user 0`**；启动器还会标 `isAutoFreeze:true isEACEnabled:true` |
 
-### Google Play 商店（2026-10-03 追加，详见 [device-google-play.md](device-google-play.md)）
+### Google Play 商店（2026-10-03 追加；安装过程属设备折腾，不记在项目文档里）
 
 | 检查 | 结果 |
 |---|---|

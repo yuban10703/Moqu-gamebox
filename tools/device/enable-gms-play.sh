@@ -7,7 +7,7 @@
 #   tools/device/enable-gms-play.sh                       # 默认 10.1.1.69:5555 status
 #   tools/device/enable-gms-play.sh 10.1.1.69:5555 on
 #
-# 背景（详见 docs/device-google-play.md）：
+# 背景（安装过程属设备折腾，项目文档里不再记）：
 #   BOOX 国行固件在 framework 的 ActivityStarter 里加了闸门，
 #   只要 gms_enable=false 就拒绝启动 com.android.vending，
 #   报 SecurityException: This app is not allowed to start because Google Play is disabled.

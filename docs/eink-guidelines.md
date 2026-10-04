@@ -977,7 +977,7 @@ const cell = fit >= config.minCell ? Math.floor(fit) : Math.max(ABSOLUTE_MIN_CEL
 | 场景 | 可用的 API |
 |---|---|
 | APK 的 WebView（`https://appassets.androidplatform.net`）、localhost | `navigator.clipboard.writeText` ✓（安全上下文）|
-| 网页版从局域网 `http://10.1.1.x:端口` 打开（见 [lan-access](lan-access.md)） | clipboard **不存在** → 退回 `execCommand('copy')` + 临时 textarea |
+| 网页版从局域网 `http://10.1.1.x:端口` 打开（非安全上下文） | clipboard **不存在** → 退回 `execCommand('copy')` + 临时 textarea |
 
 临时 textarea 必须用 `finally` 摘掉：兜底路径本身会抛（老环境没有 `execCommand` 时是 TypeError），
 抛出去之前节点也要收干净 —— 单测（`packages/ui/test/clipboard.test.ts`）专门盯这条，
