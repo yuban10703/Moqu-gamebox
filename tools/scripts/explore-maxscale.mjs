@@ -10,6 +10,12 @@ const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
 const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
+
+/*
+ * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`
+ * —— 两者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
+ */
+const SURFACE = '.eink-board, .eink-cardtable'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
@@ -39,7 +45,7 @@ const audit = async (label) => {
     const off = [...document.querySelectorAll('button')]
       .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b))
       .map((b) => (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10))
-    const board = document.querySelector('.eink-board')
+    const board = document.querySelector('.eink-board, .eink-cardtable')
     const area = document.querySelector('.eink-board-area')
     let clip = null
     if (board && area) {
@@ -144,11 +150,11 @@ for (const title of titles) {
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情`)
   await click(/继续/, true)
-  await page.waitForSelector('.eink-board', { timeout: 3000 }).catch(() => {})
-  if (!(await page.locator('.eink-board').count())) await click(/开始新游戏/)
+  await page.waitForSelector(SURFACE, { timeout: 3000 }).catch(() => {})
+  if (!(await page.locator(SURFACE).count())) await click(/开始新游戏/)
   await page.waitForTimeout(300)
   if (await page.getByRole('button', { name: /替换并开始/ }).count()) await dialog('替换并开始')
-  await page.waitForSelector('.eink-board', { timeout: 8000 })
+  await page.waitForSelector(SURFACE, { timeout: 8000 })
   await audit(`${title}·游戏页`)
 }
 

@@ -12,6 +12,12 @@ const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
 const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
+
+/*
+ * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`
+ * —— 两者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
+ */
+const SURFACE = '.eink-board, .eink-cardtable'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
@@ -39,7 +45,7 @@ const audit = async (label) => {
     const off = [...document.querySelectorAll('button')]
       .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b))
       .map((b) => (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10))
-    const board = document.querySelector('.eink-board')
+    const board = document.querySelector('.eink-board, .eink-cardtable')
     const area = document.querySelector('.eink-board-area')
     let clip = null
     if (board && area) {
@@ -136,11 +142,11 @@ for (const title of titles) {
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情`)
   await click(/继续/, true)
-  await page.waitForSelector('.eink-board', { timeout: 3000 }).catch(() => {})
-  if (!(await page.locator('.eink-board').count())) await click(/开始新游戏/)
+  await page.waitForSelector(SURFACE, { timeout: 3000 }).catch(() => {})
+  if (!(await page.locator(SURFACE).count())) await click(/开始新游戏/)
   await page.waitForTimeout(300)
   if (await page.getByRole('button', { name: /替换并开始/ }).count()) await dialog('替换并开始')
-  await page.waitForSelector('.eink-board', { timeout: 8000 })
+  await page.waitForSelector(SURFACE, { timeout: 8000 })
   await audit(`${title}·游戏页`)
 }
 
@@ -169,14 +175,24 @@ for (const title of titles) {
   await page.waitForSelector('text=玩法说明', { timeout: 8000 })
   await audit(`${title}·详情·1.5×`)
   await click(/继续/, true)
-  await page.waitForSelector('.eink-board', { timeout: 3000 }).catch(() => {})
-  if (!(await page.locator('.eink-board').count())) await click(/开始新游戏/)
+  await page.waitForSelector(SURFACE, { timeout: 3000 }).catch(() => {})
+  if (!(await page.locator(SURFACE).count())) await click(/开始新游戏/)
   await page.waitForTimeout(300)
   if (await page.getByRole('button', { name: /替换并开始/ }).count()) await dialog('替换并开始')
-  await page.waitForSelector('.eink-board', { timeout: 8000 })
+  await page.waitForSelector(SURFACE, { timeout: 8000 })
   const cell = await page.evaluate(() => {
     const c = document.querySelector('.eink-board__cell')
     return c ? Math.round(c.getBoundingClientRect().width) : null
+  })
+  /*
+   * 扑克类玩法（斗地主）没有格子，只有手牌：格子下限对它不适用，
+   * 改成量**手牌**的可点面积（牌本身是按钮，"无不可达按钮"那一关已经在管是否在屏内）。
+   */
+  const card = await page.evaluate(() => {
+    const c = document.querySelector('.eink-card')
+    if (!c) return null
+    const r = c.getBoundingClientRect()
+    return { w: Math.round(r.width), h: Math.round(r.height) }
   })
   /*
    * 格子下限只对**点格子操作**的玩法成立 —— 与 packages/ui/test/games-contract.test.ts 同一条既定规则：
@@ -200,6 +216,13 @@ for (const title of titles) {
       `${title}·游戏页·1.5×：方向盘驱动玩法以方向盘验收（格子小不判缺陷）`,
       dpad.inside === dpad.count,
       `方向盘 ${dpad.inside}/${dpad.count} 在屏内；棋盘格子实测 ${cell}px`,
+    )
+  } else if (card) {
+    // 手牌：只要还在绝对下限之上就算可玩（极矮横屏 + 1.5× 是已知最挤的一档）
+    check(
+      `${title}·游戏页·1.5×：手牌不低于绝对下限`,
+      card.w >= 12 && card.h >= 12,
+      `手牌实测 ${card.w}×${card.h}px`,
     )
   } else {
     check(`${title}·游戏页·1.5×：格子不低于绝对下限`, cell === null || cell >= 12, `${cell}px`)
