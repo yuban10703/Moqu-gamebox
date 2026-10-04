@@ -168,9 +168,12 @@ export interface TetrisState {
 }
 
 export type TetrisAction =
-  /** 方向盘语义：left/right 平移一格、up 顺时针旋转、down 下落一格（着地则固化） */
+  /**
+   * 方向盘语义：left/right 平移一格、up 顺时针旋转、
+   * **down = 直接落到底**（用户要求）；已经到底时按它＝固化，见 hardDrop
+   */
   | { type: 'move'; dir: MoveDir }
-  /** 自动下落一格（由壳层定时器到点派发）；着地则固化 —— 与按「落」完全同一条路径 */
+  /** 自动下落一格（由壳层定时器到点派发）；着地则固化 —— 自动下落仍是一格一格走 */
   | { type: 'tick' }
   /** 撤销到**玩家上一次操作之前**（自动落下的格子会一并退回，见 undoTetris） */
   | { type: 'undo' }
@@ -397,6 +400,26 @@ function rotatePiece(state: TetrisState, spec: DifficultyTetris): TetrisState {
 }
 
 /**
+ * 「落」＝**直接落到底**（用户要求）。
+ *
+ * 与自动下落（`tick` → stepDown）的分工：
+ *  - 自动下落仍是一格一格走，落到堆上后**当帧不固化** —— 那一格间隔是墨水屏上的锁定缓冲；
+ *  - 玩家按「落」是把当前方块直接送到最下面能放的位置，**只占一层撤销**
+ *    （若按一格一层记录，撤销一次硬降要按十几次，实际等于不能撤销）。
+ * 已经到底时按「落」＝固化并出下一块，与改动前一致。
+ */
+function hardDrop(state: TetrisState, spec: DifficultyTetris): TetrisState {
+  let row = state.piece.row
+  while (fits(state.board, spec, { ...state.piece, row: row + 1 })) row++
+  if (row === state.piece.row) return lockPiece(state, spec)
+  return {
+    // 只记一条：撤销一次就回到按「落」之前的位置
+    ...withEntry(state, { kind: 'piece', piece: state.piece }),
+    piece: { ...state.piece, row },
+  }
+}
+
+/**
  * 下落一格；已经落到底（或压在堆上）就固化并出下一块。
  *
  * `auto` 标记这条记录来自自动下落：**落到底不会当帧固化** —— 停在堆上的那一格
@@ -511,7 +534,7 @@ export function reduceState(state: TetrisState, action: TetrisAction): TetrisSta
 
   if (action.dir === 'left' || action.dir === 'right') return shiftPiece(state, spec, action.dir)
   if (action.dir === 'up') return rotatePiece(state, spec)
-  return stepDown(state, spec)
+  return hardDrop(state, spec)
 }
 
 export function legalActions(state: TetrisState): readonly TetrisAction[] {

@@ -1,7 +1,7 @@
 /**
  * GameDef 外壳集成测试：view / controls / encode / decode / i18n / 元信息。
  * 重点：
- *   - 1-bit 呈现约定（● / ○、最后一手 selected 高亮、不加分组线、stats 只有三项）；
+ *   - 1-bit 呈现约定（● / ○、最后一手加粗放大且**不反白**、不加分组线、stats 只有三项）；
  *   - `encode`/`decode` 严格往返，坏数据一律抛 IllegalActionError；
  *   - 属性测试：随机走若干合法动作后 encode→decode 必须往返一致
  *     （项目曾因「decode 拒绝游戏自己产生的状态」出过事故，这条用例是第一道闸门）。
@@ -111,34 +111,43 @@ describe('view / 1-bit 呈现约定', () => {
         expect(cells[index]!.glyph).toBe('')
         expect(cells[index]!.selected).toBeUndefined()
       } else {
-        expect(cells[index]!.kind).toBe('tile')
+        // 最后一手借 'given'（壳层里是"白底 + 加粗文字"），其余子是 'tile'
+        expect(cells[index]!.kind).toBe(index === state.lastMove ? 'given' : 'tile')
         expect(cells[index]!.glyph).toBe(stone === BLACK ? '●' : '○')
       }
     }
     expect(cells.filter((cell) => cell.glyph === '●')).toHaveLength(countStones(state.board).black)
     expect(cells.filter((cell) => cell.glyph === '○')).toHaveLength(countStones(state.board).white)
-    expect(cellKindAt(state, state.lastMove!)).toBe('tile')
+    expect(cellKindAt(state, state.lastMove!)).toBe('given')
     expect(cellGlyphAt(state, state.lastMove!)).not.toBe('')
   })
 
-  it('最后一手用 selected 高亮，且全盘只有它一个高亮', () => {
+  it('最后一手**不反白**：加粗 + 放大一档，全盘只有它一个标记', () => {
+    /*
+     * 用户报的缺陷：AI 的白子在被"选中"的格子里看着像黑子 ——
+     * 因为原先最后一手用 `selected: true`（壳层会把整格反白），
+     * 反白连棋子本体一起翻转，实心/空心互换观感。
+     * 现在改成 kind 'given'（白底加粗）+ textScale 放大：实心仍实心、空心仍空心。
+     */
     const state = advance(fresh(), 3)
     expect(state.lastMove).not.toBeNull()
-    const selected = gomokuGame
-      .view(state)
-      .board!.cells.filter((cell) => cell.selected)
-      .map((cell) => cell.index)
-    expect(selected).toEqual([state.lastMove])
+    const board = gomokuGame.view(state).board!
+    const marked = board.cells.filter((cell) => cell.selected || cell.kind === 'given')
+    expect(marked.map((cell) => cell.index)).toEqual([state.lastMove])
+    expect(board.cells.every((cell) => cell.selected === undefined)).toBe(true)
+    expect(marked[0]!.textScale).toBeGreaterThan(1)
     // 开局没有历史也没有最后一手
-    expect(gomokuGame.view(fresh()).board!.cells.some((cell) => cell.selected)).toBe(false)
+    expect(gomokuGame.view(fresh()).board!.cells.some((cell) => cell.kind === 'given')).toBe(false)
   })
 
-  it('棋子不靠灰阶区分：只用两种字形；空格不带 textScale', () => {
+  it('棋子不靠灰阶区分：只用两种字形；只有最后一手带 textScale', () => {
     const state = advance(fresh(), 4)
-    const glyphs = new Set(gomokuGame.view(state).board!.cells.map((cell) => cell.glyph))
+    const board = gomokuGame.view(state).board!
+    const glyphs = new Set(board.cells.map((cell) => cell.glyph))
     expect([...glyphs].sort()).toEqual(['', '○', '●'])
-    for (const cell of gomokuGame.view(state).board!.cells) {
-      expect(cell.textScale).toBeUndefined()
+    for (const cell of board.cells) {
+      if (cell.index === state.lastMove) expect(cell.textScale).toBeGreaterThan(1)
+      else expect(cell.textScale).toBeUndefined()
     }
   })
 

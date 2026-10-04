@@ -4,11 +4,12 @@
  * 1-bit 可读性（没有灰阶、没有动画，只能靠形状与反白）：
  *   蛇头 = 整格反白（kind 'mine'，壳层画成黑底）
  *   蛇身 = 占满格子的空心板条箱（kind 'box'，白底 + 外框 + 对角线）
+ *   蛇尾 = 格子里一个实心小方块（kind 'tile' + '■'，用户要求：尾巴也要有自己的形状）
  *   食物 = 空心圆环（kind 'goal'）
  *   障碍 = 斜纹底（kind 'wall'，壳层用纹理而不是灰度）
  *   空格 = 纯白（kind 'empty'）
  *   撞死后的蛇头 = 白底 + 加粗「×」（kind 'flag'），与活着的黑格蛇头一眼可分
- * 这五种形状两两不同，且都不依赖深浅，因此单色墨水屏上也分得清。
+ * 这六种形状两两不同，且都不依赖深浅，因此单色墨水屏上也分得清。
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
 import { ALL_DIRS, OPPOSITE_DIR, canUndo, directionOf, gameStatus, type SnakeState } from './rules.js'
@@ -22,13 +23,15 @@ export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
   mine: '',
   goal: '',
   flag: '×',
+  // 蛇尾：实心小方块（比整格反白的蛇头小一档，见 TAIL_SCALE）
+  tile: '■',
 }
 
 /**
  * 壳层无障碍标签用的 key。约定固定为 `<namespace>.cell.<kind>`，
  * 因此注册表里直接写 `(kind) => `snake.cell.${kind}`` 即可，不需要额外映射表。
- * 本作借用的通用 kind：mine = 蛇头（整格反白）、box = 蛇身、goal = 食物、
- * flag = 撞死后的蛇头，因此这几条标签说的是本作语义而不是 kind 的字面意思。
+ * 本作借用的通用 kind：mine = 蛇头（整格反白）、box = 蛇身、tile = 蛇尾（实心小方块）、
+ * goal = 食物、flag = 撞死后的蛇头，因此这几条标签说的是本作语义而不是 kind 的字面意思。
  */
 export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   wall: 'snake.cell.wall',
@@ -37,12 +40,23 @@ export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   box: 'snake.cell.box',
   goal: 'snake.cell.goal',
   flag: 'snake.cell.flag',
+  tile: 'snake.cell.tile',
 }
 
-/** 逐格判定：障碍 → 蛇头 → 蛇身 → 食物 → 空格（顺序即优先级，互不重叠） */
+/**
+ * 蛇尾方块相对格子的字号比例。
+ *
+ * 0.8：比整格反白的蛇头弱一档，也不与占满格子的蛇身板条箱混淆 ——
+ * 三者在一格里的观感是「满格黑 / 满格框 / 中间一个小方块」，1-bit 下层次清楚。
+ */
+const TAIL_SCALE = 0.8
+
+/** 逐格判定：障碍 → 蛇头 → **蛇尾** → 蛇身 → 食物 → 空格（顺序即优先级，互不重叠） */
 export function cellKindAt(state: SnakeState, index: number): CellKind {
   if (state.obstacles.includes(index)) return 'wall'
   if (index === state.body[0]) return state.dead ? 'flag' : 'mine'
+  // 尾巴单独一种形状（用户要求）：初始长度 3，所以尾巴与蛇头不会重合
+  if (state.body.length > 1 && index === state.body[state.body.length - 1]) return 'tile'
   if (state.body.includes(index)) return 'box'
   if (index === state.food) return 'goal'
   return 'empty'
@@ -57,7 +71,12 @@ export function buildBoard(state: SnakeState): BoardView {
   const cells: CellView[] = []
   for (let index = 0; index < spec.size * spec.size; index++) {
     const kind = cellKindAt(state, index)
-    cells.push({ index, kind, glyph: CELL_GLYPHS[kind] ?? '' })
+    cells.push({
+      index,
+      kind,
+      glyph: CELL_GLYPHS[kind] ?? '',
+      ...(kind === 'tile' ? { textScale: TAIL_SCALE } : {}),
+    })
   }
   return { kind: 'grid', cols: spec.size, rows: spec.size, cells }
 }

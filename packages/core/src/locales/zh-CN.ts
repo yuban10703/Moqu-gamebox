@@ -38,7 +38,7 @@ export const zhCN: Dict = {
   'shell.detail.replace.cancel': '取消',
   'shell.detail.levels': '关卡',
   'shell.detail.pickLevel': '点任意一关直接开始',
-  'shell.detail.swipeHint': '在暂停菜单里关掉方向按钮，棋盘会更大（关掉后在棋盘上滑动来操作）。',
+  'shell.detail.swipeHint': '暂停菜单可关方向键，棋盘更大，用滑动操作',
   'shell.detail.history': '历史记录',
   'shell.detail.historyEmpty': '暂无记录',
   'shell.detail.historyMoves__other': '{count} 步',

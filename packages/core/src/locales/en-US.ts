@@ -38,7 +38,7 @@ export const enUS: Dict = {
   'shell.detail.replace.cancel': 'Cancel',
   'shell.detail.levels': 'Levels',
   'shell.detail.pickLevel': 'Tap any level to start there',
-  'shell.detail.swipeHint': 'Turn off the direction buttons in the pause menu for a bigger board, then swipe on the board to play.',
+  'shell.detail.swipeHint': 'Hide the pad in Pause, then swipe the board.',
   'shell.detail.history': 'History',
   'shell.detail.historyEmpty': 'No records yet',
   'shell.detail.historyMoves__one': '{count} move',

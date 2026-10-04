@@ -10,7 +10,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { createMemoryKv } from '@eink/core'
+import { coreDictEn, createMemoryKv } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import { App } from '../src/App.js'
 import { library } from '../../../apps/web/src/library.js'
@@ -20,7 +20,12 @@ afterEach(() => {
   delete window.__einkHandleBack
 })
 
-const SWIPE_HINT = /Turn off the direction buttons in the pause menu for a bigger board/
+/*
+ * 提示是**壳层通用文案**（`shell.detail.swipeHint`）：从字典里取，不写死字符串 ——
+ * 文案会随「尽量不折叠」的预算被压缩（本轮就从 62 字压到 20 字），
+ * 写死会让一条纯文案改动把布局测试弄红。
+ */
+const SWIPE_HINT = coreDictEn['shell.detail.swipeHint']!
 
 async function mount() {
   const platform = await createPlatform({ kv: createMemoryKv(), now: () => 1_700_000_000_000 })

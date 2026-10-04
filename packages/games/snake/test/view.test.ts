@@ -54,11 +54,28 @@ describe('棋盘展示模型', () => {
     )
   })
 
+  it('蛇尾是单独的实心小方块（用户要求：尾巴也要有自己的形状）', () => {
+    const state = createState(SEED, 'challenging')
+    const tail = state.body[state.body.length - 1]!
+    expect(cellKindAt(state, tail)).toBe('tile')
+    expect(cellGlyphAt(state, tail)).toBe('■')
+    const tailCell = buildBoard(state).cells.find((cell) => cell.index === tail)!
+    // 比整格反白的蛇头弱一档：靠字号缩小，不靠灰阶
+    expect(tailCell.textScale).toBeGreaterThan(0)
+    expect(tailCell.textScale).toBeLessThan(1)
+    // 蛇身仍是板条箱、蛇头仍是反白格，三者互不相同
+    for (const cell of state.body.slice(1, -1)) expect(cellKindAt(state, cell)).toBe('box')
+    expect(cellKindAt(state, state.body[0]!)).toBe('mine')
+    // 撞死之后蛇尾照样是尾巴（只有蛇头换成叉号）
+    const dead = deadState()
+    expect(cellKindAt(dead, dead.body[dead.body.length - 1]!)).toBe('tile')
+  })
+
   it('蛇头反白、蛇身空心箱、食物圆环、障碍斜纹、空格纯白（形状两两不同）', () => {
     const state = createState(SEED, 'challenging')
     const head = state.body[0]!
     expect(cellKindAt(state, head)).toBe('mine')
-    for (const cell of state.body.slice(1)) expect(cellKindAt(state, cell)).toBe('box')
+    for (const cell of state.body.slice(1, -1)) expect(cellKindAt(state, cell)).toBe('box')
     expect(cellKindAt(state, state.food)).toBe('goal')
     for (const cell of state.obstacles) expect(cellKindAt(state, cell)).toBe('wall')
     const empty = Array.from({ length: SIZE * SIZE }, (_, index) => index).filter(

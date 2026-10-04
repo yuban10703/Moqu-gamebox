@@ -22,9 +22,9 @@ export const tetrisZh: Dict = {
    * （key 保留：难度名与间隔都在下面正文里，井深进游戏一眼就能看到）。
    */
   'tetris.rules.body':
-    '方块自动往下掉（入门 1.05 秒、熟练 0.8 秒、挑战 0.6 秒一格）。「左/右」平移、「转」旋转、「落」下一格，到底后按「落」固定；棋盘上也能滑动。',
+    '方块自动往下掉（入门 1.05 秒、熟练 0.8 秒、挑战 0.6 秒一格）。「左/右」平移、「转」旋转、「落」直接落到底，到底后再按一次固定。',
   'tetris.rules.body2':
-    '整行填满即消除：1–4 行 = 100/300/500/800 分 × 等级；堆到顶失败（可撤销），「暂停」时不动。',
+    '整行填满即消除：1–4 行 = 100/300/500/800 分 × 等级；堆到顶失败，「暂停」时不动。',
   'tetris.rules.difficulty':
     '入门：10×18 空场；熟练：10×16；挑战：同为 10×16，但底部已预堆 4 行（每行一个洞）。',
   'tetris.rules.restart': '重新开始会清空当前局面与撤销历史，回到该难度的初始棋盘。',
@@ -53,9 +53,9 @@ export const tetrisZh: Dict = {
 export const tetrisEn: Dict = {
   'tetris.title': 'Tetris',
   'tetris.rules.body':
-    'Falls on its own: Starter 1.05s, Skilled 0.8s, Challenging 0.6s per row. Left/Right shifts, Turn rotates, Drop drops and locks a landed piece.',
+    'Falls on its own: Starter 1.05s, Skilled 0.8s, Challenging 0.6s per row. Left/Right shifts, Turn rotates, Drop slams down, then locks.',
   'tetris.rules.body2':
-    'A full row clears: 1-4 rows = 100/300/500/800 x level; top out ends the run (Undo works), Pause freezes it.',
+    'Full rows clear: 1-4 = 100/300/500/800 x level; top out ends the run, Pause freezes it.',
   'tetris.rules.difficulty':
     'Starter: an empty 10 x 18 well. Skilled: 10 x 16. Challenging: also 10 x 16, with 4 rows already stacked at the bottom.',
   'tetris.rules.restart':

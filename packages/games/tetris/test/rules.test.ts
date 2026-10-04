@@ -270,12 +270,25 @@ describe('平移与旋转', () => {
 })
 
 describe('下落、固化与出新块', () => {
-  it('按一次「落」走一格', () => {
+  it('按一次「落」直接落到底：不中途停、不固化、只占一层撤销', () => {
+    /*
+     * 用户要求：把「落」从「下落一格」改成「直接落到底」。
+     * 这里守三件事：① 真的到底（再往下放不下）；② 没固化（还归玩家，可继续左右平移）；
+     * ③ **只占一层撤销** —— 硬降若按一格一层记录，撤销一次要按十几次，等于不能撤销。
+     */
     const state = createState(20261004, 'starter')
-    const down = reduceState(state, { type: 'move', dir: 'down' })
-    expect(down.piece.row).toBe(state.piece.row + 1)
-    expect(down.piece.id).toBe(state.piece.id)
-    expect(down.pieces).toBe(0)
+    const spec = difficultyOf(state.difficulty)
+    const dropped = reduceState(state, { type: 'move', dir: 'down' })
+    expect(dropped.piece.id).toBe(state.piece.id)
+    expect(dropped.piece.row).toBeGreaterThan(state.piece.row)
+    expect(fits(dropped.board, spec, { ...dropped.piece, row: dropped.piece.row + 1 })).toBe(false)
+    expect(dropped.pieces).toBe(0)
+    // 到底之后还能继续调整（没被固化）
+    expect(isLegal(dropped, { type: 'move', dir: 'left' })).toBe(true)
+    // 一层撤销就回到按「落」之前
+    const back = reduceState(dropped, { type: 'undo' })
+    expect(back.piece).toEqual(state.piece)
+    expect(back.board).toEqual(state.board)
   })
 
   it('落到底后再按一次「落」：固化 + 出新块', () => {
@@ -514,23 +527,30 @@ describe('自动下落（tick）', () => {
     expect(locked.piece.id).toBe(pieceAt(locked.seed, 1))
   })
 
-  it('自动下落到底并固化（含消行）与手动「落」的结果完全一致', () => {
+  it('自动落到底与手动「落」落在同一位置：固化结果一致（只差撤销记录的 auto 标记）', () => {
+    /*
+     * 「落」改成直接落到底之后，这条不变量仍然成立：
+     * 自动一格一格走到底 与 手动一次硬降到底，落在**同一格**、固化后的棋盘完全相同。
+     * 有意保留的差别只有撤销记录：硬降只占一层（cursor 小得多）。
+     */
     const board = emptyBoard(COLS, ROWS)
     for (let col = 0; col < COLS; col++) {
       if (col !== 4 && col !== 5) board[cellIndex(COLS, ROWS - 1, col)] = CELL_FILLED
     }
     const state = manual(board, { id: 'O', row: ROWS - 4, col: 4, rot: 0 }, { score: 0, lines: 0 })
-    const byTick = ticks(state, 5)
-    let byHand = state
-    for (let step = 0; step < 5; step++) byHand = reduceState(byHand, { type: 'move', dir: 'down' })
-    expect(byTick.board).toEqual(byHand.board)
-    expect(byTick.piece).toEqual(byHand.piece)
-    expect(byTick.cursor).toBe(byHand.cursor)
-    expect(byTick.lines).toBe(byHand.lines)
-    expect(byTick.score).toBe(byHand.score)
-    // 只有撤销记录里的 auto 标记不同
-    expect(isAutoEntry(byTick.history[4]!)).toBe(true)
-    expect(isAutoEntry(byHand.history[4]!)).toBe(false)
+    // 自动：两格走到底 + 第三次 tick 固化
+    const byTick = ticks(state, 3)
+    // 手动：一次「落」到底 + 第二次「落」固化
+    const byHand = reduceState(reduceState(state, { type: 'move', dir: 'down' }), { type: 'move', dir: 'down' })
+    expect(byHand.board).toEqual(byTick.board)
+    expect(byHand.piece).toEqual(byTick.piece)
+    expect(byHand.lines).toBe(byTick.lines)
+    expect(byHand.score).toBe(byTick.score)
+    expect(byHand.pieces).toBe(byTick.pieces)
+    // 硬降不管落多深都只留一条记录；自动下落则是一格一条
+    expect(byHand.history.length).toBeLessThan(byTick.history.length)
+    expect(isAutoEntry(byTick.history[byTick.history.length - 1]!)).toBe(true)
+    expect(isAutoEntry(byHand.history[byHand.history.length - 1]!)).toBe(false)
   })
 
   it('已经堆到顶之后 tick 抛错（壳层据此安全停表）', () => {

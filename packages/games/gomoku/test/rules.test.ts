@@ -198,7 +198,9 @@ describe('落子后自动应手', () => {
     expect(countOf(state.board, BLACK)).toBe(state.moves)
     expect(countOf(state.board, WHITE)).toBe(state.rngCursor)
     expect(state.rngCursor).toBe(state.moves)
-    const highlighted = gomokuGame.view(state).board!.cells.filter((cell) => cell.selected)
+    const highlighted = gomokuGame
+      .view(state)
+      .board!.cells.filter((cell) => cell.kind === 'given' || cell.selected)
     expect(highlighted.map((cell) => cell.index)).toEqual([state.lastMove])
   })
 })
