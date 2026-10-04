@@ -95,8 +95,7 @@ Android APK：`npm run setup:android` 装构建链，再 `npm run build:apk`。
 
 ## 关于 AI
 
-本项目的代码、文档与真机审计**主要由 AI 协作完成**：主体由 **DeepSeek Harness（DSH）** 驱动的编码代理编写，
-协作者负责的部分（斗地主与恶魔轮盘赌两款新游戏、贪吃蛇连续蛇身、暂停菜单与方向键改版等）由 **Claude** 完成。
+本项目由 AI 协作开发：主体使用 **DeepSeek Harness（DSH）**，协作者部分使用 **Claude**。
 人负责需求、决策与验收。
 
 所有产出都过自动化门禁（`npm run verify`：类型检查 + 全部单元测试 + 五套真浏览器巡检），
