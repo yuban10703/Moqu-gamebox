@@ -16,6 +16,7 @@ import { gameStatus, snapshotOf, type MemoryState } from './rules.js'
 /** 符号文字相对格子边长的字号系数：略小于缺省 0.66，给实心/空心符号留出留白 */
 export const TILE_TEXT_SCALE = 0.62
 
+
 /** 壳层无障碍标签用的 key（apps/web 的约定：`<namespace>.cell.<kind>`） */
 export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   tile: 'memory.cell.tile',
@@ -50,6 +51,7 @@ export function buildBoard(state: MemoryState): BoardView {
   const cells: CellView[] = []
   for (let index = 0; index < cellCount(config); index++) {
     if (!faceUp.has(index) && !matched.has(index)) {
+      // 盖着的牌：标记由壳层按用户选的风格画（暂停菜单可切）
       cells.push({ index, kind: 'hidden', glyph: '' })
       continue
     }

@@ -13,8 +13,9 @@ import {
 } from 'react'
 import {
   DEFAULT_LAYOUT,
-  LOCALE_LABELS,
+  DEFAULT_SETTINGS,
   LOCALES,
+  LOCALE_LABELS,
   createI18n,
   detectLocale,
   mergeSettings,
@@ -22,12 +23,12 @@ import {
   type Dict,
   type DictSet,
   type FontScale,
+  type GameSettings,
   type I18n,
   type LayoutConfig,
   type LocaleId,
   type SettingsSnapshot,
   type Viewport,
-  type GameSettings,
 } from '@eink/core'
 import type { AppStorage, Platform } from '@eink/platform'
 
@@ -122,14 +123,8 @@ export function UiProvider({ platform, dicts, children, initialSettings }: UiPro
 }
 
 function defaultSettings(): SettingsSnapshot {
-  return {
-    locale: 'auto',
-    fontScale: 1,
-    timer: true,
-    dpad: true,
-    boldLines: true,
-    perGame: {},
-  }
+  // 直接用 core 的默认值，别再手抄一份（漏字段会在类型检查里报出来，但抄一份本身就没必要）
+  return { ...DEFAULT_SETTINGS }
 }
 
 /** 视口实测（不要假设 1 CSS px = 1 物理 px） */
@@ -167,6 +162,8 @@ export function useRootAttributes(locale: LocaleId, settings: SettingsSnapshot):
     root.lang = locale
     root.dataset.fontScale = String(settings.fontScale)
     root.dataset.boldLines = settings.boldLines ? 'on' : 'off'
+    // 未翻格风格（扫雷/记忆配对）：纯 CSS 就能切，见 styles.css 里 html[data-cover='…'] 那几组
+    root.dataset.cover = settings.coverStyle
   }, [locale, settings])
 }
 

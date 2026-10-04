@@ -33,7 +33,7 @@ async function mount(layout?: DpadLayout, withCorners = false) {
     ? { left: <button type="button">Undo</button>, right: <button type="button">Restart</button> }
     : undefined
   const view = render(
-    <UiProvider platform={platform} dicts={dicts} initialSettings={{ locale: 'en-US', fontScale: 1, timer: true, dpad: true, boldLines: true, perGame: {} }}>
+    <UiProvider platform={platform} dicts={dicts} initialSettings={{ locale: 'en-US', fontScale: 1, timer: true, dpad: true, boldLines: true, coverStyle: 'mark', perGame: {} }}>
       <Dpad
         controls={controls}
         onMove={onMove}

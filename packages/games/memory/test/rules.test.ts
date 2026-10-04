@@ -134,7 +134,7 @@ describe('关键设计：不匹配后需要再点一次才盖回', () => {
     for (const index of [a, b]) {
       const cell = memoryGame.view(s3).board!.cells[index]!
       expect(cell.kind).toBe('hidden')
-      expect(cell.glyph).toBe('')
+      expect(cell.glyph).toBe('') // 标记由壳层按用户选的风格画
       expect(cell.selected).toBeUndefined()
     }
     // 新翻的那张是可见的

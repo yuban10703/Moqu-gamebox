@@ -1109,9 +1109,40 @@ html[data-bold-lines='on'] .eink-board {
   font-variant-numeric: tabular-nums;
 }
 
-/* 通用格子纹理：全部纯黑白 */
+/*
+ * 「覆盖 / 未翻开」的格子（扫雷未翻格、记忆配对扣着的牌）：**风格是用户设置**（暂停菜单里切）。
+ *
+ * 四种做法都在真机上量过（详见 docs/eink-guidelines.md「覆盖格的标记」）：
+ *   mark（默认）  居中实心方块 —— 字形由壳层画（components.tsx 的 COVER_MARKS），这里只铺白底；
+ *   markLarge     同上的放大版；hollow 空心方块；
+ *   dots          4px 网点（1-bit 抖动，看起来是浅灰，任何刷新档都稳定）；
+ *   gray          真灰色块 —— **只有支持灰阶的刷新档才是真灰**，快刷档会被系统抖成噪点；
+ *   stripes       45° 斜纹 —— 最早的做法，有方向感、盯久了发花。
+ * 底纹类风格（dots/gray/stripes）不画字形，只在这里铺底；字形类风格不设 background-image。
+ * 想加新风格：core 的 COVER_STYLES 加一项 + i18n 加一句 + 需要底纹就在这里加一条。
+ */
 .eink-board__cell[data-kind='hidden'] {
-  background-image: repeating-linear-gradient(45deg, #000 0 1px, #fff 1px 5px);
+  background: var(--ink-white);
+}
+
+/* 网点：4px 格子里一个 2×2 的黑点，硬边（SVG crispEdges），约 26% 墨量 */
+html[data-cover='dots'] .eink-board__cell[data-kind='hidden'] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='4' height='4' fill='%23fff'/%3E%3Crect x='1' y='1' width='2' height='2' fill='%23000'/%3E%3C/svg%3E");
+  background-size: 4px 4px;
+}
+
+/* 真灰：只有支持灰阶的刷新档才是真灰 */
+html[data-cover='gray'] .eink-board__cell[data-kind='hidden'] {
+  background-color: #b8b8b8;
+}
+
+/*
+ * 单斜纹（**默认**）：1px 线 / 7px 周期。
+ * 初版是 5px 周期（墨量 28.2%），用户要求「间隔比初版大一点」→ 7px（25.1%），
+ * 真机对照过 6/8/10px：7px 明显更松、又仍然读得出"这是斜纹"，10px 已经接近单线。
+ */
+html[data-cover='stripes'] .eink-board__cell[data-kind='hidden'] {
+  background-image: repeating-linear-gradient(45deg, #000 0 1px, #fff 1px 7px);
 }
 
 .eink-board__cell[data-kind='mine'] {

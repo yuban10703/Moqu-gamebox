@@ -6,7 +6,15 @@
  * - 计时等每秒变化的内容隔离在小组件里，不驱动整页重绘。
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { type BoardView, type CellKind, type ControlSpec, type DpadLayout, type MoveDir } from '@eink/core'
+import {
+  DEFAULT_COVER_STYLE,
+  type BoardView,
+  type CellKind,
+  type ControlSpec,
+  type CoverStyle,
+  type DpadLayout,
+  type MoveDir,
+} from '@eink/core'
 import { useUi } from './contexts.js'
 
 export interface ActionButtonProps {
@@ -239,6 +247,8 @@ export interface BoardProps {
   /** 无障碍标签：优先用游戏包提供的 i18n key；缺省时回退到 glyph */
   labelFor?: (kind: CellKind, index: number, glyph: string) => string
   onCellSelect?: (index: number) => void
+  /** 未翻格的呈现风格（用户设置；默认居中方块） */
+  coverStyle?: CoverStyle
 }
 
 /**
@@ -250,7 +260,28 @@ export interface BoardProps {
  * 容器查询 100cqw/100cqh + min()）。这里只给出棋盘的**形状**（列数/行数）——
  * 那是数据，不是布局。JS 不再参与任何像素计算。
  */
-export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProps): ReactNode {
+/**
+ * 未翻格（扫雷未翻格 / 记忆配对扣着的牌）的标记：**由壳层画**，风格是用户设置。
+ *
+ * 为什么放在壳层：这是纯呈现偏好（不是玩法状态），玩法只声明 `kind: 'hidden'`；
+ * 用户可以在暂停菜单里切换（`COVER_STYLES`），壳层据此画字形或交给 CSS 画底纹。
+ * 三种字形风格都有独立的形状/大小，不依赖灰阶；`dots`/`gray`/`stripes` 三种底纹风格
+ * 不画字形，只由 styles.css 里 `html[data-cover='…']` 那几组规则铺底（见那里的取舍说明）。
+ */
+const COVER_MARKS: Partial<Record<CoverStyle, { glyph: string; scale: number }>> = {
+  mark: { glyph: '■', scale: 0.35 },
+  markLarge: { glyph: '■', scale: 0.5 },
+  hollow: { glyph: '□', scale: 0.55 },
+}
+
+export function Board({
+  board,
+  labelFor,
+  onCellSelect,
+  bold = false,
+  coverStyle = DEFAULT_COVER_STYLE,
+}: BoardProps): ReactNode {
+  const coverMark = COVER_MARKS[coverStyle]
   const style = {
     ['--board-cols' as string]: board.cols,
     ['--board-rows' as string]: board.rows,
@@ -311,7 +342,16 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
           aria-label={labelFor ? labelFor(cellView.kind, cellView.index, cellView.glyph) : cellView.glyph}
           {...(onCellSelect ? { onClick: () => onCellSelect(cellView.index) } : {})}
         >
-          {TEXT_KINDS.has(cellView.kind) && cellView.glyph ? (
+          {cellView.kind === 'hidden' && coverMark ? (
+            <span
+              className="eink-board__text"
+              aria-hidden="true"
+              style={{ fontSize: `calc(var(--cell, 40px) * ${coverMark.scale})` }}
+            >
+              {coverMark.glyph}
+            </span>
+          ) : null}
+          {cellView.kind !== 'hidden' && TEXT_KINDS.has(cellView.kind) && cellView.glyph ? (
             <span
               className="eink-board__text"
               aria-hidden="true"

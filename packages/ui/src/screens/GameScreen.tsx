@@ -6,9 +6,11 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
+  DEFAULT_COVER_STYLE,
   computeRootLayout,
   dpadTeeKeySize,
   isCrampedLayout,
+  nextCoverStyle,
   type CellKind,
   type MoveDir,
   type SaveEnvelope,
@@ -53,7 +55,7 @@ export function GameScreen({
   initialProgress,
   startLevelId,
 }: GameScreenProps): ReactNode {
-  const { i18n, settings, platform, viewport, layoutConfig, updateGameSettings } = useUi()
+  const { i18n, settings, platform, viewport, layoutConfig, updateGameSettings, updateSettings } = useUi()
 
   /*
    * 方向按钮是否显示：**按游戏各自记住**（settings.perGame[gameId].dpad），缺省跟随全局设置。
@@ -105,6 +107,8 @@ export function GameScreen({
   )
 
   // 统计栏列数：横屏一行放得下就一行；竖屏固定两列（行数恒定，不会因数值变宽而多出一行）
+  /** 这个玩法的棋盘里有没有"未翻开"的格子（决定暂停菜单里给不给风格选项） */
+  const hasCoveredCells = (session.view.board?.cells ?? []).some((cell) => cell.kind === 'hidden')
   const statCount = session.view.stats.length + (settings.timer ? 1 : 0)
   const statColumns = viewport.width > viewport.height ? statCount : Math.min(3, statCount)
 
@@ -354,6 +358,7 @@ export function GameScreen({
                 board={session.view.board}
                 labelFor={cellLabel}
                 bold={settings.boldLines}
+                coverStyle={settings.coverStyle}
                 {...(session.selectCell ? { onCellSelect: session.selectCell } : {})}
               />
             ) : null}
@@ -506,6 +511,18 @@ export function GameScreen({
                   text={`${i18n.t('shell.settings.dpad')}: ${dpadOn ? i18n.t('shell.common.on') : i18n.t('shell.common.off')}`}
                   emphasis={dpadOn ? 'primary' : 'normal'}
                   onSelect={() => void updateGameSettings(entry.game.id, { dpad: !dpadOn })}
+                />
+              ) : null}
+              {/*
+                未翻格风格：只在**真的存在未翻格**的玩法里出现（扫雷、记忆配对），
+                否则就是一个改了也看不见的选项。一个按钮循环切换，标签始终显示当前风格 ——
+                墨水屏上没有下拉菜单，多选列表也会把浮层撑高。默认 mark 不着色（primary 留给「非默认」）。
+              */}
+              {hasCoveredCells ? (
+                <ActionButton
+                  text={`${i18n.t('shell.cover.title')}: ${i18n.t(`shell.cover.${settings.coverStyle}`)}`}
+                  emphasis={settings.coverStyle === DEFAULT_COVER_STYLE ? 'normal' : 'primary'}
+                  onSelect={() => void updateSettings({ coverStyle: nextCoverStyle(settings.coverStyle) })}
                 />
               ) : null}
               <ActionButton labelKey="shell.result.library" onSelect={onExit} />
