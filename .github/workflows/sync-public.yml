@@ -1,8 +1,11 @@
 # 把本仓库的**纯代码**单向同步到公开仓库（文档 / 截图 / README 一律不过去）。
 #
-# 形态：公开仓库里**只保留一个提交**（每次同步 force-push 覆盖）——
-# 用户要求「不用留 commit 记录，只要同步过去就行」，所以这里是代码快照，不是镜像历史。
-# 快照的提交信息里带上源提交号与标题，方便回溯"这份代码对应私有仓库的哪一版"。
+# 同步逻辑在 `tools/scripts/sync-public.sh`（可本地直接跑，便于验证），这个工作流只负责
+# 触发、检查配置、把带 token 的目标地址交给脚本。按用户要求：
+#   · **不用 force-push**：只做追加式推送（非快进就报错，不覆盖公开仓库）；
+#   · **首次不搬历史**：公开仓库的第一条提交是当前代码的"初始快照"；
+#   · **之后按标题同步**：私有仓库每多一个提交，就在公开仓库追加一个**同名标题**的提交
+#     （只取标题，不带正文与作者信息）；只改文档的提交会被跳过，不留空提交。
 #
 # ── 一次性配置（都在**私有**仓库的 Settings 里做）──────────────────────────────
 #   1) Secrets and variables → Actions → **Secrets** → New repository secret
@@ -11,18 +14,11 @@
 #   2) Secrets and variables → Actions → **Variables** → New repository variable
 #        Name : PUBLIC_REPO
 #        Value: <owner>/<公开仓库名>     例如 yuban10703/eink-gamebox-public
-#   3) 公开仓库请**当作只读**：每次同步都是 force-push，在那边的改动会被覆盖。
-#
-# ── 同步什么 / 不同步什么 ────────────────────────────────────────────────────
-#   同步：packages/ apps/ tools/ 以及根目录的 package.json、tsconfig.json、
-#         vitest.config.ts、.gitignore 等 —— 也就是"能让代码跑起来"的全部内容。
-#   不同步：docs/ 整个目录（含 100+ 张截图）、所有 *.md、以及本工作流自身。
-#           apps/ 下的图标与打赏码**会**过去（它们是构建产物的一部分）。
-#   改规则：改下面「删掉文档等非代码内容」那一步 + 自检正则 + on.push.paths-ignore，三处保持一致。
+#   3) 公开仓库可以是空仓库，也可以已有内容（已有提交不会被覆盖，新提交追加在后面）。
 #
 # ── 怎么跑 ──────────────────────────────────────────────────────────────────
-#   推 main 自动触发（纯文档提交被 paths-ignore 跳过）；也可以在 Actions 页手动 Run workflow。
-#   删完文件后有**自检**：只要快照里还剩 docs/ 或 *.md 就红，绝不把文档悄悄推出去。
+#   推 main 自动触发（纯文档提交被 paths-ignore 跳过）；也可以在 Actions 页手动 Run workflow
+#   （手动跑同样能续传：脚本从公开仓库最后一条提交的 `Private-Rev:` 里读回进度）。
 
 name: sync-public
 
@@ -64,52 +60,13 @@ jobs:
           [ "$missing" = 0 ] || exit 1
           echo "目标公开仓库：$TARGET"
 
-      # 只要快照，不需要历史：浅克隆即可
       - uses: actions/checkout@v4
+        with:
+          # 要按提交逐个重放，必须拿全历史
+          fetch-depth: 0
 
-      - name: 删掉文档等非代码内容
-        run: |
-          rm -rf docs
-          # 所有 *.md（根目录 README、以后新增的、漏网的）
-          find . -path ./.git -prune -o -name '*.md' -type f -print -delete
-          # 本工作流自身不出去（它引用了私有仓库的变量与密钥）
-          rm -f .github/workflows/sync-public.yml
-
-      - name: 准备快照（切到无父提交的分支并暂存全部改动）
-        run: |
-          git checkout --orphan public
-          git add -A
-
-      - name: 自检：确认快照里没有文档残留（漏了就红，绝不把文档推出去）
-        run: |
-          # 上一步已经 git add -A，所以 ls-files 现在反映的就是**将要提交的快照**
-          # （顺序很关键：先暂存再自检，否则删除还没进索引，会误报一堆残留）
-          # core.quotePath=false：默认 git 会给非 ASCII 路径加引号，正则会因此抓不到残留
-          files() { git -c core.quotePath=false ls-files "$@"; }
-          leftovers="$(files | grep -E '(^docs/|\.md$)' || true)"
-          if [ -n "$leftovers" ]; then
-            echo "::error::快照里仍有文档残留，请检查「删掉文档等非代码内容」那一步："
-            echo "$leftovers"
-            exit 1
-          fi
-          count="$(files | wc -l)"
-          echo "即将发布：$count 个文件"
-          echo "顶层内容：$(files | cut -d/ -f1 | sort -u | tr '\n' ' ')"
-          [ "$count" -gt 0 ] || { echo "::error::快照是空的"; exit 1; }
-
-      - name: 压成单个提交并强推到公开仓库
+      - name: 同步纯代码到公开仓库
         env:
           TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
           TARGET: ${{ vars.PUBLIC_REPO }}
-          SUBJECT: ${{ github.event.head_commit.message }}
-        run: |
-          # 快照已经在「准备快照」那一步暂存好了，这里只提交与推送 —— 公开仓库里永远只有一个提交
-          summary="$(printf '%s' "$SUBJECT" | head -1)"
-          git -c user.name='eink-gamebox sync' -c user.email='actions@users.noreply.github.com' \
-            commit -q -m "sync: ${GITHUB_SHA::7} ${summary:-code snapshot}"
-          git remote add public "https://x-access-token:${TOKEN}@github.com/${TARGET}.git"
-          if ! git push --force public public:main; then
-            echo "::error::推送失败：确认公开仓库 ${TARGET} 已创建，且 PUBLIC_REPO_TOKEN 对它有 Contents: Read and write 权限"
-            exit 1
-          fi
-          echo "已同步到 https://github.com/${TARGET}（1 个提交 · $(git -c core.quotePath=false ls-files | wc -l) 个文件）"
+        run: bash tools/scripts/sync-public.sh "https://x-access-token:${TOKEN}@github.com/${TARGET}.git"
