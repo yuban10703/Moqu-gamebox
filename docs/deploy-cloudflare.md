@@ -20,11 +20,11 @@
 
 | 字段 | 值 |
 |---|---|
-| 构建命令（Build command） | `npm run build:web` |
+| 构建命令（Build command） | `npm run build:web` —— **必填**：Workers Builds 里这是"可选"字段，留空会直接跳到部署，报 `assets.directory ... does not exist` |
 | 部署命令（Deploy command） | 留默认 `npx wrangler deploy` |
 | 预览命令（Preview command） | 留默认 `npx wrangler preview`（非生产分支的预览构建用它；也可改成 `npx wrangler versions upload` 拿版本 URL） |
 | 根目录（Root directory） | 留空（npm workspaces 单仓，依赖必须在根装） |
-| 构建变量 | `NODE_VERSION` = `24`（仓库里也有 `.nvmrc`；Vite 8 需要 ≥ 20.19 / 22.12） |
+| 构建变量 | 一般不用设：镜像默认 **Node 24.18**，且会读仓库根的 `.nvmrc`（本仓库写了 `24`）。要固定则设 `NODE_VERSION=24`（Vite 8 需要 ≥ 20.19 / 22.12） |
 | 构建监视路径（可选） | `apps/web/*`、`packages/*`、`package-lock.json` |
 
 **`wrangler.jsonc` 里的 `name` 必须与你 Cloudflare 上那个 Worker 同名**（现为 `moqu`），否则会去部署/新建另一个 Worker。
@@ -68,12 +68,17 @@ npm run build:web && npx wrangler pages deploy apps/web/dist --project-name=moqu
 首次用 Pages 命令行要先建项目：`npx wrangler pages project create moqu --production-branch=main`。
 非交互（CI）：设 `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`；工作树脏时加 `--commit-dirty=true`。
 
-## 四、踩过的两个坑（都真实发生过）
+## 四、踩过的坑（都真实发生过）
 
 1. **日志「Failed: error occurred while running deploy command」**：说明项目建成了 **Worker**，
    而仓库里当时没有 `wrangler.jsonc` —— 默认的 `npx wrangler deploy` 找不到配置，会去尝试
    "自动配置"（在 Builds 环境里会失败）。现在根目录已有 `wrangler.jsonc`，拉最新代码重试构建即可。
-2. **`compatibility_date` 不能写未来日期**：写成本机"今天"（2026-10-05）时 wrangler 直接报
+2. **`✘ [ERROR] The directory specified by the "assets.directory" field ... does not exist`**：
+   构建步骤没产出产物。Workers Builds 的 **Build command 是选填的**，留空时 Cloudflare 只跑部署命令，
+   于是 `wrangler deploy` 找不到 `apps/web/dist`。**把构建命令填成 `npm run build:web`** 即可；
+   实在不想填两个字段，也可以把部署命令写成 `npm run build:web && npx wrangler deploy`（构建+部署合一）。
+   依赖不用自己装：不设 `SKIP_DEPENDENCY_INSTALL` 时 Cloudflare 会自动执行安装。
+3. **`compatibility_date` 不能写未来日期**：写成本机"今天"（2026-10-05）时 wrangler 直接报
    `Compatibility date ... is in the future and unsupported`。本项目是纯静态资源、没有 Worker 脚本，
    用不到任何新行为，所以固定用一个过去日期（当前 `2025-04-01`）。
 
