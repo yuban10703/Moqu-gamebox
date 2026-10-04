@@ -1,4 +1,4 @@
-# 墨水屏游戏盒子（E-ink Game Box）
+# 墨趣（Moqu）
 
 面向墨水屏设备（优先 BOOX）的**离线游戏合集**：一套 TypeScript 代码同时产出 **Web(PWA)** 与 **Android 安装包**。
 

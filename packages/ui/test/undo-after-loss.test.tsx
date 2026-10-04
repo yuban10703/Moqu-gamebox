@@ -58,6 +58,23 @@ function mineCells(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>('.eink-board__cell[data-kind="mine"]'))
 }
 
+/**
+ * 按游戏名点首页方块。
+ *
+ * 为什么要归一化：英文名里可能带**软连字符**（U+00AD，见 minesweeper 的英文词典）——
+ * 它在屏幕上不显示、只在换行处变成真连字符（首页方块上「Mine- / sweeper」），
+ * 但它是真实字符，`getByText('Minesweeper')` 会因此匹配不到。
+ * 测试按"人看到的文字"匹配，所以先把软连字符去掉再找。
+ */
+function tileByTitle(title: string): HTMLElement {
+  const normalized = title.replace(/\u00AD/g, '')
+  const tile = Array.from(document.querySelectorAll<HTMLElement>('.eink-tile')).find(
+    (node) => node.textContent?.replace(/\u00AD/g, '').trim() === normalized,
+  )
+  if (!tile) throw new Error(`tile ${title} not found`)
+  return tile
+}
+
 describe('扫雷：踩雷输掉之后仍可撤销（结果面板里的撤销按钮）', () => {
   it('输掉 → 结果面板给出撤销 → 撤销回到踩雷前（未输）局面，且能继续玩', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW)
@@ -65,7 +82,7 @@ describe('扫雷：踩雷输掉之后仍可撤销（结果面板里的撤销按�
     render(<App platform={platform} library={library} />)
     await waitFor(() => expect(screen.getByText(/All games/)).toBeTruthy())
 
-    fireEvent.click(screen.getByText('Minesweeper'))
+    fireEvent.click(tileByTitle('Minesweeper'))
     await waitFor(() => expect(screen.getByText(/How to play/)).toBeTruthy())
     fireEvent.click(screen.getByText('New game'))
     await waitFor(() => expect(screen.getByRole('grid')).toBeTruthy())

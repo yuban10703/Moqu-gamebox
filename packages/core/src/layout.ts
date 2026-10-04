@@ -57,6 +57,28 @@ export interface BoardLayout {
   offsetY: number
 }
 
+/**
+ * 极矮横屏（并排布局）的断点：**必须与 styles.css 的
+ * `@media (orientation: landscape) and (max-height: 520px)` 完全一致**。
+ * 一处是 CSS 的实际布局、一处是下面的可用区模型，脱节就会出现
+ * 「CSS 已经并排、模型还按竖排算」这种判定错位。
+ */
+export const CRAMPED_LANDSCAPE_MAX_HEIGHT = 520
+
+/** 并排布局里右侧控制列的宽度上限（CSS 的 `--controls-column: min(300px, 40vw)`） */
+export const SIDE_CONTROLS_WIDTH_PX = 300
+
+/** 并排布局里右侧控制列的宽度比例（同上：40vw） */
+export const SIDE_CONTROLS_WIDTH_RATIO = 0.4
+
+/** 极矮横屏的状态条高度（CSS 的 `--strip-height: 28px`），并排时它横跨底部、不占棋盘高度 */
+export const CRAMPED_STRIP_PX = 28
+
+/** 这个视口是否落在「极矮横屏并排布局」档（与 CSS 媒体查询同一条件） */
+export function isCrampedLandscape(viewport: Viewport): boolean {
+  return viewport.width > viewport.height && viewport.height <= CRAMPED_LANDSCAPE_MAX_HEIGHT
+}
+
 function baseFontFor(width: number): number {
   if (width >= 1200) return 22
   if (width >= 800) return 20
@@ -82,16 +104,38 @@ export function computeRootLayout(
   const buttonMin = Math.max(config.minTouchTarget, buttonHeight)
   const contentWidth = Math.max(1, Math.round(viewport.width - margin * 2))
   const topBarHeight = buttonHeight + gap
-  const statsHeight = showStats ? Math.round(baseFont * 2.6) : 0
+  /*
+   * 极矮横屏走**并排**几何：棋盘在左列、控制区在右列（见 styles.css 同一档媒体查询）。
+   *
+   * 竖排时代棋盘高度要扣掉方向盘 + 操作按钮 + 统计栏（879×407@1.5× 下超过 300px），
+   * 棋盘区只剩 ~70px、格子贴住 12px 绝对下限。并排后方向盘与状态条都不再按高度扣减：
+   * 棋盘拿到「视口高 − 顶栏 − 状态条 − 外边距」，只把右侧控制列的宽度让出去。
+   * 这一档 CSS 会把统计栏隐藏，所以这里也不再扣 statsHeight（否则模型比现实小一大截）。
+   */
+  const sideBySide = isCrampedLandscape(viewport)
+  const statsHeight = sideBySide ? 0 : showStats ? Math.round(baseFont * 2.6) : 0
   const dpadHeight = showDpad ? buttonHeight * 2 + gap * 2 : buttonHeight
   const controlsHeight = dpadHeight + (showDpad ? buttonHeight : 0) + gap * 2 + statsHeight
-  const boardArea = {
-    width: contentWidth,
-    height: Math.max(
-      1,
-      Math.round(viewport.height - topBarHeight - controlsHeight - extraBottom - margin * 2),
-    ),
-  }
+  const controlsWidth = sideBySide
+    ? Math.min(SIDE_CONTROLS_WIDTH_PX, Math.round(viewport.width * SIDE_CONTROLS_WIDTH_RATIO))
+    : 0
+  const boardArea = sideBySide
+    ? {
+        width: Math.max(1, Math.round(contentWidth - controlsWidth - gap)),
+        height: Math.max(
+          1,
+          Math.round(
+            viewport.height - topBarHeight - extraBottom - margin * 2 - CRAMPED_STRIP_PX - gap,
+          ),
+        ),
+      }
+    : {
+        width: contentWidth,
+        height: Math.max(
+          1,
+          Math.round(viewport.height - topBarHeight - controlsHeight - extraBottom - margin * 2),
+        ),
+      }
   return {
     baseFont,
     buttonMin,
@@ -179,10 +223,17 @@ export const REFERENCE_VIEWPORTS: ReadonlyArray<{ name: string; viewport: Viewpo
 /**
  * 「极矮横屏、棋盘已经不可用」的判定阈值（棋盘区高度，CSS px）。
  *
- * 由来（真机实测）：BOOX P6Plus 强制横屏是 879×407，顶栏 + 统计栏 + 控制区吃掉 300px 以上，
+ * 由来（真机实测）：BOOX P6Plus 强制横屏是 879×407，竖排时代顶栏 + 统计栏 + 控制区吃掉 300px 以上，
  * 留给棋盘区的高度会掉到 ~70px —— 12×12 的棋盘只能贴住 ABSOLUTE_MIN_CELL（12px）并被裁切。
  * 这个档位下自动步进（贪吃蛇自动前进 / 俄罗斯方块自动下落）会加剧不可用：
  * 玩家还没看清就已经走了一格。
+ *
+ * **本轮（2026-10-04）起这一档改为并排布局**（棋盘在左、控制在右，见 computeRootLayout 的 sideBySide）：
+ * 879×407@1.5× 的棋盘区从 ~117px 回到 **270px**（本模型算 257px，略保守），
+ * 实测格子数独 13 → **28px**、贪吃蛇 8 → **21px** ——
+ * 于是它**不再**落在本判定内，自动步进恢复为各游戏自己的间隔（用户明确要求贪吃蛇统一 500ms）。
+ * 阈值本身保留：真正放不下棋盘的横屏窗口（例如 879×240 这种带浏览器工具栏的横屏）
+ * 依然会被判成极矮并减速 —— 判定的是「棋盘还能不能看清」，不是某个机型。
  *
  * 判定只用于**放慢自动步进**（见 packages/ui/src/session.ts 的 tickSlowdown），
  * 不改变任何游戏规则，也不改变布局本身。

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "墨水屏游戏盒子：Web(PWA) 与 Android(BOOX) 双端的离线游戏合集",
+  "description": "墨趣（Moqu）：Web(PWA) 与 Android(BOOX) 双端的离线游戏合集",
   "workspaces": [
     "packages/*",
     "packages/games/*",

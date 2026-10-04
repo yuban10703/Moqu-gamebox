@@ -8,13 +8,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   CRAMPED_BOARD_AREA_PX,
+  CRAMPED_LANDSCAPE_MAX_HEIGHT,
+  CRAMPED_STRIP_PX,
   DEFAULT_LAYOUT,
   REFERENCE_VIEWPORTS,
   ABSOLUTE_MIN_CELL,
+  SIDE_CONTROLS_WIDTH_PX,
   computeBoardLayout,
   computeRootLayout,
+  isCrampedLandscape,
   isCrampedLayout,
   type FontScale,
+  type Viewport,
 } from '../src/layout.js'
 
 const FONT_SCALES: FontScale[] = [1, 1.25, 1.5]
@@ -149,15 +154,80 @@ describe('棋盘布局不变量', () => {
 })
 
 /**
- * 极矮横屏判定（自动步进据此减速，见 packages/ui/src/session.ts）。
+ * 极矮横屏（并排布局）与自动步进减速判定。
  *
- * 实测背景：BOOX P6Plus 强制横屏 879×407，顶栏 + 统计 + 控制区吃掉 300px 以上，
- * 棋盘区只剩 ~70px —— 12×12 的棋盘只能贴住 12px 的绝对下限。这个档位下自动步进
- * 会加剧不可用，因此需要一条**不依赖 DOM**的判定：它必须能被纯函数测试守住。
+ * 实测背景：BOOX P6Plus 强制横屏 879×407。竖排时代顶栏 + 统计 + 控制区吃掉 300px 以上，
+ * 棋盘区只剩 ~117px —— 12×12 的棋盘只能贴住 12px 的绝对下限、数独只有 13px（用户反馈"格子太小"）。
+ * 本轮（2026-10-04）起这一档改为**并排**（棋盘在左、控制在右，见 styles.css 同一档媒体查询），
+ * 于是这里同时守住三件事：
+ *   1) 并排后棋盘区真的变高了（格子离开绝对下限）；
+ *   2) 并排几何与 CSS 用同一套常量（列宽 / 断点 / 状态条高度），不许各改各的；
+ *   3) 「棋盘不可用就减速」这条判定依然存在 —— 只是不再误伤已经并排、棋盘够大的 879×407。
  */
-describe('极矮横屏（棋盘不可用）判定', () => {
-  it('实测的 P6Plus 强制横屏落在判定内，常用竖屏与正常横屏落在判定外', () => {
-    expect(isCrampedLayout({ width: 879, height: 407, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(true)
+describe('极矮横屏（并排布局）与棋盘不可用判定', () => {
+  const P6PLUS_LANDSCAPE: Viewport = { width: 879, height: 407, dpr: 2 }
+
+  it('并排档的断点与 CSS 媒体查询一致（横屏 + 高度不超过 520px）', () => {
+    expect(CRAMPED_LANDSCAPE_MAX_HEIGHT).toBe(520)
+    expect(isCrampedLandscape(P6PLUS_LANDSCAPE)).toBe(true)
+    // 竖屏再矮也不是这一档（媒体查询里 orientation: landscape 不成立）
+    expect(isCrampedLandscape({ width: 407, height: 415, dpr: 2 })).toBe(false)
+    // 正常横屏不在这一档
+    expect(isCrampedLandscape({ width: 1248, height: 903, dpr: 1.5 })).toBe(false)
+    /*
+     * 这一档只按「横屏 + 矮」划界，与机型无关：1176×513 也在界内（CSS 同样并排）。
+     * 但它并排后棋盘区有 ~370px，**不算**「棋盘不可用」，不会拖慢自动步进 —— 见下一个用例。
+     */
+    expect(isCrampedLandscape({ width: 1176, height: 513, dpr: 2 })).toBe(true)
+  })
+
+  it('并排后棋盘拿到整行高度：格子离开绝对下限（这是本轮修复的核心）', () => {
+    const area = computeRootLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, {
+      showDpad: true,
+      showStats: true,
+    }).boardArea
+    // 本模型算 257px（CSS 实测 270px）；改前 ~117px
+    expect(area.height).toBeGreaterThanOrEqual(CRAMPED_BOARD_AREA_PX)
+    // 宽度让给了右侧控制列（改前是整幅内容宽）
+    const contentWidth = computeRootLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT).contentWidth
+    expect(area.width).toBeLessThan(contentWidth)
+    // 12×12（贪吃蛇）与 9×9（数独）都能完整放进可用区，且远高于 12px 下限
+    const snake = computeBoardLayout(area, 12, 12)
+    expect(snake.cell).toBeGreaterThanOrEqual(20)
+    expect(snake.boardHeight).toBeLessThanOrEqual(area.height)
+    const sudoku = computeBoardLayout(area, 9, 9)
+    expect(sudoku.cell).toBeGreaterThanOrEqual(24)
+    expect(sudoku.boardHeight).toBeLessThanOrEqual(area.height)
+    // 10×18 的俄罗斯方块（最高的一档）也不再是 5px
+    expect(computeBoardLayout(area, 10, 18).cell).toBeGreaterThanOrEqual(12)
+  })
+
+  it('并排几何与 CSS 同步：列宽 / 状态条高度都来自同一条约定', () => {
+    const area = computeRootLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, { showDpad: true, showStats: true })
+    // 879 × 40vw = 351.6 > 300 → 取上限 300
+    expect(area.contentWidth - area.boardArea.width).toBe(SIDE_CONTROLS_WIDTH_PX + area.gap)
+    /*
+     * 状态条横跨底部：它只从高度里扣掉自己 + 一份行距。
+     * 方向盘/统计栏在这一档不再参与高度计算 —— 关掉方向盘，棋盘区高度**不变**。
+     */
+    const noControls = computeRootLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, {
+      showDpad: false,
+      showStats: false,
+    })
+    expect(area.boardArea.height).toBe(noControls.boardArea.height)
+    expect(area.boardArea.height).toBe(
+      P6PLUS_LANDSCAPE.height -
+        area.topBarHeight -
+        area.margin * 2 -
+        CRAMPED_STRIP_PX -
+        area.gap,
+    )
+  })
+
+  it('并排后 879×407 不再算「棋盘不可用」，但真正放不下的横屏仍然减速', () => {
+    // 并排把棋盘救回来了：不再误伤自动步进（用户要求贪吃蛇统一 500ms）
+    expect(isCrampedLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, true)).toBe(false)
+    expect(isCrampedLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, false)).toBe(false)
     // 常用档位：不能误伤（否则会把正常的自动步进也拖慢）
     expect(isCrampedLayout({ width: 415, height: 847, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(false)
     expect(isCrampedLayout({ width: 1176, height: 513, dpr: 2 }, DEFAULT_LAYOUT, true)).toBe(false)
@@ -166,17 +236,19 @@ describe('极矮横屏（棋盘不可用）判定', () => {
     for (const device of REFERENCE_VIEWPORTS) {
       expect(isCrampedLayout(device.viewport, DEFAULT_LAYOUT, true), device.name).toBe(false)
     }
+    // 真正不可用的横屏（例如带浏览器工具栏的 879×240）仍然落在判定内并减速
+    const tiny: Viewport = { width: 879, height: 240, dpr: 2 }
+    expect(isCrampedLandscape(tiny)).toBe(true)
+    expect(isCrampedLayout(tiny, DEFAULT_LAYOUT, true)).toBe(true)
   })
 
-  it('判定的确是"棋盘区高度 < 阈值"，且阈值本身就是不可用的量级', () => {
-    const viewport = { width: 879, height: 407, dpr: 2 }
-    const area = computeRootLayout(viewport, DEFAULT_LAYOUT, { showDpad: true, showStats: true }).boardArea
+  it('判定阈值本身仍是"棋盘不可用"的量级，且绝对下限只在真正放不下时才生效', () => {
+    const tiny: Viewport = { width: 879, height: 240, dpr: 2 }
+    const area = computeRootLayout(tiny, DEFAULT_LAYOUT, { showDpad: true, showStats: true }).boardArea
     expect(area.height).toBeLessThan(CRAMPED_BOARD_AREA_PX)
     // 12×12 棋盘在这个高度下只能贴住绝对下限并被裁切
     const board = computeBoardLayout(area, 12, 12)
     expect(board.cell).toBe(ABSOLUTE_MIN_CELL)
     expect(board.boardHeight).toBeGreaterThan(area.height)
-    // 关掉方向盘（玩家把控制区让出来）后不再算"极矮"
-    expect(isCrampedLayout(viewport, DEFAULT_LAYOUT, false)).toBe(false)
   })
 })

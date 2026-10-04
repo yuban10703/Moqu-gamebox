@@ -275,8 +275,12 @@ export function LibraryScreen({
         </section>
       ) : null}
 
-      <section className="eink-section">
-        {/* 翻页而不是滚动：多游戏时高度/宽度都不变；硬件翻页键也接管（useHardwarePageKeys） */}
+      {/*
+        「全部游戏」区块：翻页而不是滚动（多游戏时高度/宽度都不变；硬件翻页键也接管，
+        见 useHardwarePageKeys）。`eink-section--games` 让这个区块吃掉内容区的剩余高度，
+        翻页行因此钉在底部 —— 用户反馈：最后一页卡片少时，翻页按钮会跟着卡片往上跑。
+      */}
+      <section className="eink-section eink-section--games">
         <div className="eink-section__head">
           <h2>{i18n.t('shell.library.all')}</h2>
         </div>

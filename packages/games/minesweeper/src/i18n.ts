@@ -32,7 +32,12 @@ export const minesweeperZh: Dict = {
 }
 
 export const minesweeperEn: Dict = {
-  'minesweeper.title': 'Minesweeper',
+  /*
+   * 名字里有一个**软连字符**（U+00AD，写作 \u00AD 方便看见）：首页方块在窄屏/大字号下
+   * 放不下整词，没有它就会从中间硬断成「Minesweepe / r」；有了它浏览器只在需要换行处
+   * 断成「Mine- / sweeper」。不换行时它完全不显示（顶栏、继续栏、读屏名都不受影响）。
+   */
+  'minesweeper.title': 'Mine\u00ADsweeper',
   'minesweeper.rules.body':
     'Tap a cell to open it. A number tells how many of the 8 neighbouring cells hold a mine; open every safe cell to win.',
   'minesweeper.rules.body2':
