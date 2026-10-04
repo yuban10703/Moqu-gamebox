@@ -162,8 +162,6 @@ export function useRootAttributes(locale: LocaleId, settings: SettingsSnapshot):
     root.lang = locale
     root.dataset.fontScale = String(settings.fontScale)
     root.dataset.boldLines = settings.boldLines ? 'on' : 'off'
-    // 未翻格风格（扫雷/记忆配对）：纯 CSS 就能切，见 styles.css 里 html[data-cover='…'] 那几组
-    root.dataset.cover = settings.coverStyle
   }, [locale, settings])
 }
 

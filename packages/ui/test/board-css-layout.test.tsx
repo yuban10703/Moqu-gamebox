@@ -70,3 +70,43 @@ describe('棋盘：几何由 CSS 决定，JS 只给形状', () => {
     expect(span.style.fontSize).toContain('0.74')
   })
 })
+
+describe('未翻格的斜纹画在棋盘上（用户报「斜纹斜着对不齐」）', () => {
+  /** 每格各画一份 45° 底纹时，图案原点各从格子的左上角算起 —— 线在格边必然错位 */
+  const withHidden = {
+    kind: 'grid' as const,
+    cols: 2,
+    rows: 1,
+    cells: [
+      { index: 0, kind: 'hidden' as const, glyph: '' },
+      { index: 1, kind: 'number' as const, glyph: '1' },
+    ],
+  }
+
+  it('有未翻格：棋盘带 data-cover，未翻格自身不带字形、不画图案', () => {
+    const { container } = render(<Board board={withHidden} />)
+    const board = container.querySelector('.eink-board')!
+    expect(board.getAttribute('data-cover')).toBe('yes')
+    const hidden = container.querySelector(".eink-board__cell[data-kind='hidden']")!
+    // 标记与底纹都不在格子上（格子只负责"透明，透出棋盘的底纹"）
+    expect(hidden.querySelector('.eink-board__text')).toBeNull()
+    expect(hidden.getAttribute('data-cover')).toBeNull()
+  })
+
+  it('没有未翻格：棋盘不带 data-cover（数独/2048 这些不该出现斜纹）', () => {
+    const { container } = render(
+      <Board
+        board={{
+          kind: 'grid',
+          cols: 2,
+          rows: 1,
+          cells: [
+            { index: 0, kind: 'number', glyph: '1' },
+            { index: 1, kind: 'empty', glyph: '' },
+          ],
+        }}
+      />,
+    )
+    expect(container.querySelector('.eink-board')!.getAttribute('data-cover')).toBeNull()
+  })
+})

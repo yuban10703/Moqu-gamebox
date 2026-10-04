@@ -73,7 +73,6 @@ describe('应用存储门面', () => {
       timer: false,
       dpad: true,
       boldLines: false,
-      coverStyle: 'mark',
       perGame: {},
     })
     const settings = await storage.loadSettings()
