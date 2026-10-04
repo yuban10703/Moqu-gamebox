@@ -83,16 +83,33 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: 装 Android SDK
-        if: steps.gate.outputs.publish == 'yes'
-        uses: android-actions/setup-android@v3
-
-      - name: 装 SDK 组件（与 setup-android-toolchain.sh 的清单对齐）
+      # 不用 android-actions/setup-android：它会去装早已从 SDK 仓库移除的 legacy `tools` 包，
+      # 直接报 `Warning: Failed to find package 'tools'` 并让整个 job 失败（2026-10-05 踩到）。
+      # ubuntu-latest 镜像本来就预装 Android SDK 与 cmdline-tools（/usr/local/lib/android/sdk），
+      # 这里只补项目要用的组件，包名与 tools/scripts/setup-android-toolchain.sh 的清单一致。
+      - name: 装 Android SDK 组件
         if: steps.gate.outputs.publish == 'yes'
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          test -d "$SDK" || { echo "::error::找不到 Android SDK：$SDK"; exit 1; }
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "SDK: $SDK"
+          # sdkmanager 的位置各镜像不同：PATH 上 / cmdline-tools/latest/bin / cmdline-tools/<版本>/bin
+          if command -v sdkmanager > /dev/null; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          elif [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SDKMANAGER="$(find "$SDK/cmdline-tools" -maxdepth 4 -name sdkmanager -type f | sort | tail -1)"
+          fi
+          test -n "$SDKMANAGER" && test -x "$SDKMANAGER" \
+            || { echo "::error::找不到可执行的 sdkmanager（SDK=$SDK）"; ls -R "$SDK/cmdline-tools" | head -20; exit 1; }
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          ls "$SDK/platforms" "$SDK/build-tools" | sed 's/^/  已装: /'
 
       - name: 装 Gradle 8.14.3（本仓库没有 gradle wrapper）
         if: steps.gate.outputs.publish == 'yes'
@@ -100,18 +117,48 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
-      - name: 构建 APK（debug 签名，可直接侧载）
+      - name: 准备正式签名（可选：四个 Secrets 缺任一就回退 debug 签名）
+        if: steps.gate.outputs.publish == 'yes'
+        id: signing
+        env:
+          JKS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          JKS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${JKS_B64:-}" ] || [ -z "${JKS_PASS:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASS:-}" ]; then
+            echo "keystore=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::没配齐 ANDROID_KEYSTORE_BASE64 / _PASSWORD / KEY_ALIAS / KEY_PASSWORD —— 本次用 debug 签名，包与包之间签名不同，换版本要先卸载"
+            exit 0
+          fi
+          JKS="$RUNNER_TEMP/moqu-release.jks"
+          printf '%s' "$JKS_B64" | tr -d '\n\r ' | base64 -d > "$JKS"
+          {
+            echo "EINK_KEYSTORE_FILE=$JKS"
+            echo "EINK_KEYSTORE_PASSWORD=$JKS_PASS"
+            echo "EINK_KEY_ALIAS=$KEY_ALIAS"
+            echo "EINK_KEY_PASSWORD=$KEY_PASS"
+          } >> "$GITHUB_ENV"
+          echo "keystore=yes" >> "$GITHUB_OUTPUT"
+          # 只打印证书指纹（密码绝不落日志）
+          keytool -list -keystore "$JKS" -storepass "$JKS_PASS" | tail -4
+
+      - name: 构建 APK（有正式签名则 release 签名，否则 debug；产物都可直接侧载）
         if: steps.gate.outputs.publish == 'yes'
         working-directory: apps/android
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleRelease
 
       - name: 整理产物并算校验和
         if: steps.gate.outputs.publish == 'yes'
         id: apk
         run: |
           set -euo pipefail
-          SRC=apps/android/app/build/outputs/apk/debug/app-debug.apk
-          test -f "$SRC" || { echo "::error::没找到 $SRC"; exit 1; }
+          # assembleRelease 在有 signingConfig 时产出 app-release.apk（未配置签名才是 -unsigned）
+          SRC=apps/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$SRC" || { echo "::error::没找到 $SRC"; ls -R apps/android/app/build/outputs/apk || true; exit 1; }
+          # 把签名者打出来存档（配了正式签名时能一眼确认不是 Debug）
+          keytool -printcert -jarfile "$SRC" | grep -E "^Owner:|^Valid from" | sed 's/^/  签名: /'
           NAME="moqu-${{ steps.v.outputs.name }}.apk"
           cp "$SRC" "$NAME"
           SHA=$(sha256sum "$NAME" | cut -d' ' -f1)
@@ -119,13 +166,13 @@ jobs:
           ls -lh "$NAME"
           echo "SHA-256: $SHA"
 
-      - name: 发布 Release
+      - name: 写 Release 说明（签名方式不同，提示也不同）
         if: steps.gate.outputs.publish == 'yes'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.v.outputs.name }}
           CODE: ${{ steps.v.outputs.code }}
           SHA: ${{ steps.apk.outputs.sha }}
+          SIGNED: ${{ steps.signing.outputs.keystore }}
         run: |
           set -euo pipefail
           # 注意：这里用**不带引号**的 heredoc（要让 $VERSION/$CODE/$SHA 展开），
@@ -141,9 +188,29 @@ jobs:
 
           ## 说明
 
-          - 这是 **debug 签名**的可侧载包（自用分发），与任何应用商店无关；升级时直接覆盖安装即可。
+          - 自用分发，与任何应用商店无关。
           - 包名 \`com.einkgamebox\`，\`versionCode $CODE\`，SHA-256 \`$SHA\`。
           EOF
+          if [ "$SIGNED" = "yes" ]; then
+            cat >> release-notes.md <<EOF
+
+          - 本次为**正式 keystore 签名**，可以直接覆盖安装升级。
+          EOF
+          else
+            cat >> release-notes.md <<EOF
+
+          - ⚠️ 本次是 **debug 签名**（Secrets 没配齐）：调试密钥由构建机现场生成，每个包的签名都不同，
+            **换版本要先卸载旧版再装**。配好固定 keystore 后即可正常覆盖升级，见 docs/android.md 的「发布」一节。
+          EOF
+          fi
+
+      - name: 发布 Release
+        if: steps.gate.outputs.publish == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.v.outputs.name }}
+        run: |
+          set -euo pipefail
           gh release create "v$VERSION" "moqu-$VERSION.apk" \
             --title "墨趣 v$VERSION" \
             --notes-file release-notes.md

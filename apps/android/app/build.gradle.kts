@@ -8,6 +8,19 @@ plugins {
 /** 跳过网页资源构建（IDE 里反复编译时用） */
 val skipWebBuild: Boolean = (findProperty("skipWebBuild") as String?)?.toBoolean() ?: false
 
+/**
+ * 正式签名（可选）：四个值都从环境变量或 gradle 属性读，CI 里由 GitHub Secrets 注入。
+ * 齐了且 keystore 文件存在才启用；否则 **release 也回退 debug 签名** ——
+ * 这样本地开发、以及还没配 Secrets 的 CI 都能照常构建（只是包与包之间签名不同，升级要先卸载）。
+ */
+val releaseKeystoreFile: String? = System.getenv("EINK_KEYSTORE_FILE") ?: (findProperty("einkKeystoreFile") as String?)
+val releaseKeystorePassword: String? = System.getenv("EINK_KEYSTORE_PASSWORD") ?: (findProperty("einkKeystorePassword") as String?)
+val releaseKeyAlias: String? = System.getenv("EINK_KEY_ALIAS") ?: (findProperty("einkKeyAlias") as String?)
+val releaseKeyPassword: String? = System.getenv("EINK_KEY_PASSWORD") ?: (findProperty("einkKeyPassword") as String?)
+val hasReleaseSigning: Boolean =
+    listOf(releaseKeystoreFile, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword)
+        .all { !it.isNullOrBlank() } && file(releaseKeystoreFile!!).exists()
+
 android {
     namespace = "com.einkgamebox"
     compileSdk = 35
@@ -21,13 +34,29 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                // minSdk 23：Android 7 以下只认 v1(JAR) 签名，必须同时开 v1+v2
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
         }
         release {
             isMinifyEnabled = false
-            // 正式签名与上架合规在 M5 之后单独处理（见 docs/android.md）
+            // 有正式 keystore 就用正式签名，否则回退 debug（见文件顶部 hasReleaseSigning）
+            signingConfig =
+                if (hasReleaseSigning) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
 

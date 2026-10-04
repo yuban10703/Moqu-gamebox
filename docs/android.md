@@ -66,3 +66,41 @@ adb logcat -s MainActivity   # 壳层日志
 
 产物是 `moqu-<版本>.apk`（**debug 签名**，可直接侧载；Release 说明里带 `versionCode` 与 SHA-256）。
 也可以在 Actions 页面手动触发（`workflow_dispatch`）来重试或补发。
+
+### 签名：缺 Secrets 时回退 debug（2026-10-05 已接好）
+
+工作流支持**正式 keystore 签名**，但它是可选的 —— gradle 侧的 `hasReleaseSigning` 会在四个值
+（`EINK_KEYSTORE_FILE` / `EINK_KEYSTORE_PASSWORD` / `EINK_KEY_ALIAS` / `EINK_KEY_PASSWORD`）
+**缺任何一个时回退到 debug 签名**，所以本地开发、以及没配 Secrets 的 CI 都能照常构建。
+
+⚠️ 没配正式签名时**换版本必须先卸载旧版**：AGP 找不到 `~/.android/debug.keystore` 会现场生成一个，
+而 CI runner 每次都是全新的 → **每个 Release 的签名都不同**，Android 不允许签名不同的包覆盖安装。
+（本机开发不受影响：`~/.android/debug.keystore` 一直在，签名固定。）
+
+#### 配正式签名：三步
+
+```bash
+# 1) 生成 keystore（30 年有效期；RSA 2048；JDK 9+ 默认 PKCS12，JKS 也行）
+keytool -genkeypair -v -keystore moqu-release.jks -alias moqu \
+  -keyalg RSA -keysize 2048 -validity 10950
+
+# 2) 转成 base64（Linux；macOS 用 base64 -i moqu-release.jks）
+base64 -w0 moqu-release.jks > moqu-release.jks.b64
+
+# 3) 到 GitHub 仓库 → Settings → Secrets and variables → Actions，加四个 Secret：
+#    ANDROID_KEYSTORE_BASE64     ← moqu-release.jks.b64 的内容
+#    ANDROID_KEYSTORE_PASSWORD   ← 第 1 步设的 store 密码
+#    ANDROID_KEY_ALIAS           ← moqu
+#    ANDROID_KEY_PASSWORD        ← 第 1 步设的 key 密码
+```
+
+配好之后下次发布就会用正式签名（工作流会打印签名者与有效期，可据此确认不再是 Debug）。
+
+要求与注意：
+
+- 算法 RSA 2048（或 4096），有效期要长 —— Google Play 要求至少到 2033-10-22 之后；
+- `minSdk 23` 要求同时有 **v1(JAR) 签名**：`signingConfigs.release` 里已显式 `enableV1Signing`/`enableV2Signing`；
+- **keystore 与密码绝不进仓库**（`.gitignore` 已忽略 `*.keystore`/`*.jks`，但真正的保险是只放 Secrets）；
+- **丢了就永远无法覆盖升级**（只能换包名或让用户卸载重装）→ 存密码管理器 + 离线备份；
+- 从 debug 签到正式签名后，已装设备要**卸载重装一次**（之后就一直顺了）；
+- 想改用 gradle 属性也行（`-PeinkKeystoreFile=...` 等），四个属性名与上面的环境变量一一对应。
