@@ -28,6 +28,7 @@ import { snakeEn, snakeGame, snakeZh } from '@eink/snake'
 import { tetrisEn, tetrisGame, tetrisZh } from '@eink/tetris'
 import { match3En, match3Game, match3Zh } from '@eink/match3'
 import { doudizhuEn, doudizhuGame, doudizhuZh } from '@eink/doudizhu'
+import { buckshotEn, buckshotGame, buckshotZh } from '@eink/buckshot'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -183,9 +184,21 @@ export const library: GameLibrary = {
         total: doudizhuGame.difficulties.length,
       }),
     }),
+    defineGame({
+      game: buckshotGame,
+      // 不提供撤销；「重新开始」也不放在对局底部（屏幕留给道具与弹仓），暂停菜单与结果面板里仍可重开
+      hideShellControls: ['undo', 'restart'],
+      rulesKeys: ['buckshot.rules.body', 'buckshot.rules.body2', 'buckshot.rules.body3'],
+      defaultDifficulty: 'starter',
+      // 「难度」区也是模式选择：前三档对恶魔，第四档「双人同屏」
+      progressFor: (completed) => ({
+        done: ['starter', 'skilled', 'challenging'].filter((id) => completed.includes(id)).length,
+        total: 3,
+      }),
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn },
   },
 }

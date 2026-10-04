@@ -16,6 +16,7 @@ import { lightsoutGame } from '@eink/lightsout'
 import { klotskiGame } from '@eink/klotski'
 import { match3Game } from '@eink/match3'
 import { doudizhuGame } from '@eink/doudizhu'
+import { buckshotGame } from '@eink/buckshot'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
 import { snakeGame } from '@eink/snake'
@@ -46,6 +47,7 @@ const GAMES: Array<GameDef<any, any>> = [
   tetrisGame as GameDef<any, any>,
   match3Game as GameDef<any, any>,
   doudizhuGame as GameDef<any, any>,
+  buckshotGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {
@@ -150,11 +152,11 @@ describe('所有游戏的存档契约', () => {
 const ALWAYS_TICKING = new Set(['snake', 'tetris'])
 
 describe('自动步进的声明（tickMs）', () => {
-  it('只有贪吃蛇、俄罗斯方块与斗地主（电脑回合）声明 tickMs，其余玩法一个定时器都不起', () => {
+  it('只有贪吃蛇、俄罗斯方块与斗地主 / 恶魔轮盘赌（电脑回合）声明 tickMs，其余玩法一个定时器都不起', () => {
     const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
       .map((game) => game.id)
       .sort()
-    expect(withTick).toEqual(['doudizhu', 'snake', 'tetris'])
+    expect(withTick).toEqual(['buckshot', 'doudizhu', 'snake', 'tetris'])
   })
 
   it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {

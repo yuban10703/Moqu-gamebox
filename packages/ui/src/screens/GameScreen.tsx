@@ -26,6 +26,7 @@ import {
   useKeyboardControls,
 } from '../components.js'
 import { CardTable } from '../CardTable.js'
+import { DuelPanel } from '../DuelPanel.js'
 import { useUi } from '../contexts.js'
 import { supportsSwipe, type GameRegistryEntry } from '../registry.js'
 import { CRAMPED_TICK_SLOWDOWN, useSession } from '../session.js'
@@ -255,6 +256,7 @@ export function GameScreen({
    * 玩法真的有方向键这一行时才收进去 —— Dpad 在没有方向控件时整块不渲染，那时必须留着这一行。
    */
   const hasDpadControls = session.controls.some((control) => control.role === 'dpad')
+  const hideRestart = entry.hideShellControls?.includes('restart') ?? false
   const actionsInPad = dpadOn && dpadLayout === 'tee' && hasDpadControls
   // 暂停菜单：取代控制区（损坏存档时没有控制区，也就不出菜单）
   const pauseMenuOpen = session.paused && !session.corrupt
@@ -376,7 +378,13 @@ export function GameScreen({
                 }
               : {})}
           >
-            {session.view.table ? (
+            {session.view.duel ? (
+              // 对决类玩法：对决面板代替棋盘；点道具同样交给游戏的 selectAction
+              <DuelPanel
+                duel={session.view.duel}
+                {...(session.selectCell ? { onItemSelect: session.selectCell } : {})}
+              />
+            ) : session.view.table ? (
               // 扑克类玩法：牌桌代替格子棋盘；点手牌同样交给游戏的 selectAction
               <CardTable
                 table={session.view.table}
@@ -514,14 +522,17 @@ export function GameScreen({
                   ))}
                 </div>
               ) : null}
-              {actionsInPad ? null : (
+              {/* 撤销 / 重开都被玩法隐藏时，这一行整行不渲染（不白占高度；重开仍在暂停菜单与结果面板里） */}
+              {actionsInPad || (undoButton === null && hideRestart) ? null : (
                 <div className="eink-controls__actions">
                   {undoButton}
-                  <ActionButton
-                    labelKey="shell.game.restart"
-                    size="large"
-                    onSelect={() => setConfirmRestart(true)}
-                  />
+                  {hideRestart ? null : (
+                    <ActionButton
+                      labelKey="shell.game.restart"
+                      size="large"
+                      onSelect={() => setConfirmRestart(true)}
+                    />
+                  )}
                 </div>
               )}
             </div>

@@ -175,4 +175,19 @@ export const zhCN: Dict = {
   'shell.cards.hidden': '未公开的牌',
   'shell.cards.hand': '我的手牌',
   'shell.cards.count__other': '{count} 张',
+
+  // 对决面板（恶魔轮盘赌这类双方各有血量与道具的玩法）
+  'shell.duel.hp': '血量 {hp} / {max}',
+  'shell.duel.fresh': '新',
+  'shell.duel.wins': '胜 {count}',
+  'shell.duel.spent': '已打出',
+  'shell.duel.chamber': '枪里',
+  'shell.duel.recent': '最近',
+  'shell.duel.token.live': '实弹',
+  'shell.duel.token.blank': '空包弹',
+  'shell.duel.token.unknown': '未知的一发',
+  'shell.duel.token.knownLive': '你知道这一发是实弹',
+  'shell.duel.token.knownBlank': '你知道这一发是空包弹',
+  'shell.duel.token.spent-live': '打出过的实弹',
+  'shell.duel.token.spent-blank': '打出过的空包弹',
 }

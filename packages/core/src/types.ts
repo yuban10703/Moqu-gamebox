@@ -150,8 +150,72 @@ export interface CardTableView {
   bannerParams?: Record<string, string | number>
 }
 
+/**
+ * 对决面板（双方轮流行动、各有血量与道具的玩法用，如恶魔轮盘赌）：与格子棋盘 / 牌桌三选一。
+ * 壳层画成「上方一家 / 中间枪与弹仓 / 最近记录 / 下方一家」。
+ *
+ * 文案一律是 key；需要嵌入人名的句子用 subjectKey / objectKey（壳层先翻译再代入 {subject} / {object}）。
+ * 道具图标与头像只给名字（icon / portrait），图形由壳层的 1-bit 图标集负责。
+ */
+export interface DuelLine {
+  key: string
+  params?: Record<string, string | number>
+  subjectKey?: string
+  objectKey?: string
+}
+
+export interface DuelItem {
+  /** 点这件道具时交给 selectAction 的编号 */
+  id: number
+  icon: string
+  labelKey: string
+  /** 刚拿到的（壳层标一个「新」） */
+  fresh?: boolean
+  /** 现在能不能点（轮到这一方、且是真人在操作） */
+  selectable: boolean
+}
+
+export interface DuelSide {
+  position: 'top' | 'bottom'
+  nameKey: string
+  /** 头像名（壳层自带：devil / player / player1 / player2） */
+  portrait: string
+  hp: number
+  maxHp: number
+  items: DuelItem[]
+  itemCapacity: number
+  /** 正在等这一方行动 */
+  active: boolean
+  /** 状态角标（如「被铐住」）的文案 key */
+  statusKey?: string
+  /** 已赢的轮数 */
+  wins: number
+}
+
+/** 弹仓里的一发：实 / 空（已公开）、未知、自己知道是实 / 空 */
+export type DuelToken = 'live' | 'blank' | 'unknown' | 'knownLive' | 'knownBlank'
+
+export interface DuelView {
+  kind: 'duel'
+  sides: DuelSide[]
+  /** 已打出 / 退出的弹（公开） */
+  spent: Array<'live' | 'blank'>
+  /** 枪里的弹（装填阶段为公开的组成；之后按自己知道的显示） */
+  chamber: DuelToken[]
+  /** 枪下的一行说明（装填数量 / 还剩几发 / 本轮结果） */
+  caption: DuelLine
+  /** 枪上的状态标签（手锯：伤害 ×2；用过逆转器…） */
+  tags: DuelLine[]
+  /** 枪管是否被锯短（画法不同） */
+  sawn: boolean
+  /** 最近的几条记录（旧 → 新） */
+  log: DuelLine[]
+}
+
 export interface GameView {
   board: BoardView | null
+  /** 对决类玩法用对决面板代替棋盘（有它时 board 为 null） */
+  duel?: DuelView | null
   /** 扑克类玩法用牌桌代替棋盘（有它时 board 为 null） */
   table?: CardTableView | null
   stats: StatView[]

@@ -1640,6 +1640,382 @@ html[data-font-scale='1.5'] .eink-tile__title {
   }
 }
 
+/* ------------------------------------------------------------------ 6c 对决面板（恶魔轮盘赌） */
+
+/*
+ * 对决面板：铺满棋盘区（尺寸查询容器），从上到下「上方一家 / 枪与弹仓 / 最近记录 / 下方一家」。
+ * 1-bit：血量是电池格，实弹实心、空包空心；已打出的实弹画斜纹、空包打叉；当前行动的一方头像框加粗。
+ */
+.eink-duel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: min(8px, 1.4cqh);
+  font-size: min(1em, 3.6cqh);
+  --slot-top: min(9cqh, 46px);
+  --slot-bottom: min(12cqh, 60px);
+  --token-w: min(22px, 5cqw);
+}
+
+.eink-duel__side {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.eink-duel__portrait {
+  flex: 0 0 auto;
+  width: min(18cqh, 96px);
+  height: min(18cqh, 96px);
+  border: 2px solid var(--ink-black);
+  border-radius: 6px;
+  display: flex;
+}
+
+.eink-duel__portrait > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.eink-duel__side[data-active='yes'] .eink-duel__portrait {
+  border-width: 4px;
+}
+
+/* 下方一家没有头像：名字行加粗下划线表示「轮到你」 */
+.eink-duel__side[data-position='bottom'][data-active='yes'] .eink-duel__name {
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+}
+
+.eink-duel__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eink-duel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eink-duel__name {
+  font-weight: 700;
+}
+
+.eink-duel__status,
+.eink-duel__wins {
+  font-size: 0.75em;
+  line-height: 1.2;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.eink-duel__status {
+  background: var(--ink-black);
+  color: var(--ink-white);
+}
+
+.eink-duel__wins {
+  border: 1.5px solid var(--ink-black);
+}
+
+/* 血量：电池格（顶上一个小凸起），实心 = 有血 */
+.eink-duel__hp {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  padding-top: 4px;
+}
+
+.eink-duel__cell {
+  position: relative;
+  width: 0.9em;
+  height: 1.3em;
+  border: 2px solid var(--ink-black);
+  border-radius: 3px;
+  background: var(--ink-white);
+}
+
+.eink-duel__cell::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 6px;
+  height: 3px;
+  margin-left: -3px;
+  background: var(--ink-black);
+}
+
+.eink-duel__cell[data-full='yes'] {
+  background: var(--ink-black);
+}
+
+/* 道具：4 列网格（共 8 格）；能用的实线框，不能用的点线框，空格虚线 */
+.eink-duel__items {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.eink-duel__slot {
+  position: relative;
+  height: var(--slot-top);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0;
+  margin: 0;
+  border: 1.5px solid var(--ink-black);
+  border-radius: 2px;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  font: inherit;
+  font-size: 0.6em;
+  line-height: 1.1;
+}
+
+.eink-duel__items[data-position='bottom'] .eink-duel__slot {
+  height: var(--slot-bottom);
+  font-size: 0.72em;
+}
+
+.eink-duel__slot > svg {
+  width: 52%;
+  height: 52%;
+  max-width: 34px;
+}
+
+.eink-duel__slot[data-selectable='yes'] {
+  border-width: 2.5px;
+  cursor: pointer;
+}
+
+.eink-duel__slot:disabled {
+  color: var(--ink-black);
+}
+
+.eink-duel__items[data-position='bottom'] .eink-duel__slot:disabled {
+  border-style: dotted;
+}
+
+.eink-duel__slot--empty {
+  border-style: dashed;
+}
+
+.eink-duel__slotlabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.eink-duel__fresh {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: var(--ink-black);
+  color: var(--ink-white);
+  font-size: 0.85em;
+  padding: 0 3px;
+}
+
+/* 枪与弹仓 */
+.eink-duel__table {
+  border-top: 2px solid var(--ink-black);
+  border-bottom: 2px solid var(--ink-black);
+  padding: min(8px, 1.2cqh) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: min(6px, 1cqh);
+}
+
+.eink-duel__gunrow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eink-duel__gun {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: min(10cqh, 56px);
+}
+
+.eink-duel__tags {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.eink-duel__tag {
+  font-size: 0.75em;
+  font-weight: 700;
+  border: 2px solid var(--ink-black);
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.eink-duel__chamber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.eink-duel__label {
+  font-size: 0.72em;
+}
+
+.eink-duel__sep {
+  width: 2px;
+  height: calc(var(--token-w) * 1.6);
+  background: var(--ink-black);
+  margin: 0 4px;
+}
+
+/* 一发弹：弹身 + 底部铜圈；实弹实心、空包空心、未知虚线 + ? */
+.eink-duel__token {
+  position: relative;
+  width: var(--token-w);
+  height: calc(var(--token-w) * 2);
+  border: 2px solid var(--ink-black);
+  border-radius: 4px 4px 2px 2px;
+  background: var(--ink-white);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8em;
+}
+
+.eink-duel__token::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  height: 22%;
+  border: 2px solid var(--ink-black);
+  background: var(--ink-white);
+}
+
+.eink-duel__token[data-kind='live'],
+.eink-duel__token[data-kind='knownLive'] {
+  background: var(--ink-black);
+}
+
+.eink-duel__token[data-kind='unknown'] {
+  border-style: dashed;
+}
+
+/* 自己知道的那一发：在实 / 空的基础上外加一圈粗框（「看过」的标记） */
+.eink-duel__token[data-kind='knownLive'],
+.eink-duel__token[data-kind='knownBlank'] {
+  outline: 3px solid var(--ink-black);
+  outline-offset: 2px;
+  margin: 5px;
+}
+
+.eink-duel__token[data-spent='yes'][data-kind='live'] {
+  background: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 5px);
+}
+
+.eink-duel__token[data-spent='yes'][data-kind='blank']::before {
+  content: '×';
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.eink-duel__caption {
+  margin: 0;
+  font-size: 0.85em;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* 最近记录：最新一条加粗，其余正常字重 */
+.eink-duel__log {
+  list-style: none;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink-black);
+  font-size: 0.78em;
+  line-height: 1.45;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  /* 贴底排：放不下时裁掉的是最早的几条，最新一条始终看得见 */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.eink-duel__log li[data-latest='yes'] {
+  font-weight: 700;
+}
+
+/*
+ * 棋盘区偏宽（横屏）：分左右两栏 —— 左「恶魔 / 枪与弹仓」，右「最近记录 / 你」。
+ * 竖排四段在横屏只剩 280px 左右的高度里会被压成 10px 字、下方一家溢出（879×407 实测），
+ * 两栏后每栏只摞两段，字号与道具格按更宽松的容器高算。
+ */
+@container (min-aspect-ratio: 5 / 4) {
+  .eink-duel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'top log'
+      'table log'
+      'table bottom';
+    column-gap: min(16px, 2cqw);
+    font-size: min(1em, 5.5cqh);
+    --slot-top: min(14cqh, 72px);
+    --slot-bottom: min(16cqh, 84px);
+    --token-w: min(32px, 3cqw, 7cqh);
+  }
+
+  .eink-duel__side[data-position='top'] {
+    grid-area: top;
+  }
+
+  .eink-duel__side[data-position='bottom'] {
+    grid-area: bottom;
+  }
+
+  .eink-duel__table {
+    grid-area: table;
+    justify-content: center;
+  }
+
+  .eink-duel__log {
+    grid-area: log;
+  }
+
+  .eink-duel__gun {
+    height: min(18cqh, 120px);
+  }
+
+  .eink-duel__portrait {
+    width: min(22cqh, 128px);
+    height: min(22cqh, 128px);
+  }
+}
+
 /* ------------------------------------------------------------------ 7 媒体查询 */
 
 /*

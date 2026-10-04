@@ -14,10 +14,10 @@ const { chromium } = require('playwright')
 const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 
 /*
- * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`
- * —— 两者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
+ * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`，
+ * 对决玩法（恶魔轮盘赌）用 `DuelPanel` 渲染 `.eink-duel` —— 三者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
  */
-const SURFACE = '.eink-board, .eink-cardtable'
+const SURFACE = '.eink-board, .eink-cardtable, .eink-duel'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
@@ -45,7 +45,7 @@ const audit = async (label) => {
     const off = [...document.querySelectorAll('button')]
       .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b))
       .map((b) => (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10))
-    const board = document.querySelector('.eink-board, .eink-cardtable')
+    const board = document.querySelector('.eink-board, .eink-cardtable, .eink-duel')
     const area = document.querySelector('.eink-board-area')
     let clip = null
     if (board && area) {
@@ -211,11 +211,30 @@ for (const title of titles) {
     })
     return { count: buttons.length, inside: inside.length }
   })
+  /*
+   * 对决玩法（恶魔轮盘赌）没有格子也没有手牌：可点的是道具格。
+   * 量下方一家（真人）的道具格高度，并确认整块面板没有超出棋盘区（横屏改左右两栏后应当完整放下）。
+   */
+  const duel = await page.evaluate(() => {
+    const panel = document.querySelector('.eink-duel')
+    const area = document.querySelector('.eink-board-area')
+    if (!panel || !area) return null
+    const slot = panel.querySelector('.eink-duel__side[data-position="bottom"] .eink-duel__slot')
+    const ar = area.getBoundingClientRect()
+    const over = [...panel.children].some((c) => c.getBoundingClientRect().bottom > ar.bottom + 1)
+    return { slot: slot ? Math.round(slot.getBoundingClientRect().height) : 0, over }
+  })
   if (dpad.count > 0) {
     check(
       `${title}·游戏页·1.5×：方向盘驱动玩法以方向盘验收（格子小不判缺陷）`,
       dpad.inside === dpad.count,
       `方向盘 ${dpad.inside}/${dpad.count} 在屏内；棋盘格子实测 ${cell}px`,
+    )
+  } else if (duel) {
+    check(
+      `${title}·游戏页·1.5×：对决面板完整落在棋盘区内、道具格不低于 24px`,
+      !duel.over && duel.slot >= 24,
+      `道具格实测 ${duel.slot}px${duel.over ? '，面板超出棋盘区' : ''}`,
     )
   } else if (card) {
     // 手牌：只要还在绝对下限之上就算可玩（极矮横屏 + 1.5× 是已知最挤的一档）

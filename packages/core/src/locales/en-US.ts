@@ -174,4 +174,18 @@ export const enUS: Dict = {
   'shell.cards.hand': 'My hand',
   'shell.cards.count__one': '{count} card',
   'shell.cards.count__other': '{count} cards',
+
+  'shell.duel.hp': 'Lives {hp} / {max}',
+  'shell.duel.fresh': 'new',
+  'shell.duel.wins': 'won {count}',
+  'shell.duel.spent': 'Spent',
+  'shell.duel.chamber': 'In gun',
+  'shell.duel.recent': 'Recent',
+  'shell.duel.token.live': 'Live shell',
+  'shell.duel.token.blank': 'Blank shell',
+  'shell.duel.token.unknown': 'Unknown shell',
+  'shell.duel.token.knownLive': 'You know this one is live',
+  'shell.duel.token.knownBlank': 'You know this one is blank',
+  'shell.duel.token.spent-live': 'Spent live shell',
+  'shell.duel.token.spent-blank': 'Spent blank shell',
 }

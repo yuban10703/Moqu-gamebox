@@ -20,6 +20,7 @@ export default defineConfig({
       '@eink/tetris': pkg('games/tetris/src/index.ts'),
       '@eink/match3': pkg('games/match3/src/index.ts'),
       '@eink/doudizhu': pkg('games/doudizhu/src/index.ts'),
+      '@eink/buckshot': pkg('games/buckshot/src/index.ts'),
     },
   },
   test: {

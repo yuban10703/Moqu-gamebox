@@ -72,6 +72,7 @@ export const library: GameLibrary = {
 ```
 
 扑克类玩法用 `view().table`（`CardTableView`：座位 / 底牌 / 手牌 / 提示）代替格子棋盘，壳层自动换成牌桌渲染，点手牌同样走 `selectAction`；参考 `packages/games/doudizhu`（含按座位驱动的引擎与联机框架）。
+双方轮流、各有血量与道具的对决玩法用 `view().duel`（`DuelView`），壳层换成对决面板渲染；参考 `packages/games/buckshot`（含双人同屏）。
 
 方向键相关的两个可选项：`dpadLayout`（缺省倒 T，撤销 / 重开收进方向键两侧；`'row'` 四键平铺一行，用于上 / 下不是空间方向的玩法）与 `dpadDefault: false`（点格子本来就能玩时默认收起方向键）。
 

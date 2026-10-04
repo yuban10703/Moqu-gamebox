@@ -12,10 +12,10 @@ const { chromium } = require('playwright')
 const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 
 /*
- * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`
- * —— 两者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
+ * 游戏主视区：格子玩法是 `.eink-board`，扑克类玩法（斗地主）用 `CardTable` 渲染 `.eink-cardtable`，
+ * 对决玩法（恶魔轮盘赌）用 `DuelPanel` 渲染 `.eink-duel` —— 三者都占据 `.eink-board-area`，审计只关心"主视区有没有被裁切"，所以统一用这个选择器。
  */
-const SURFACE = '.eink-board, .eink-cardtable'
+const SURFACE = '.eink-board, .eink-cardtable, .eink-duel'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
@@ -45,7 +45,7 @@ const audit = async (label) => {
     const off = [...document.querySelectorAll('button')]
       .filter((b) => b.getBoundingClientRect().bottom > innerHeight + 1 && !reachable(b))
       .map((b) => (b.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 10))
-    const board = document.querySelector('.eink-board, .eink-cardtable')
+    const board = document.querySelector('.eink-board, .eink-cardtable, .eink-duel')
     const area = document.querySelector('.eink-board-area')
     let clip = null
     if (board && area) {

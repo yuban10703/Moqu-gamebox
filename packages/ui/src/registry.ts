@@ -18,7 +18,8 @@ export interface GameRegistryEntry<S = unknown, A = unknown> {
   /**
    * 不渲染这些**壳层按钮**（id 与壳层保持一致，例如 'undo'）。
    * 用于"这个玩法没有这个能力、按钮永远点不动"的情况 —— 与其显示一个假按钮，不如不显示。
-   * 目前：数独不提供撤销，因此隐藏 'undo'（用户要求"数独的撤销直接隐藏"）。
+   * 目前：数独不提供撤销，因此隐藏 'undo'（用户要求"数独的撤销直接隐藏"）；
+   * 也可以隐藏 'restart'（只是不放在对局底部，暂停菜单与结果面板里仍可重开 —— 恶魔轮盘赌把屏幕留给道具与弹仓）。
    */
   hideShellControls?: readonly string[]
   /**
