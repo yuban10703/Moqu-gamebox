@@ -10,7 +10,7 @@
  *   3) 没有缺键标记 ⟦key⟧
  *   4) 页面不溢出视口、棋盘不被裁切
  *
- * 用法：npm run build:web && npm run serve:web & 然后 npm run explore
+ * * 用法：npm run build:web && npm run serve:web & 然后 npm run explore
  * 退出码非 0 表示发现缺陷（含任何页面 JS 错误）。
  */
 /**
@@ -24,7 +24,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
-const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8899/'
+const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {

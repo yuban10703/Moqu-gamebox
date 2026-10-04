@@ -74,7 +74,7 @@ npm run check
 
 ```bash
 npm run build:web                       # 构建产物
-npm run serve:web &                     # 静态服务 → http://127.0.0.1:8899/
+npm run serve:web &                     # 静态服务 → http://127.0.0.1:8790/
 # 首次需要装浏览器（装到 gitignored 的 .toolchain/pw，不入项目依赖）
 mkdir -p .toolchain/pw && cd .toolchain/pw && npm i playwright \
   && npx playwright install chromium && npx playwright install-deps chromium
@@ -108,12 +108,28 @@ npm run smoke:web                       # 运行冒烟测试
    使 `new URL(..., import.meta.url)` 抛 `Cannot access 'URL' before initialization`。
    （同一个坑在 smoke 与临时脚本里各踩了一次，第二次才意识到是同一个原因。）
 
+### 端口策略（2026-10-04 改：不再固定抢一个端口）
+
+- **`npm run verify` 不占用固定端口**：内部从 **8790** 起找第一个空闲端口起临时服务，
+  跑完自动关掉。想固定端口：`VERIFY_PORT=8801 npm run verify`。
+  起因：以前固定 **8899**，而这台机器上同时会有多个会话/多棵工作区 —— 谁先占了端口，
+  探索套件就测到谁（真实发生过：`explore-data` 测到了另一棵工作区的旧构建）。
+  更麻烦的是那个服务**跑完就消失**，很容易被误当成"长期预览地址"，
+  于是一刷新就变成了别人的旧版本。**看到旧版本时，先确认你访问的是哪棵树的服务。**
+- **要长期看最新构建**：`npm run build:web && npm run serve:web`
+  → `http://127.0.0.1:8790/`（`serve:web` 就是 `serve-web.mjs apps/web/dist 8790`；
+  端口被占用时会直接提示换一个，而不是抛堆栈）。
+  注意：构建产物是**直接读磁盘**的，重新 `build:web` 后刷新即可看到新版本；
+  若页面仍旧，硬刷新一次（应用注册了 Service Worker，同 origin 会先给缓存的旧壳）。
+- 五个探索套件（`explore-*.mjs`）与 `web-smoke.mjs` 的兜底默认端口也已统一成 8790；
+  它们全都尊重 `WEB_URL`，被 `npm run verify` 调用时由后者显式下发（自动挑到的那个端口）。
+
 ### 本地访问提示
 
 - 静态服务用**托管后台任务**启动，避免随会话结束被回收：`npm run serve:web`
-- 服务监听 `0.0.0.0`，容器内 `http://127.0.0.1:8899/` 与容器 IP 均可访问。
+- 服务监听 `0.0.0.0`，容器内 `http://127.0.0.1:8790/` 与容器 IP 均可访问。
 - 若浏览器在**容器外**（例如 GUI 是 `127.0.0.1:3080` 通过端口映射进来的），
-  则只有被映射的端口可达，`127.0.0.1:8899` 会「拒绝连接」；
+  则只有被映射的端口可达，`127.0.0.1:8790` 会「拒绝连接」；
   此时用容器 IP（`hostname -I` 的第一个地址）访问。
 
 ## 新增三款游戏（数独 / 扫雷 / 2048）的验收

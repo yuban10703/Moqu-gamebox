@@ -13,7 +13,7 @@
  *
  * 用法：
  *   1) 构建产物：npm run build:web
- *   2) 起静态服务：node tools/scripts/serve-web.mjs apps/web/dist 8899 &
+ *   2) 起静态服务：node tools/scripts/serve-web.mjs apps/web/dist 8790 &
  *   3) 安装浏览器（只需一次，装到 gitignored 的 .toolchain/pw）：
  *        mkdir -p .toolchain/pw && cd .toolchain/pw && npm i playwright \
  *          && npx playwright install chromium && npx playwright install-deps chromium
@@ -29,7 +29,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
-const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8899/'
+const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 const results = []
 const check = (name, ok, extra = '') => {
   results.push({ name, ok, extra })

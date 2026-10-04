@@ -11,7 +11,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(new URL('../../.toolchain/pw/', import.meta.url))
 const { chromium } = require('playwright')
 
-const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8899/'
+const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {

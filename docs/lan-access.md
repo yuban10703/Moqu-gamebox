@@ -207,7 +207,7 @@ Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private   #
 
 因为 WSL2 的地址是 NAT 内部地址，你的 BOOX / 手机在 `10.1.1.x` 网段，**没有路由能到 `172.29.x.x`**。
 数据必须从 Windows 这块真实网卡进来，再由 Windows 转交给 WSL。
-（WSL 里 `npm run serve:web` 的 8899 之所以别的设备能开，是因为它直接绑了 `0.0.0.0` 且由 Windows 转发进来，原理相同。）
+（WSL 里 `npm run serve:web` 的 8790 之所以别的设备能开，是因为它直接绑了 `0.0.0.0` 且由 Windows 转发进来，原理相同。）
 
 ## 七、验收
 

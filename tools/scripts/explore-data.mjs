@@ -21,7 +21,7 @@ import { readFileSync, existsSync } from 'node:fs'
  * 而 verify-all 的端口是可用 VERIFY_PORT 改的 —— 一旦改端口（或多份工作区并存），
  * 本套件会**静默地去测另一个服务**，结论完全无效（本轮实际踩到：测到了另一棵工作区的旧构建）。
  */
-const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8899/'
+const PAGE_URL = process.env.WEB_URL ?? 'http://127.0.0.1:8790/'
 const results = []
 const errors = []
 const check = (n, ok, extra = '') => {
