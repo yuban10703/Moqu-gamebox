@@ -124,17 +124,9 @@ body {
 }
 
 /*
- * 首页标题行里的「关于」入口（用户要求把「关于」从页脚挪到 h1 这一行）。
- *
- * 布局直接沿用「区块标题行」那套 .eink-section__head（标题占满剩余宽度、控件靠右，
- * 与「全部游戏」标题行的分页控件同一写法），这里只补 h1 作为 flex 子项的收缩规则：
- * 既有规则写的是 h2。min-width:0 + overflow:hidden 让长标题出省略号而不是把入口挤出屏幕。
+ * 首页标题行只剩 h1 + 徽标行了：「关于」入口已按用户要求移到页脚右下角
+ * （见 .eink-footer__about），这里不再需要「标题 + 右侧控件」那套 flex 规则。
  */
-.eink-screen__header .eink-section__head h1 {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 .eink-section {
   border-top: var(--line) solid var(--ink-black);
   padding-top: var(--gap);
@@ -571,6 +563,29 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   cursor: pointer;
 }
 
+/*
+ * 首页页脚右下角的「关于」入口（用户要求：去掉版本号，把「关于」换到那个位置）。
+ *
+ * 位置：margin-left:auto 把它推到所在 flex 行的行尾 —— 与它替换掉的 .eink-version 同一个手法。
+ *
+ * 尺寸为什么要压到 32px 而不是 .eink-link 默认的 48px（**实测得出，不是审美取舍**）：
+ * 英文 18px 档页脚只剩 415px 宽，三个主按钮（110+77+140）含 3 个 12px 间距就占 363px，
+ * 「关于」要留在**同一行**必须 ≤52px，而 1em 的 About 实测 65px —— 必然折到第二行。
+ * 于是页脚变成「按钮行 51px + 12px 行距 + 关于行」：用 48px 时页脚 121px、
+ * 内容区只剩 642px，而 12 块（6 行 × 92px + 5 × 12px 间距）需要内容区 ≥667.7px
+ * —— 首页会掉成 10 块 2 页（本轮实测）。把这一行收到 32px 后页脚 93px、内容区 670px，
+ * 12 块 1 页成立。上限是这行约 34px（页脚 ≤95.3px），32px 是取整后还能放下 12 块的最大值。
+ * 中文两档更宽松：「关于」只有 2 个字，与三个按钮同排，页脚高度完全不受影响。
+ * 其余页脚里的 .eink-link（帮助页的「诊断」等）仍保持 48px —— 它们不抢首页的高度预算。
+ * min-width 给到 48px：文字两个汉字时也是一个合格的点按宽度。
+ */
+.eink-footer__about {
+  margin-left: auto;
+  min-width: 48px;
+  min-height: 32px;
+  line-height: 1;
+}
+
 .eink-dialog,
 .eink-overlay {
   position: fixed;
@@ -733,16 +748,24 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
 }
 
 /*
- * 翻页是辅助控件，不能像主按钮那样大：0.8em 字号 + 1px 细边 + 紧内边距，
- * 1.5× 字号档下高度约 23px（主按钮 60px），拇指既点得到又不会抢主操作的位置。
- * nowrap 不能省：窄屏 + 大字号下按钮会被挤压，文字折行会让高度翻倍到 ~47px。
+ * 翻页按钮（用户要求：原来太小，要大一些）。
+ *
+ * 与页脚主按钮（.eink-button）同一档触控尺寸：min-height 48px、min-width 64px、
+ * 1em 字号、--line 实线边框。实测 18px 档从 16×77px → 48×86px，
+ * 26px 档从 23×77px → 48×110px（宽×高），拇指点得准。
+ * 代价是分页那一行变高（26px 档 23→48px、18px 档 16→48px），
+ * 已由 LibraryScreen 的 pagerRowHeight() 预留（46→56px）：实测 439×847@26px 坏档
+ * 仍是每页 4 块、439×560@26px 从 4 块涨到 6 块（同一轮里页脚也变矮了），两处都不滚动。
+ * 仍然保持**次要控件**的表达：白底黑字不填充（反白留给主操作），没有强调色。
+ * nowrap 不能省：窄屏 + 大字号下按钮会被挤压，文字折行会让高度翻倍。
  */
 .eink-pager__btn {
   font: inherit;
-  font-size: 0.8em;
   line-height: 1;
-  padding: 0 6px;
-  border: 1px solid var(--ink-black);
+  min-height: 48px;
+  min-width: 64px;
+  padding: 0 14px;
+  border: var(--line) solid var(--ink-black);
   background: var(--ink-white);
   color: var(--ink-black);
   white-space: nowrap;
@@ -1429,20 +1452,6 @@ html[data-bold-lines='on'] .eink-board {
   background: var(--ink-white);
 }
 
-/*
- * 首页页脚右侧的版本号：`v0.1.0 · 10-03 22:30`（构建时注入，见 apps/web/vite.config.ts）。
- * 允许收缩 + 省略号：窄屏上宁可截断版本号，也不能把设置/帮助/诊断三个按钮挤坏。
- */
-.eink-version {
-  margin-left: auto;
-  min-width: 0;
-  font-size: 0.75em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: #333;
-}
-
 /* 「全部游戏」的分页移到网格**右下方**（用户要求：原来挤在标题行右侧）。
    放在网格之后自成一行、右对齐；section 自身的 gap 负责它与网格的间距，
    这里只用 flex 的 justify-content 把它推到右边，不额外增加上下外边距。 */
@@ -1457,10 +1466,10 @@ html[data-bold-lines='on'] .eink-board {
 /*
  * 分页行的**高度回收**（用户要求：挪到下方多占的那一行高度要在分页自身找回来）。
  *
- * 分页行原本有 31px 高（26px 档）：`.eink-pager__info` 继承正文的 line-height:1.5，
- * 0.8em×1.5 = 31px，比按钮本身（0.8em + 上下各 1px 边框 = 23px）还高。
- * 分页是辅助控件、只有一行字，行高收到 1 后整行高度 = 按钮高度，
- * 一行就省下 8px —— 网格因此不必为它少放一行（26px 档的余量全靠这点）。
+ * `.eink-pager__info` 会继承正文的 line-height:1.5（26px 档 = 31px），
+ * 那比按钮本身还高、白白把整行撑高；翻页按钮做大到 48px 之后，
+ * 这一行的高度必须**完全等于按钮高度**，否则每页少放的方块数会比现在更多
+ * （LibraryScreen 的 pagerRowHeight() 就是按「48px 按钮 + 区块间距」预留的，实测吻合）。
  * 只作用于「右下角那一排」这个修饰类，标题行里的分页（组件 Pager）不受影响。
  */
 .eink-pager--footer {
@@ -1477,60 +1486,76 @@ html[data-bold-lines='on'] .eink-board {
 }
 
 /*
- * 「我的信息」输入区（关于页）。
- *
- * 为什么单独写一个类：这是全应用唯一的**多行文本输入**，此前只有隐藏的 <input type=file>，
- * 没有可复用的输入框样式；直接裸 <textarea> 会带上浏览器默认边框/字体，与墨水屏基线不一致。
- * 与 .eink-button 同一套语言：2px 实线黑边、白底黑字、inherit 字体（不引入新颜色/圆角/阴影）。
- * rows=5 给出稳定的初始高度，用户可拖动右下角（resize: vertical）加高。
+ * 关于页的**作者信息**（作者 / 邮箱 / 打赏码）：姓名与邮箱是「标签 + 值」，
+ * 因此用 <dl>——读屏能读出对应关系，而不是两个孤立的 <p>。
+ * 值与标签各占一行（不做左右分栏）：邮箱可能很长，窄屏上并排必被截断。
  */
-.eink-note {
-  width: 100%;
-  min-height: 120px;
-  padding: 8px 10px;
-  border: var(--line) solid var(--ink-black);
-  border-radius: 2px;
-  background: var(--ink-white);
-  color: var(--ink-black);
-  font: inherit;
-  line-height: 1.35;
-  resize: vertical;
-  touch-action: manipulation;
+.eink-about__meta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.eink-note:focus-visible {
-  /* 焦点只用线型区分（墨水屏不用颜色/阴影表达状态）：与外框同宽的实线 */
-  outline: var(--line) solid var(--ink-black);
-  outline-offset: 2px;
+.eink-about__meta dt {
+  font-size: 0.85em;
+  color: #333;
+}
+
+.eink-about__meta dd {
+  margin: 0;
+  font-weight: 700;
+  /* 邮箱这类长串在窄屏上必须能断开，否则会横向撑破内容区 */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 打赏码图片：墨水屏只有黑白，图片必须**事先转成 1-bit**（灰度/彩色会被抖动成噪点）。
+ * 这里只做尺寸与边框，不做任何滤镜/缩放插值：width:100% + max-width 让它自适应内容区，
+ * height:auto 保持正方形二维码不被拉变形，image-rendering:pixelated 让放大后的模块边缘保持锐利。
+ */
+.eink-about__donate {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.eink-about__donate img {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  border: var(--line) solid var(--ink-black);
+  image-rendering: pixelated;
 }
 
 /* ------------------------------------------- 9 英文首页页脚折行的代价（18px 档） */
 
 /*
  * 为什么需要：439px 宽 + 18px 档下，英文页脚必然折成两行 —— Settings/Help/Diagnostics
- * 三个按钮（110+77+140，含间距 351px）占满一行后只剩约 52px，右下角那个 0.75em 的
- * 版本号（138px）放不下，被 flex-wrap 推到第二行。中文按钮短（72×3=216），版本号留在第一行，
- * 所以中文页脚 61px、英文 93px —— 这 32px 就是英文首页比中文少一行方块的全部原因。
+ * 三个按钮（110+77+140，含间距 351px）占满一行后只剩约 52px，右下角那个入口放不下，
+ * 被 flex-wrap 推到第二行。中文按钮短（72×3=216），入口留在第一行，
+ * 所以中文 18px 页脚 61px、英文 93px —— 这 32px 就是英文首页比中文少掉的高度
+ * （两边现在都还放得下 6 行 12 块，英文只剩 2.3px 余量，正是这条规则撑住的）。
  *
- * 折行的代价原本是「12px 行距 + 20px 行高（line-height 1.5）」= 32px。这里只压缩这一行自己的开销：
- * - row-gap 收成 0：它是同一块页脚的第二行，紧跟在按钮下面，按钮自身的下内边距已经把两行分开，
- *   再垫 12px 纯属白占高度。**只限 18px 档、且只限非 split 页脚** ——
- *   游戏页/详情页的 .eink-footer--split 是另一套布局（翻页 + 主操作），必须原样保留它的 row-gap。
- * - 版本号 line-height 收成 1：一行 0.75em 的小字，1.5 的行高（20px）比字本身高出 6px。
- *
- * 两处合计把折行开销从 32px 压到 14px：英文页脚 93→75px，首页可用高度 658→677px，
- * 英文 18px 因此重新放下 6 行 12 个方块（需 612px，余 9px）。中文页脚本来就不折行，row-gap 不生效。
+ * 版本号换成「关于」之后这条规则依然要留：英文 18px 档折下去的仍是**右下角那个次要入口**
+ * （.eink-footer__about，About 实测 65px > 52px），它那一行只有 32px 高。
+ * 这 12px 行距就是首页 12 块的生死线：实测（英文 18px）
+ *   行距 0 + 入口 32px → 页脚 93px、内容区 670px，12 块 1 页 ✓
+ *   行距 12 + 入口 32px → 页脚 105px、内容区 658px，掉成 10 块 2 页 ✗
+ * **只限 18px 档、且只限非 split 页脚** ——
+ * 游戏页/详情页的 .eink-footer--split 是另一套布局（翻页 + 主操作），必须原样保留它的 row-gap。
  *
  * 为什么 row-gap 只敢在 ≥400px 收：400px 以下**按钮自己**就放不下一行了 ——
  * 英文三个按钮含间距 351px，加页脚左右各 12px 需要 375px 以上；
  * 360px 那种常见窄屏上 Diagnostics 会折到第二行，两行按钮之间再没有间距就会贴成一块。
- * 所以 400px 以上（按钮必然同排、折下去的只可能是版本号那一行）才收，
+ * 所以 400px 以上（按钮必然同排、折下去的只可能是右下角入口那一行）才收，
  * 400px 以下保持原来的 12px 行距（窄屏本来就靠折行换空间，不能把两行按钮粘起来）。
  *
- * 为什么不让版本号缩在第一行里：那 52px 的宽度会把「v0.1.0 · 10-04 04:46」截成「v0.1.…」，
- * 版本号后面的构建时间是判断「装的是不是最新一版」的唯一依据，截掉就等于这行字白放了。
- * 整行折下去、只花 14px，比截断更划算。
- * 其余页脚在 18px 档都是单行（已逐页实测：设置/帮助/诊断/关于/详情），row-gap 对它们没有作用。
+ * 它原先服务的对象是 `.eink-version` 那行 0.75em 小字；版本号按用户要求从首页移除后，
+ * 那条 `html[data-font-scale='1'] .eink-version { line-height: 1 }` 已经没有任何作用对象，
+ * 随版本号一起删掉了（见本文件关于页一节）。
  */
 @media (min-width: 400px) {
   html[data-font-scale='1'] .eink-footer:not(.eink-footer--split) {
@@ -1538,7 +1563,5 @@ html[data-bold-lines='on'] .eink-board {
   }
 }
 
-html[data-font-scale='1'] .eink-version {
-  line-height: 1;
-}
+
 

@@ -148,9 +148,9 @@ export const zhCN: Dict = {
   'shell.about.title': '关于',
   'shell.about.product': '墨趣',
   'shell.about.tagline': '墨水屏上的离线游戏盒子：装上就能玩，不需要网络。',
-  'shell.about.mine.title': '我的信息',
-  'shell.about.mine.hint': '只保存在这台设备上，不会上传；保存后刷新或重开应用都还在。',
-  'shell.about.mine.placeholder': '例如：姓名、联系方式、想记的事…',
-  'shell.about.mine.save': '保存',
-  'shell.about.mine.saved': '已保存',
+  // 作者信息（关于页）：值本身在 packages/ui/src/screens/authorInfo.ts 里填，这里只是标签
+  'shell.about.author.title': '作者信息',
+  'shell.about.author.name': '作者',
+  'shell.about.author.email': '邮箱',
+  'shell.about.author.donate': '打赏码',
 }

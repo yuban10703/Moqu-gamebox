@@ -1,0 +1,49 @@
+/**
+ * 作者信息 —— **关于页要显示的作者资料，只在这个文件里改**。
+ *
+ * 用户在「关于」页要看的是**作者的信息**（署名 / 邮箱 / 打赏码），而不是一个
+ * 让用户自己填的备注框（那个「我的信息」输入框已按用户要求删除）。
+ * 所以这三项集中放在这里，改一处即可，界面代码一个字都不用动。
+ *
+ * 每一项留空就是不显示：
+ *   - name 为空   → 不显示「作者」这一行；
+ *   - email 为空  → 不显示「邮箱」这一行；
+ *   - donateImage 为空、或该文件不存在 → 不打赏码图片（关于页里那一整块会自动消失，
+ *     不会出现破图，也不会显示「待填写」之类的字样）。
+ * 三项全空时，整个「作者信息」区块都不渲染。填任何一项，区块就出现。
+ *
+ * 打赏码图片（唯一需要动手放文件的地方）——**当前仓库里已经放好了一张**：
+ *   apps/web/public/about/donate.png（256×256，1-bit 黑白），下面 donateImage 指的就是它。
+ *   `apps/web/public/` 下的文件会被构建原样拷进 `dist/`，所以路径写 `./about/donate.png`；
+ *   Service Worker 会遍历整个 dist 预缓存，离线也能显示（见 tools/scripts/generate-sw.mjs）。
+ *   换图：把新图放进 apps/web/public/about/ 并保持文件名 donate.png，重新构建即可，代码不用动。
+ *   同目录还有一张 donate-512.png（同一张码的 512×512 版本，两倍图）。
+ *   代码只看 donateImage 这一个值，不会自动挑大的 —— 想要 2 倍屏更锐利，
+ *   就把下面这行改成 './about/donate-512.png'，或者用 512 那张覆盖 donate.png
+ *   （后者更省事：只留一个文件，换图时不会漏掉另一张）。
+ *
+ * 图片规格（**必须事先转成 1-bit 黑白**）：
+ *   - 格式：PNG（无损、支持纯黑白；JPEG 会把二维码边缘糊掉，不要用）；
+ *   - 颜色：**纯黑 #000 + 纯白 #fff，无灰度、无彩色**。墨水屏只有黑白两色，
+ *     灰度/彩色会被驱动抖动成噪点，二维码可能扫不出来（用画图/Photoshop 的
+ *     「位图 / 1 位黑白」模式，或 imagemagick：`convert in.png -colorspace Gray -threshold 50% -type bilevel out.png`）；
+ *   - 尺寸：正方形，**建议 480×480 或 600×600 像素**（1-bit PNG 体积很小，几十 KB）。
+ *     页面按内容区宽度自适应、最长边不超过 240 CSS px；2 倍屏上 240 CSS px = 480 设备像素，
+ *     所以 480px 以上的源图才不会发虚（现有的 256×256 在 2 倍屏上靠 image-rendering:pixelated 保边）；
+ *   - 内容：四周留至少 4 个模块宽度的纯白边（扫码需要安静区），不要加阴影/渐变/圆角。
+ */
+export interface AuthorInfo {
+  /** 作者署名（例如笔名或真名）。留空则不显示这一行 */
+  name: string
+  /** 联系邮箱。留空则不显示这一行 */
+  email: string
+  /** 打赏码图片路径；留空或文件不存在则不显示这张图 */
+  donateImage: string
+}
+
+/** 在这里填作者信息（三项都可留空；留空的那一项不会渲染） */
+export const AUTHOR_INFO: AuthorInfo = {
+  name: 'Yuban10703',
+  email: 'yuban10703@outlook.com',
+  donateImage: './about/donate.png',
+}

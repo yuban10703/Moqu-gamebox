@@ -61,16 +61,6 @@ export interface AppStorage {
   saves: SaveStore
   loadSettings(): Promise<SettingsSnapshot>
   saveSettings(settings: SettingsSnapshot): Promise<boolean>
-  /**
-   * 「我的信息」：用户在关于页自己写的备注（可编辑、可保存）。
-   *
-   * 为什么放在这一层：它与存档/设置一样必须走**同一套本机存储后端**
-   * （Android 原生 SQLite / 浏览器 IndexedDB / 内存降级），
-   * 界面不该自己去碰 localStorage 或 IndexedDB。
-   * 与游戏进度无关：`clearAll()`（清除全部进度）**不会**删除它。
-   */
-  loadNote(): Promise<string>
-  saveNote(text: string): Promise<boolean>
   listRecords(): Promise<CompletionRecord[]>
   appendRecord(record: CompletionRecord): Promise<void>
   listBackups(): Promise<BackupSlotInfo[]>
@@ -84,10 +74,6 @@ export interface AppStorage {
 const SETTINGS_KEY = 'settings:1'
 const RECORDS_PREFIX = 'records:1:'
 const BACKUP_PREFIX = 'save:1:backup:'
-/** 「我的信息」的存储键；版本号与其它键一致带 `:1`，将来改格式时可以并存迁移 */
-const NOTE_KEY = 'about:1:note'
-/** 「我的信息」的最大长度：够写一段自我介绍，又不至于把本机存储写爆 */
-export const NOTE_MAX_LENGTH = 2000
 
 export interface AppStorageOptions {
   bridge?: EinkNativeBridge | null
@@ -136,28 +122,6 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
   const saveSettings = async (settings: SettingsSnapshot): Promise<boolean> => {
     try {
       await kv.setMany([[SETTINGS_KEY, JSON.stringify(settings)]])
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /*
-   * 「我的信息」（关于页）。读失败一律退化成空串：这是一块可选的个人备注，
-   * 读不出来时界面应该显示空输入框，而不是弹错误。
-   */
-  const loadNote = async (): Promise<string> => {
-    try {
-      const text = await kv.get(NOTE_KEY)
-      return text === null ? '' : text.slice(0, NOTE_MAX_LENGTH)
-    } catch {
-      return ''
-    }
-  }
-
-  const saveNote = async (text: string): Promise<boolean> => {
-    try {
-      await kv.setMany([[NOTE_KEY, text.slice(0, NOTE_MAX_LENGTH)]])
       return true
     } catch {
       return false
@@ -296,8 +260,6 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
     saves,
     loadSettings,
     saveSettings,
-    loadNote,
-    saveNote,
     listRecords,
     appendRecord,
     listBackups,

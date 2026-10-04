@@ -149,9 +149,9 @@ export const enUS: Dict = {
   'shell.about.title': 'About',
   'shell.about.product': 'Moqu',
   'shell.about.tagline': 'An offline game box for e-ink devices: install it and play, no network needed.',
-  'shell.about.mine.title': 'My info',
-  'shell.about.mine.hint': 'Kept on this device only, never uploaded. It stays after a refresh or restart.',
-  'shell.about.mine.placeholder': 'For example: name, contact, notes…',
-  'shell.about.mine.save': 'Save',
-  'shell.about.mine.saved': 'Saved',
+  // Author info block on the About screen; the values live in packages/ui/src/screens/authorInfo.ts
+  'shell.about.author.title': 'Author',
+  'shell.about.author.name': 'Author',
+  'shell.about.author.email': 'Email',
+  'shell.about.author.donate': 'Tip code',
 }

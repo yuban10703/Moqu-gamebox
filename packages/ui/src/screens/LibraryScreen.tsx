@@ -34,15 +34,18 @@ const PAGE_SIZE_FALLBACK = 24
  * 为什么兜底按「最坏情况」算：measure() 只在内容区尺寸/条目数变化时重跑，
  * **分页器出现本身不会触发重测**（内容区尺寸没变，ResizeObserver 不会回调），
  * 所以这一枪打低了就会一直低，网格富余小于误差时就把分页器顶出内容区。
- * `.eink-pager--footer` 现在把行高收到 1（行高 = 按钮 0.8em + 上下 2px 边框），
- * 但页码文字 `.eink-pager__info` 一旦继承正文行高就是 0.8em × 1.5；
- * 兜底按后者算（0.8em × 1.5 + 2px 边框 + 区块间距），任何排版下都不会低估。
- * 实测代价是多留 8~11px，六个档位里没有一档因此掉一行方块（见本轮报告）。
+ *
+ * 用户要求「翻页按钮要大一些」后，`.eink-pager__btn` 与 `.eink-button` 同档：
+ * min-height 48px（内容 1em 行高 + 上下 2px 边框都小于它），
+ * `.eink-pager--footer` 又把行高收到 1，所以**一行分页 = 按钮 48px + 区块间距**。
+ * 兜底按 48px 算（字号档再大也不超过它：1em + 4px 边框要 44px 字号才追平）。
+ * 实测：预留从旧的 46px 涨到 56px 之后，439×847@26px 坏档仍是 4 块/页、
+ * 439×560@26px 是 6 块/页（比改前还多 2 块，因为页脚同时变矮了），两处内容区都不滚动。
  */
 function pagerRowHeight(content: HTMLElement, gap: number): number {
   const spacing = Math.max(gap, 8)
   const font = Number.parseFloat(getComputedStyle(content).fontSize) || 18
-  const estimate = Math.ceil(font * 0.8 * 1.5) + 2 + spacing
+  const estimate = Math.max(48, Math.ceil(font) + 4) + spacing
   const pager = content.querySelector('.eink-pager')
   if (pager) {
     const rect = pager.getBoundingClientRect()
@@ -62,7 +65,7 @@ export interface LibraryScreenProps {
   onSettings: () => void
   onDiagnostics: () => void
   onHelp: () => void
-  /** 关于页入口：放在**标题行**（h1 那一行的右侧），不占页脚那排（见 LibraryScreen 里的说明） */
+  /** 关于页入口：放在页脚**右下角**（原版本号的位置，见 LibraryScreen 里的说明） */
   onAbout: () => void
 }
 
@@ -78,11 +81,6 @@ export function LibraryScreen({
   onHelp,
   onAbout,
 }: LibraryScreenProps): ReactNode {
-  /*
-   * 构建时注入的版本信息；单测/非 vite 环境下不存在，因此做存在性判断（不能直接引用，
-   * 否则在 vitest 里会抛 ReferenceError）。
-   */
-  const buildInfo = typeof __BUILD_INFO__ === 'undefined' ? null : __BUILD_INFO__
   const { i18n, platform } = useUi()
   // 分页状态；current 做 clamp，条目数/每页数变化时不会停在空页
   // 页码存在模块级缓存里：进对局会让 LibraryScreen 卸载，返回首页时若只用组件内 state 就会跳回第 1 页
@@ -189,21 +187,7 @@ export function LibraryScreen({
   return (
     <div className="eink-screen eink-screen--sticky-footer">
       <header className="eink-screen__header">
-        {/*
-          「关于」入口放在**标题行**（用户要求），不在页脚那排：
-          页脚多一个按钮就会折行 —— 实测 en 18px 页脚 93→124px、en 26px 148→189px，
-          内容区被吃掉 31~41px，英文首页 12 个方块从「一页」变成「10+2 两页」；
-          zh 18px 也只剩 1px 余量。标题行有现成高度（18px 档 36px、26px 档 53px），
-          48px 的 .eink-link 只让 18px 那一行长高 12px、26px 档完全不涨。
-          布局沿用「区块标题行」那套（.eink-section__head：标题占满剩余宽度、控件靠右），
-          与「全部游戏」标题行的分页控件一致，不新增样式体系。
-        */}
-        <div className="eink-section__head">
-          <h1>{i18n.t('shell.app.title')}</h1>
-          <button type="button" className="eink-link" onClick={onAbout}>
-            {i18n.t('shell.nav.about')}
-          </button>
-        </div>
+        <h1>{i18n.t('shell.app.title')}</h1>
         <p className="eink-badges">
           {/* 离线状态不再显示（用户要求）：安装包内置全部资源，装好即可离线，
               常驻一个「已可离线」徽标只是噪音。真正的异常仍会提示。 */}
@@ -357,28 +341,25 @@ export function LibraryScreen({
 
       <footer className="eink-footer">
         {/*
-          页脚保持**三个**按钮（设置/帮助/诊断）——「关于」已经移到标题行。
-          这三个按钮 + 右下角版本号正是首屏放得下 12 个方块的前提：
-          多一个按钮就会折到第二行（zh 18px 页脚 61→93px、en 18px 93→124px）。
+          页脚保持**三个**主按钮（设置/帮助/诊断）——它们 + 右下角的「关于」正是首屏放得下 12 个方块的前提：
+          多一个主按钮（.eink-button，48px 高、110~187px 宽）就会折到第二行
+          （zh 18px 页脚 61→93px、en 18px 93→124px）。
+          「关于」用窄的无边框链接放在原版本号的位置，实测六个配置的页脚：
+          zh 18px 61px、zh 26px 73px（原本 114px：版本号折在第二行）、en 18px 93px、en 26px 148px、
+          1248px 宽的两档 61px —— 比改前只多出「英文 18px 这一档的 18px」。
         */}
         <ActionButton labelKey="shell.nav.settings" onSelect={onSettings} />
         <ActionButton labelKey="shell.nav.help" onSelect={onHelp} />
         <ActionButton labelKey="shell.nav.diagnostics" onSelect={onDiagnostics} />
         {/*
-          Build version in the footer's right corner, so the user can tell at a glance
-          whether the device runs the latest build. It is deliberately placed inside the
-          EXISTING footer row (not a new line): the library fits exactly one screen at the
-          largest font scale, and an extra row would make it scroll. It can shrink and
-          ellipsize, so it never squeezes the three buttons.
+          用户要求：去掉右下角的构建版本号，把「关于」换到这个位置。
+          版本号本身没有消失 —— 它移到了关于页（那里现在是判断设备上是否最新版的唯一入口）。
+          margin-left:auto（.eink-footer__about）把它推到行尾；这一行放不下时它会自己折到下一行，
+          不会挤压设置/帮助/诊断三个主按钮。
         */}
-        {buildInfo ? (
-          <span
-            className="eink-version"
-            aria-label={`${i18n.t('shell.common.version')} ${buildInfo.version} ${buildInfo.stamp}`}
-          >
-            v{buildInfo.version} · {buildInfo.stamp}
-          </span>
-        ) : null}
+        <button type="button" className="eink-link eink-footer__about" onClick={onAbout}>
+          {i18n.t('shell.nav.about')}
+        </button>
       </footer>
     </div>
   )
