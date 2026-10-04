@@ -3,15 +3,21 @@
 真机逐款游戏审计：开局渲染、棋盘尺寸、按钮是否越界、有无缺键。
 用法: python3 tools/device/audit-games.py <devtools-ws-file> [难度| -] <adb-serial>
 """
-import json, subprocess, sys, time
+import json, os, shutil, subprocess, sys, time
 
 # 审计问题收集：脚本必须能失败，否则 verify-device.sh 的最后一步形同虚设
 problems = []
 
+# 路径相对仓库根目录推算（与 verify-device.sh 同一口径），不再写死某台机器上的绝对路径
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+EVAL = os.path.join(ROOT, 'tools', 'scripts', 'devtools-eval.py')
+# 优先用 setup-android-toolchain.sh 装进 .toolchain 的 adb；没有就退回 PATH 里的 adb
+ADB = os.path.join(ROOT, '.toolchain', 'android-sdk', 'platform-tools', 'adb')
+if not os.access(ADB, os.X_OK):
+    ADB = shutil.which('adb') or ADB
+
 WS = open(sys.argv[1]).read().strip()
-EVAL = '/root/墨水屏游戏/tools/scripts/devtools-eval.py'
 DIFFICULTY = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != '-' else None
-ADB = '/root/墨水屏游戏/.toolchain/android-sdk/platform-tools/adb'
 SERIAL = sys.argv[3] if len(sys.argv) > 3 else None
 
 def wake():
@@ -22,7 +28,7 @@ def wake():
         time.sleep(0.6)
 
 def js(e):
-    out = subprocess.run(['python3', EVAL, WS, e], capture_output=True, text=True, timeout=60)
+    out = subprocess.run([sys.executable, EVAL, WS, e], capture_output=True, text=True, timeout=60)
     return out.stdout.strip().splitlines()[-1] if out.stdout.strip() else ''
 
 def click(label):

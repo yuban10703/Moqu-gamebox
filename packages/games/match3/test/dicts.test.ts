@@ -57,6 +57,8 @@ describe('match3 字典', () => {
       'match3.difficulty.starter',
       'match3.difficulty.skilled',
       'match3.difficulty.challenging',
+      // 基础 key 是壳层结果面板真正取的那个（i18n.t，不走 plural）
+      'match3.solved.best',
       'match3.solved.best__other',
       'shell.game.undo',
     ]

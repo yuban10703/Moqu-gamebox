@@ -167,6 +167,10 @@ describe('游戏库 → 详情 → 游戏', () => {
       expect(stored).toContain('"ended":"won"')
     })
     expect(stored).toContain('L01')
+    // 「本关最佳」必须记上（推箱子状态里没有 moves 字段，靠 GameDef.movesOf 从日志重放得出）
+    const progress = JSON.parse(stored).progress as { bestMoves?: Record<string, number> }
+    expect(progress.bestMoves?.['L01']).toBeGreaterThan(0)
+    expect(screen.getByText(/Best for this level: \d+ moves/)).toBeTruthy()
     // 过关只提交一次，不允许出现「界面过关但存档冲突」的假失败
     expect(screen.queryByRole('alert')).toBeNull()
   })

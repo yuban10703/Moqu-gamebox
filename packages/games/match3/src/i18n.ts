@@ -29,6 +29,8 @@ export const match3Zh: Dict = {
   'match3.lost.title': '步数用尽',
   'match3.result.score__other': '本局得分 {count}',
   'match3.result.moves__other': '共用了 {count} 步',
+  // 基础 key 不能省：壳层结果面板用 i18n.t('<ns>.solved.best') 取它（不走 plural）
+  'match3.solved.best': '该难度最少步数 {count}',
   'match3.solved.best__other': '该难度最少步数 {count}',
 }
 
@@ -56,6 +58,7 @@ export const match3En: Dict = {
   'match3.result.score__other': 'You scored {count} points',
   'match3.result.moves__one': 'You used {count} move',
   'match3.result.moves__other': 'You used {count} moves',
+  'match3.solved.best': 'Best for this difficulty: {count} moves',
   'match3.solved.best__one': 'Best for this difficulty: {count} move',
   'match3.solved.best__other': 'Best for this difficulty: {count} moves',
 }

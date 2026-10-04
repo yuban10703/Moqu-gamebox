@@ -119,6 +119,15 @@ export const sokobanGame: GameDef<SokobanState, SokobanAction> = {
     return derive(level.parsed, state.log).solved ? 'won' : 'playing'
   },
 
+  /*
+   * 计步由日志重放得出（状态里没有 moves 字段）。缺了它，壳层回退去读 state.moves
+   * 只能拿到 undefined —— 推箱子过关后「本关最佳」永远记不上。
+   */
+  movesOf(state: SokobanState): number {
+    const level = levelOrThrow(state.levelId)
+    return derive(level.parsed, state.log).moves
+  },
+
   view(state: SokobanState) {
     return buildView(levelOrThrow(state.levelId), state)
   },

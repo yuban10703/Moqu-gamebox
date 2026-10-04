@@ -234,10 +234,12 @@ console.log('\n[3] 离线能力：首次加载 → SW 接管 → 断网重载')
   check('断网后重载仍能打开应用', openedOffline)
   if (openedOffline) {
     const st = await p.evaluate(() => ({
-      badge: document.querySelector('.eink-badge')?.textContent ?? '',
+      // 首页只在**异常**时显示离线徽标（「已可离线」常驻徽标已按用户要求移除，见 LibraryScreen）：
+      // 断网后正确的表现是「没有任何告警徽标」，而不是去找一个早已不再渲染的「已可离线」
+      warnings: [...document.querySelectorAll('.eink-badge--warning')].map((el) => el.textContent ?? ''),
       moves: document.body.innerText.match(/步数\s*(\d+)/)?.[1] ?? null,
     }))
-    check('离线状态显示「已可离线」', /已可离线/.test(st.badge), st.badge)
+    check('断网后首页没有「无法离线」告警', st.warnings.length === 0, st.warnings.join(' | '))
     check('离线时存档仍可读（步数一致）', st.moves === movesOffline,
       `断网前 ${movesOffline} → 断网后 ${st.moves}`)
   }

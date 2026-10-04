@@ -186,3 +186,16 @@ describe('输入处理与确定性', () => {
     expect(() => reduceWithLevel(level.def.id, start, { type: 'nextLevel' })).toThrow(IllegalActionError)
   })
 })
+
+describe('GameDef.movesOf（最佳成绩的计步口径）', () => {
+  it('等于日志重放出来的步数，撤销会把步数减回去', async () => {
+    const { sokobanGame } = await import('../src/index.js')
+    let state = sokobanGame.create(0, 'starter')
+    expect(sokobanGame.movesOf?.(state)).toBe(0)
+    const first = sokobanGame.legal(state).find((action) => action.type === 'move')!
+    state = sokobanGame.reduce(state, first)
+    expect(sokobanGame.movesOf?.(state)).toBe(1)
+    state = sokobanGame.reduce(state, { type: 'undo' })
+    expect(sokobanGame.movesOf?.(state)).toBe(0)
+  })
+})

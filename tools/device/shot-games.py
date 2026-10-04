@@ -3,12 +3,17 @@
 真机逐款开局并截图到 docs/screens/。
 用法: python3 tools/device/shot-games.py <devtools-ws-file> <adb-serial>
 """
-import json, subprocess, sys, time
+import json, os, shutil, subprocess, sys, time
 WS = open(sys.argv[1]).read().strip(); SERIAL = sys.argv[2]
-EVAL = '/root/墨水屏游戏/tools/scripts/devtools-eval.py'
-ADB = '/root/墨水屏游戏/.toolchain/android-sdk/platform-tools/adb'
+# 路径相对仓库根目录推算（与 verify-device.sh 同一口径），不再写死某台机器上的绝对路径
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+EVAL = os.path.join(ROOT, 'tools', 'scripts', 'devtools-eval.py')
+# 优先用 setup-android-toolchain.sh 装进 .toolchain 的 adb；没有就退回 PATH 里的 adb
+ADB = os.path.join(ROOT, '.toolchain', 'android-sdk', 'platform-tools', 'adb')
+if not os.access(ADB, os.X_OK):
+    ADB = shutil.which('adb') or ADB
 def js(e):
-    out = subprocess.run(['python3', EVAL, WS, e], capture_output=True, text=True, timeout=60)
+    out = subprocess.run([sys.executable, EVAL, WS, e], capture_output=True, text=True, timeout=60)
     return out.stdout.strip().splitlines()[-1] if out.stdout.strip() else ''
 def wake():
     subprocess.run([ADB,'-s',SERIAL,'shell','input','keyevent','KEYCODE_WAKEUP'], capture_output=True, timeout=30); time.sleep(0.5)
@@ -22,12 +27,12 @@ def ensure_library():
         time.sleep(2); wake()
 def shot(tag):
     subprocess.run([ADB,'-s',SERIAL,'shell','screencap -p /sdcard/g.png'], capture_output=True, timeout=60)
-    subprocess.run([ADB,'-s',SERIAL,'pull','/sdcard/g.png',f'/root/墨水屏游戏/docs/screens/game-{tag}.png'], capture_output=True, timeout=60)
+    subprocess.run([ADB,'-s',SERIAL,'pull','/sdcard/g.png',os.path.join(ROOT, 'docs', 'screens', f'game-{tag}.png')], capture_output=True, timeout=60)
     print(f'  已截图 {tag}')
 ensure_library()
 for name in tiles():
     ensure_library()
     js(f"(()=>{{const b=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('{name}')); b?.click(); return 'ok'}})()"); time.sleep(2.5)
-    js("(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('继续')||(x.innerText||'').includes('开始新游戏')); b?.click(); return 'ok'}})()"); time.sleep(1.5)
-    js("(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('替换并开始')); b?.click(); return 'ok'}})()"); time.sleep(3)
+    js("(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('继续')||(x.innerText||'').includes('开始新游戏')); b?.click(); return 'ok'})()"); time.sleep(1.5)
+    js("(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.innerText||'').includes('替换并开始')); b?.click(); return 'ok'})()"); time.sleep(3)
     wake(); shot(name)

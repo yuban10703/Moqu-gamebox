@@ -138,7 +138,7 @@ export const zhCN: Dict = {
   'shell.help.controls.paging': 'PageUp / PageDown 或实体翻页键：列表翻页',
   'shell.help.offline.title': '离线使用',
   'shell.help.offline.body':
-    '安装包内置全部资源，安装后首次启动即可离线游玩；网页版需要先完成一次在线加载以缓存资源，离线准备完成后首页会显示「已可离线」。',
+    '安装包内置全部资源，安装后首次启动即可离线游玩；网页版需要先完成一次在线加载以缓存资源，离线准备完成后本页会显示「已可离线」；无法离线时首页会给出提示。',
   'shell.help.saves.title': '存档与备份',
   'shell.help.saves.body':
     '每款游戏保留一个进行中的局面，关键动作会立即写入本机存储；不同设备的进度不会自动同步，请用「导出备份 / 导入备份」在设备之间搬运。卸载应用或清除数据会丢失进度。',

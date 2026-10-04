@@ -139,7 +139,7 @@ export const enUS: Dict = {
   'shell.help.controls.paging': 'PageUp / PageDown or hardware page keys: flip list pages',
   'shell.help.offline.title': 'Offline use',
   'shell.help.offline.body':
-    'The app bundles every resource, so it plays offline right after install. The web version needs one online load to cache its resources; once ready, the home screen shows "Ready offline".',
+    'The app bundles every resource, so it plays offline right after install. The web version needs one online load to cache its resources; once ready, this page shows "Ready offline", and the home screen warns you if offline play is unavailable.',
   'shell.help.saves.title': 'Saves and backups',
   'shell.help.saves.body':
     'Each game keeps one game in progress and writes key actions to local storage immediately. Progress is not synced between devices: use "Export backup" and "Import backup" to move it. Uninstalling the app or clearing data loses progress.',
