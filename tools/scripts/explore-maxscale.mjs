@@ -152,6 +152,79 @@ for (const title of titles) {
   await audit(`${title}·游戏页`)
 }
 
+/*
+ * 提示条容量 —— 用户报过的真实缺陷：竖屏 + 最大字号下，贪吃蛇的提示
+ * 「这一步走不通（不能原地掉头，或本局已经结束）」在状态条里被**静默截成半句**
+ * （`.eink-notice` 是 nowrap + overflow:hidden，放不下的字直接切掉）。
+ *
+ * 两侧各守一半：
+ *   - 文案侧：`packages/ui/test/notice-budget.test.ts` 按 `NOTICE_BUDGET` 卡每条提示的字宽；
+ *   - 布局侧（这里）：真实提示不许截断，且**预算大小的全角探针**要放得下 ——
+ *     谁把状态条改窄、字号放大、或者让保存指示器又挤回来，都会在这里红。
+ */
+console.log('\n[提示条容量 · 最大字号]')
+const openSnake = async () => {
+  await page.goto(PAGE_URL, { waitUntil: 'networkidle' })
+  await page.waitForSelector('text=墨趣')
+  await click(/贪吃蛇/)
+  await page.waitForSelector('text=玩法说明', { timeout: 8000 })
+  // 强制新开一局：新局蛇头朝右，点「左」必定是非法动作（存档局的方向不确定）
+  await click(/开始新游戏/)
+  if (await page.getByRole('button', { name: /替换并开始/ }).count()) await dialog('替换并开始')
+  await page.waitForSelector('.eink-board', { timeout: 8000 })
+  await page.waitForTimeout(250)
+}
+await openSnake()
+// 蛇头朝右时「左」必为原地掉头 → 触发提示（按钮此时是变暗的，仍然可点）
+await page.locator('button[aria-label="左"]').first().click()
+await page.waitForTimeout(300)
+const noticeFit = await page.evaluate((probeLen) => {
+  const n = document.querySelector('.eink-notice')
+  if (!n) return { error: '没有出现提示条（非法动作没触发提示？）' }
+  // 同时看保存指示器是否让位（有提示时它必须 display:none，否则提示少 68px）
+  const save = document.querySelector('.eink-save')
+  const saveHidden = !save || save.getBoundingClientRect().width === 0
+  /*
+   * 余量要相对**可用宽度上限**算，不能拿 clientWidth 比 —— 提示元素是
+   * flex: 0 1 auto，放得下时它会缩到内容宽度，clientWidth - scrollWidth 恒为 0，
+   * 那个 0 看起来像"刚好放得下"，其实什么也没说明。
+   */
+  const strip = n.parentElement
+  const scs = getComputedStyle(strip)
+  const ncs = getComputedStyle(n)
+  const cap =
+    strip.clientWidth -
+    (Number.parseFloat(scs.columnGap) || 0) -
+    Number.parseFloat(scs.paddingLeft || '0') -
+    Number.parseFloat(scs.paddingRight || '0')
+  const measure = (text) => {
+    n.textContent = text
+    return {
+      text,
+      clipped: n.scrollWidth > n.clientWidth + 1,
+      margin: Math.round(cap - n.getBoundingClientRect().width),
+      width: Math.round(n.getBoundingClientRect().width),
+    }
+  }
+  const original = n.textContent
+  const real = measure(original)
+  const probe = measure('提'.repeat(probeLen)) // 全角探针：宽度正好等于预算上限
+  n.textContent = original
+  n.textContent = original
+  return { real, probe, saveHidden }
+}, 14) // 与 packages/core/src/noticeBudget.ts 的 NOTICE_BUDGET 保持一致（改那里也要改这里）
+if (noticeFit.error) {
+  check('提示条容量：非法动作能触发提示', false, noticeFit.error)
+} else {
+  check(
+    '提示条容量：真实提示未被截断',
+    !noticeFit.real.clipped,
+    `宽 ${noticeFit.real.width}px · 距上限 ${noticeFit.real.margin}px「${noticeFit.real.text}」`,
+  )
+  check('提示条容量：14 字预算放得下', !noticeFit.probe.clipped, `宽 ${noticeFit.probe.width}px · 距上限 ${noticeFit.probe.margin}px`)
+  check('提示条容量：有提示时保存指示器让位', noticeFit.saveHidden)
+}
+
 console.log(`\n=== 页面错误：${errors.length} ===`)
 for (const e of errors.slice(0, 5)) console.log('  ! ' + e)
 const failed = results.filter((r) => !r.ok)

@@ -45,7 +45,7 @@ export const fifteenEn: Dict = {
     "Arrow buttons move the blank. Undo and restart are counted in this puzzle's stats.",
   'fifteen.rules.restart':
     'Restarting returns to the opening position for the same seed; you cannot undo back past a restart.',
-  'fifteen.illegal.notice': 'Blank is against that edge',
+  'fifteen.illegal.notice': 'Blank is at that edge',
   'fifteen.difficulty.starter': 'Starter 3×3',
   'fifteen.difficulty.skilled': 'Skilled 4×4',
   'fifteen.difficulty.challenging': 'Challenging 5×5',

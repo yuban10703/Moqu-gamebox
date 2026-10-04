@@ -58,7 +58,7 @@ export const game2048En: Dict = {
   '2048.dir.left': 'Left',
   '2048.dir.right': 'Right',
   '2048.dpad.label': 'Direction pad',
-  '2048.blocked': 'That direction is blocked',
+  '2048.blocked': 'Direction is blocked',
   '2048.won.title': 'Target reached',
   '2048.lost.title': 'No moves left',
   '2048.result.score__other': 'Score {count}',

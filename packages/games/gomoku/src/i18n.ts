@@ -43,7 +43,7 @@ export const gomokuEn: Dict = {
     'White replies automatically in the same move. Undo takes back a whole round.',
   'gomoku.rules.restart':
     'Restarting clears the current game and returns to an empty board for the same seed; you cannot undo back past a restart.',
-  'gomoku.illegal.notice': 'That cell cannot be played',
+  'gomoku.illegal.notice': 'Cannot play that cell',
   'gomoku.difficulty.starter': 'Starter',
   'gomoku.difficulty.skilled': 'Skilled',
   'gomoku.difficulty.challenging': 'Challenging',

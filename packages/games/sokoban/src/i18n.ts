@@ -56,7 +56,7 @@ export const sokobanEn: Dict = {
   'sokoban.dir.left': 'Left',
   'sokoban.dir.right': 'Right',
   'sokoban.dpad.label': 'Direction pad',
-  'sokoban.blocked': 'That direction is blocked',
+  'sokoban.blocked': 'Direction is blocked',
   'sokoban.solved.title': 'Level solved',
   'sokoban.solved.moves__one': '{count} move',
   'sokoban.solved.moves__other': '{count} moves',

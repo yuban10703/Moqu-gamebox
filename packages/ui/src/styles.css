@@ -1504,11 +1504,36 @@ html[data-bold-lines='on'] .eink-board {
  * 对局页状态条里的提示：**收紧行高**，让它在固定的 48px 里放得下。
  * 实测 26px 字号档下原本内容高 54px > 可见 48px，多出的 6px 会压到棋盘上 ——
  * 保持固定高度（避免提示出现/消失时棋盘抖动）的同时把行高压到 1.2 即可。
+ *
+ * text-overflow: ellipsis 是**兜底**：提示只允许一行（`nowrap` + `hidden`），
+ * 文案一旦超长就会被无声切掉 —— 用户报过竖屏 P6Plus 上贪吃蛇的提示只显示一半。
+ * 真正的约束是文案本身 ≤ NOTICE_BUDGET（packages/core/src/noticeBudget.ts，
+ * 由 packages/ui/test/notice-budget.test.ts 守着）；这里保证万一超了，用户看到的是
+ * 「…」而不是一句读不通的半截话。
  */
 .eink-screen--game .eink-statusstrip[data-notice='yes'] .eink-notice {
   line-height: 1.2;
   margin: 0;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 有提示时，提示**独占这一行**：把「已保存」指示器让出去。
+ *
+ * 起因（用户报的缺陷）：竖屏 P6Plus 上贪吃蛇的提示被截断。实测发现状态条里
+ * 提示与保存指示器同排，保存指示器吃掉 60px + 8px 间距 —— 提示只剩 347px，
+ * 26px 字号档下约 13 字就会溢出被切。让提示独占后可用 ~397px（≈15 字），
+ * 文案预算（NOTICE_BUDGET）才有余量。
+ * 保存状态本身是持续显示的，被提示遮住 1~2 秒不影响判断；反之提示是「你这一步为什么没生效」，
+ * 被截断的代价大得多。
+ *
+ * 只作用于**非失败态**（data-expanded='no'）：保存失败时指示器里有重试/导出按钮，
+ * 那是必须一直看得见的信息，不能被提示挤掉。
+ */
+.eink-screen--game .eink-statusstrip[data-expanded='no'][data-notice='yes'] .eink-save {
+  display: none;
 }
 
 /*

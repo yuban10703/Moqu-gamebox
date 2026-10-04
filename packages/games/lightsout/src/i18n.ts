@@ -41,7 +41,7 @@ export const lightsoutEn: Dict = {
     'Every puzzle is generated from an all-off board, so a solution always exists.',
   'lightsout.rules.restart':
     'Restarting returns to the same puzzle for the same seed; you cannot undo back past a restart.',
-  'lightsout.illegal.notice': 'That action is not allowed here',
+  'lightsout.illegal.notice': 'Action not allowed',
   'lightsout.difficulty.starter': 'Starter 5×5',
   'lightsout.difficulty.skilled': 'Skilled 5×5 (more flips)',
   'lightsout.difficulty.challenging': 'Challenging 6×6',

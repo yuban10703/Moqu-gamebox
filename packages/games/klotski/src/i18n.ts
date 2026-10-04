@@ -46,7 +46,7 @@ export const klotskiEn: Dict = {
     'One slide per move. Undo takes back one slide.',
   'klotski.rules.restart':
     'Restarting returns to this level’s opening layout; you cannot undo back past a restart.',
-  'klotski.illegal.notice': 'That block cannot slide that way',
+  'klotski.illegal.notice': 'That block cannot slide',
   'klotski.difficulty.starter': 'Starter',
   'klotski.difficulty.skilled': 'Skilled',
   'klotski.difficulty.challenging': 'Challenging',
