@@ -9,6 +9,7 @@ import {
   computeRootLayout,
   dpadTeeKeySize,
   isCrampedLayout,
+  readBestScore,
   type CellKind,
   type MoveDir,
   type SaveEnvelope,
@@ -239,6 +240,8 @@ export function GameScreen({
       : '',
   ].filter(Boolean)
   const best = (session.progress.bestMoves ?? {})[contentId]
+  // 无尽类玩法的最高纪录（声明了 scoreOf 才有；还没有成绩时不显示）
+  const bestScore = entry.game.scoreOf ? readBestScore(session.progress.bestScore)[contentId] : undefined
   /**
    * 游戏自定义按钮：`controls()` 里 role 为 action、且不由壳层代管的那些。
    * 壳层自己渲染 undo / restart / menu（id 固定），因此这里排除它们。
@@ -436,6 +439,14 @@ export function GameScreen({
                 ))}
                 {best !== undefined ? (
                   <li>{i18n.t(`${entry.game.i18nNamespace}.solved.best`, { count: best })}</li>
+                ) : null}
+                {bestScore !== undefined ? (
+                  <li>
+                    {i18n.plural(`${entry.game.i18nNamespace}.result.best`, bestScore, { count: bestScore })}
+                    {session.newRecord ? (
+                      <strong className="eink-result-record">{i18n.t(`${entry.game.i18nNamespace}.result.newRecord`)}</strong>
+                    ) : null}
+                  </li>
                 ) : null}
               </ul>
               <div className="eink-card__actions">

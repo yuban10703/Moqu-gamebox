@@ -11,7 +11,8 @@
  *         实弹扣血（手锯让这一枪 ×2）；对自己打出空包弹可以继续行动，其余情况换人；
  *         被手铐铐住的人跳过下一回合。枪打空就重新装填（回合归属不变）。
  *   一方血量归零，这一轮结束。
- *   对恶魔：三轮都赢才算通关，输掉任何一轮即失败；双人同屏：三局两胜。
+ *   对恶魔：三轮都赢才算通关，输掉任何一轮即失败；双人同屏：三局两胜；
+ *   无尽（endless）：对恶魔一轮接一轮，输掉一轮才结束；第 3 轮之后都按第 3 轮的设定（6 血、每次 4 件道具），成绩是赢下的轮数。
  *
  * 道具（8 种）：放大镜（看当前这一发）、香烟（+1 血）、啤酒（退掉当前这一发）、手铐（对方跳过下一回合）、
  *   手锯（下一枪伤害 ×2）、手机（随机得知后面某一发）、逆转器（当前这一发实弹 / 空包互换）、
@@ -25,7 +26,7 @@ import { IllegalActionError, createRng } from '@eink/core'
 export const GAME_ID = 'buckshot'
 export type Seat = 0 | 1
 export const SEATS: readonly Seat[] = [0, 1]
-export type Mode = 'vs' | 'hotseat'
+export type Mode = 'vs' | 'hotseat' | 'endless'
 
 export const ITEM_IDS = [
   'magnifier',
@@ -49,6 +50,11 @@ export const SHELLS_BY_ROUND: ReadonlyArray<readonly [number, number]> = [
   [3, 6],
   [4, 8],
 ]
+
+/** 第几轮用哪一档设定：无尽模式第 3 轮之后一直沿用最后一档 */
+export function roundTier(round: number): number {
+  return Math.min(round, ROUND_COUNT - 1)
+}
 
 export type Move =
   | { kind: 'begin' }
@@ -140,11 +146,11 @@ function rngFor(seed: number, salt: number, counter: number) {
 /** 新装一管弹（并按轮数发道具）；回合归属不变 */
 function reload(state: DuelState): DuelState {
   const rng = rngFor(state.seed, 0x51ed, state.loadNo)
-  const [lo, hi] = SHELLS_BY_ROUND[state.round]!
+  const [lo, hi] = SHELLS_BY_ROUND[roundTier(state.round)]!
   const total = lo + rng.int(hi - lo + 1)
   const live = 1 + rng.int(total - 1)
   const load = rng.shuffle([...Array<boolean>(live).fill(true), ...Array<boolean>(total - live).fill(false)])
-  const perLoad = ITEMS_PER_LOAD_BY_ROUND[state.round]!
+  const perLoad = ITEMS_PER_LOAD_BY_ROUND[roundTier(state.round)]!
   const items = [...state.items] as [ItemId[], ItemId[]]
   const fresh: [number, number] = [0, 0]
   for (const seat of SEATS) {
@@ -172,7 +178,7 @@ function reload(state: DuelState): DuelState {
 }
 
 function startRound(state: DuelState, round: number): DuelState {
-  const maxHp = MAX_HP_BY_ROUND[round]!
+  const maxHp = MAX_HP_BY_ROUND[roundTier(round)]!
   return reload({
     ...state,
     round,
@@ -231,6 +237,9 @@ function endRound(state: DuelState, winner: Seat): DuelState {
     // 对恶魔：输掉任何一轮即失败，三轮全赢才算通关
     if (winner === 1) matchWinner = 1
     else if (roundWins[0] >= ROUND_COUNT) matchWinner = 0
+  } else if (state.mode === 'endless') {
+    // 无尽：只有输掉一轮才结束
+    if (winner === 1) matchWinner = 1
   } else {
     // 双人同屏：三局两胜
     if (roundWins[winner] >= Math.ceil(ROUND_COUNT / 2)) matchWinner = winner

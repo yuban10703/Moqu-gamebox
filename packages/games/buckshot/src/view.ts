@@ -4,10 +4,10 @@
  * 视角：对恶魔时永远是真人（0 号位）；双人同屏时是「当前行动者」（放大镜 / 手机的结果给正在操作的人看）。
  * 只用 SeatView，不碰枪里弹的真实顺序。
  */
-import type { ControlSpec, DuelLine, DuelSide, DuelToken, DuelView, GameView, StatView } from '@eink/core'
+import type { ControlSpec, DuelLine, GameStatus, DuelSide, DuelToken, DuelView, GameView, StatView } from '@eink/core'
 import { MAX_ITEMS, ROUND_COUNT, opponent, type DuelEvent, type Seat } from './engine.js'
 import { observe, remainingShells, type SeatView } from './observe.js'
-import { duelOf, humanActor, isHuman, itemUsable, modeOf, statusOf, type BuckshotState } from './rules.js'
+import { devilLevelAt, duelOf, humanActor, isHuman, itemUsable, modeOf, statusOf, type BuckshotState } from './rules.js'
 
 export function nameKey(state: BuckshotState, seat: Seat): string {
   if (modeOf(state.difficulty) === 'hotseat') return seat === 0 ? 'buckshot.name.p1' : 'buckshot.name.p2'
@@ -131,6 +131,12 @@ export function buildLog(state: BuckshotState, view: SeatView): DuelLine[] {
     }
     const owner = turnOwner(event)
     lines.push(owner !== null && owner !== view.seat ? { ...line, highlight: true } : line)
+    // 无尽模式：赢下一轮后恶魔要升档时，紧跟着记一条（墨水屏上没有动画，靠文字交代）
+    if (event.type === 'round' && event.winner === 0 && state.difficulty === 'endless') {
+      const before = devilLevelAt(state.difficulty, event.round)
+      const after = devilLevelAt(state.difficulty, event.round + 1)
+      if (after && after !== before) lines.push({ key: 'buckshot.log.levelUp', objectKey: `buckshot.difficulty.${after}` })
+    }
   }
   return lines
 }
@@ -170,11 +176,18 @@ export function buildDuel(state: BuckshotState): DuelView {
   }
   let caption: DuelLine
   if (view.phase === 'load') {
-    caption = { key: 'buckshot.caption.load', params: { total: view.loadTotal, live: view.loadLive, blank: view.loadBlank } }
+    const params = { total: view.loadTotal, live: view.loadLive, blank: view.loadBlank }
+    const level = state.difficulty === 'endless' ? devilLevelAt(state.difficulty, view.round) : null
+    caption = level
+      ? { key: 'buckshot.caption.loadEndless', objectKey: `buckshot.difficulty.${level}`, params }
+      : { key: 'buckshot.caption.load', params }
   } else if (view.phase === 'roundOver') {
     caption = { key: 'buckshot.caption.round', subjectKey: nameKey(state, view.winner!), params: { round: view.round + 1 } }
   } else if (view.phase === 'matchOver') {
-    caption = { key: 'buckshot.caption.match', subjectKey: nameKey(state, view.winner!) }
+    caption =
+      state.difficulty === 'endless'
+        ? { key: 'buckshot.caption.endlessOver', params: { round: view.round + 1 } }
+        : { key: 'buckshot.caption.match', subjectKey: nameKey(state, view.winner!) }
   } else {
     caption = { key: 'buckshot.caption.turn', subjectKey: nameKey(state, view.turn), params: { left: view.left } }
   }
@@ -204,6 +217,12 @@ export function buildDuel(state: BuckshotState): DuelView {
 
 export function buildStats(state: BuckshotState): StatView[] {
   const duel = duelOf(state)
+  if (state.difficulty === 'endless') {
+    return [
+      { labelKey: 'buckshot.stat.round', value: String(duel.round + 1) },
+      { labelKey: 'buckshot.stat.cleared', value: String(duel.roundWins[0]) },
+    ]
+  }
   return [
     { labelKey: 'buckshot.stat.round', value: `${duel.round + 1} / ${ROUND_COUNT}` },
     { labelKey: 'buckshot.stat.wins', value: `${duel.roundWins[0]} : ${duel.roundWins[1]}` },
@@ -233,29 +252,27 @@ export function buildControls(state: BuckshotState): ControlSpec[] {
   ]
 }
 
-export function buildView(state: BuckshotState): GameView {
+function buildResult(state: BuckshotState, status: GameStatus): NonNullable<GameView['result']> {
   const duel = duelOf(state)
-  const status = statusOf(state)
-  let result: GameView['result'] = null
-  if (status !== 'playing') {
-    const hotseat = modeOf(state.difficulty) === 'hotseat'
-    const titleKey = hotseat
-      ? duel.winner === 0
-        ? 'buckshot.won.p1'
-        : 'buckshot.won.p2'
-      : status === 'won'
-        ? 'buckshot.won.title'
-        : 'buckshot.lost.title'
-    result = {
-      titleKey,
-      details: [
-        {
-          key: 'buckshot.result.rounds',
-          params: { count: duel.roundWins[0], other: duel.roundWins[1] },
-        },
-      ],
+  if (state.difficulty === 'endless') {
+    return {
+      titleKey: 'buckshot.endless.over',
+      details: [{ key: 'buckshot.result.endless', params: { count: duel.roundWins[0], round: duel.round + 1 } }],
     }
   }
+  let titleKey: string
+  if (modeOf(state.difficulty) === 'hotseat') titleKey = duel.winner === 0 ? 'buckshot.won.p1' : 'buckshot.won.p2'
+  else titleKey = status === 'won' ? 'buckshot.won.title' : 'buckshot.lost.title'
+  return {
+    titleKey,
+    details: [{ key: 'buckshot.result.rounds', params: { count: duel.roundWins[0], other: duel.roundWins[1] } }],
+  }
+}
+
+export function buildView(state: BuckshotState): GameView {
+  const status = statusOf(state)
+  let result: GameView['result'] = null
+  if (status !== 'playing') result = buildResult(state, status)
   return {
     board: null,
     duel: buildDuel(state),

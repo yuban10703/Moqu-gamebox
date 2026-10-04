@@ -22,7 +22,8 @@ import {
   MIN_TICK_MS,
   applyAction,
   newEnvelope,
-  readHistory,
+  carriedProgress,
+  readBestScore,
   reseal,
   toCompletionRecord,
   pushHistory,
@@ -85,6 +86,8 @@ export interface GameProgress {
   bestMoves?: Record<string, number>
   /** 历史记录（最新在前、最多 5 条）；读取一律走 readHistory，坏数据不抛错 */
   history?: HistoryEntry[]
+  /** 无尽类玩法的最高纪录（内容 id → 成绩，越大越好，见 GameDef.scoreOf）；跨局继承 */
+  bestScore?: Record<string, number>
 }
 
 export interface SessionOptions<S, A> {
@@ -136,6 +139,8 @@ export interface SessionApi<S, A> {
    */
   corruptReason?: 'corrupt' | 'unsupported-version' | undefined
   progress: GameProgress
+  /** 刚结束的这一局打破了最高纪录（只在声明了 scoreOf 的玩法里出现；开下一局即复位） */
+  newRecord: boolean
   /** 本关已用时（可变引用，由 <Timer> 自己按秒读取，避免整页重渲染） */
   elapsedRef: { current: number }
   /** 本关开始时已累计的用时，用于计算「本关用时」 */
@@ -195,6 +200,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const [corrupt, setCorrupt] = useState(false)
   const [corruptReason, setCorruptReason] = useState<'corrupt' | 'unsupported-version' | undefined>(undefined)
   const [progress, setProgress] = useState<GameProgress>({})
+  const [newRecord, setNewRecord] = useState(false)
 
   const envelopeRef = useRef<SaveEnvelope | null>(null)
   const elapsedRef = useRef(0)
@@ -427,6 +433,28 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     [difficulty, game, now],
   )
 
+  /**
+   * 最高纪录（无尽类玩法）：本局成绩比纪录高就更新，并标记「新纪录」。
+   * 赢局与输局都要算 —— 无尽模式只会以失败收场。
+   */
+  const scoreProgress = useCallback(
+    (next: S, base: GameProgress): Pick<GameProgress, 'bestScore'> => {
+      const score = game.scoreOf?.(next)
+      const contentId = game.contentId?.(next) ?? (next as { levelId?: string }).levelId ?? ''
+      if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || !contentId) {
+        setNewRecord(false)
+        return base.bestScore ? { bestScore: base.bestScore } : {}
+      }
+      const bestScore = readBestScore(base.bestScore)
+      const previous = bestScore[contentId]
+      const beaten = score > 0 && (previous === undefined || score > previous)
+      if (beaten) bestScore[contentId] = Math.floor(score)
+      setNewRecord(beaten)
+      return { bestScore }
+    },
+    [game],
+  )
+
   const finalizeLevel = useCallback(
     (next: S) => {
       // 内容 id 与计步都由游戏自己声明（原先硬编码 sokoban.stat.moves 与 state.levelId，
@@ -446,7 +474,13 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
       }
       // 历史记录与「完成进度」写在同一笔提交里：分两次提交会争抢同一个提交编号（见 dispatch 里的注释）
       const history = pushHistory(progress.history, buildHistoryEntry(next, true))
-      const nextProgress: GameProgress = { completed: [...completed], bestMoves, history }
+      const nextProgress: GameProgress = {
+        ...progress,
+        completed: [...completed],
+        bestMoves,
+        history,
+        ...scoreProgress(next, progress),
+      }
       setProgress(nextProgress)
       persist(next, { force: true, progress: nextProgress, ended: 'won' })
 
@@ -460,7 +494,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         void storage.appendRecord(record)
       }
     },
-    [buildHistoryEntry, game, progress, persist, storage],
+    [buildHistoryEntry, game, progress, persist, scoreProgress, storage],
   )
 
   /**
@@ -470,11 +504,11 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const finalizeLoss = useCallback(
     (next: S) => {
       const history = pushHistory(progress.history, buildHistoryEntry(next, false))
-      const nextProgress: GameProgress = { ...progress, history }
+      const nextProgress: GameProgress = { ...progress, history, ...scoreProgress(next, progress) }
       setProgress(nextProgress)
       persist(next, { force: true, progress: nextProgress, ended: 'lost' })
     },
-    [buildHistoryEntry, persist, progress],
+    [buildHistoryEntry, persist, progress, scoreProgress],
   )
 
   /**
@@ -570,8 +604,8 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const discardAndRestart = useCallback(async () => {
     await storage.saves.remove(game.id)
     const seed = nextSeed()
-    // 「重开/再来一局」丢掉的是这一局的局面，不是历史战绩 —— 历史记录跟着新存档继续
-    const carried: GameProgress = { history: readHistory(progress.history) }
+    // 「重开/再来一局」丢掉的是这一局的局面，不是跨局战绩 —— 历史记录与最高纪录跟着新存档继续
+    const carried: GameProgress = carriedProgress(progress as Record<string, unknown>) as GameProgress
     const fresh = newEnvelope(
       {
         gameId: game.id,
@@ -696,6 +730,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     solved,
     finished,
     progress,
+    newRecord: newRecord && finished,
     elapsedRef,
     levelStartRef,
     clockActive: ready && !paused && !finished && !corrupt,

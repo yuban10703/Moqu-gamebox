@@ -9,6 +9,9 @@ import { observe } from '../src/observe.js'
 import {
   DEVIL_DELAY_MS,
   DIFFICULTY_IDS,
+  ENDLESS_LEVEL_EVERY,
+  devilLevelAt,
+  scoreOf,
   createState,
   decodeState,
   duelOf,
@@ -234,7 +237,7 @@ describe('文案', () => {
     const dicts = { 'zh-CN': { ...coreDictZh, ...buckshotZh }, 'en-US': { ...coreDictEn, ...buckshotEn } }
     for (const locale of ['zh-CN', 'en-US'] as const) {
       const i18n = createI18n(locale, dicts)
-      for (const difficulty of ['challenging', 'hotseat'] as const) {
+      for (const difficulty of ['challenging', 'endless', 'hotseat'] as const) {
         playOut(createState(99, difficulty), (s) => {
           const view = buildView(s)
           const duel = view.duel!
@@ -256,5 +259,60 @@ describe('文案', () => {
       for (const key of ['buckshot.title', 'buckshot.rules.body', 'buckshot.rules.body2', 'buckshot.rules.body3', 'buckshot.rules.restart', 'buckshot.illegal.notice']) i18n.t(key)
       expect(i18n.missingKeys(), locale).toEqual([])
     }
+  })
+})
+
+describe('无尽模式', () => {
+  it('恶魔每 3 轮升一档：入门 → 熟练 → 挑战，之后一直是挑战', () => {
+    const levels = Array.from({ length: 12 }, (_, round) => devilLevelAt('endless', round))
+    expect(ENDLESS_LEVEL_EVERY).toBe(3)
+    expect(levels).toEqual([
+      'starter', 'starter', 'starter', 'skilled', 'skilled', 'skilled',
+      'challenging', 'challenging', 'challenging', 'challenging', 'challenging', 'challenging',
+    ])
+    expect(devilLevelAt('skilled', 7)).toBe('skilled')
+    expect(devilLevelAt('hotseat', 0)).toBeNull()
+  })
+
+  it('整场只会以失败收场；成绩 = 赢下的轮数；结果面板与统计按无尽口径', () => {
+    let longest = 0
+    for (let seed = 1; seed <= 20; seed++) {
+      const over = playOut(createState(seed * 7919, 'endless'))
+      expect(statusOf(over)).toBe('lost')
+      const duel = duelOf(over)
+      expect(scoreOf(over)).toBe(duel.roundWins[0])
+      expect(duel.roundWins[1]).toBe(1)
+      const view = buildView(over)
+      expect(view.result!.titleKey).toBe('buckshot.endless.over')
+      expect(view.result!.details[0]).toEqual({ key: 'buckshot.result.endless', params: { count: duel.roundWins[0], round: duel.round + 1 } })
+      expect(view.stats.map((s) => s.labelKey)).toEqual(['buckshot.stat.round', 'buckshot.stat.cleared'])
+      longest = Math.max(longest, duel.roundWins[0])
+    }
+    expect(longest).toBeGreaterThanOrEqual(3) // 20 场里总有人撑过前 3 轮，验证跨过「第 3 轮」不会结束
+    expect(scoreOf(createState(1, 'skilled'))).toBeNull()
+  })
+
+  it('装填说明带上恶魔当前档位；升档时记录里记一条', () => {
+    expect(buildView(createState(4, 'endless')).duel!.caption).toMatchObject({
+      key: 'buckshot.caption.loadEndless',
+      objectKey: 'buckshot.difficulty.starter',
+    })
+    for (let seed = 1; seed < 300; seed++) {
+      const over = playOut(createState(seed, 'endless'))
+      if (duelOf(over).roundWins[0] < ENDLESS_LEVEL_EVERY) continue
+      const log = buildView(over).duel!.log
+      expect(log).toContainEqual({ key: 'buckshot.log.levelUp', objectKey: 'buckshot.difficulty.skilled' })
+      return
+    }
+    throw new Error('300 场里没有人撑过 3 轮')
+  })
+
+  it('恶魔回合照常自动步进；存档里恶魔不能替你按「开始」', () => {
+    let state = reduceState(createState(12, 'endless'), { type: 'begin' })
+    for (let i = 0; i < 200 && !(duelOf(state).turn === 1 && duelOf(state).phase === 'turn'); i++) state = step(state)
+    expect(tickMsOf(state)).toBe(DEVIL_DELAY_MS)
+    const raw = JSON.parse(JSON.stringify(encodeState(state))) as { log: Array<{ seat: number }> }
+    raw.log[0]!.seat = 1
+    expect(() => decodeState(raw)).toThrow(IllegalActionError)
   })
 })

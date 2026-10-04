@@ -5,7 +5,7 @@
  * 浏览器返回键行为也一致（对应 E04：不重复执行旧输入、不占用系统保留键）。
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { readHistory, type RecoveryReport, type SaveEnvelope } from '@eink/core'
+import { carriedProgress, type RecoveryReport, type SaveEnvelope } from '@eink/core'
 import type { Platform } from '@eink/platform'
 import { useHardwarePageKeys } from './components.js'
 import { UiProvider, useRootAttributes, useUi } from './contexts.js'
@@ -31,7 +31,7 @@ type Screen =
       startLevelId?: string
 
       /**
-       * 新开局时从旧存档继承过来的进度（目前只有历史记录）。
+       * 新开局时从旧存档继承过来的跨局战绩（历史记录、最高纪录）。
        * 「开始新游戏」会先删掉旧存档，若不显式带过去，历史战绩就会跟着局面一起消失。
        */
       carryProgress?: Record<string, unknown>
@@ -168,8 +168,8 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
    * 历史记录照旧继承；old 存档照旧先删（调用方负责先确认「替换并开始」）。
    */
   const startNew = async (gameId: string, difficulty: string, levelId?: string): Promise<void> => {
-    // 删档前先取出历史记录：它是跨局战绩，不该被「开始新游戏」清掉
-    const history = readHistory(saves[gameId]?.progress?.history)
+    // 删档前先取出跨局战绩（历史记录、最高纪录）：它们不该被「开始新游戏」清掉
+    const carry = carriedProgress(saves[gameId]?.progress)
     await platform.storage.saves.remove(gameId)
     await refreshSaves()
     nonceRef.current += 1
@@ -178,7 +178,7 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
       gameId,
       difficulty,
       nonce: nonceRef.current,
-      ...(history.length > 0 ? { carryProgress: { history } } : {}),
+      ...(Object.keys(carry).length > 0 ? { carryProgress: carry } : {}),
       ...(levelId ? { startLevelId: levelId } : {}),
     })
   }

@@ -91,3 +91,29 @@ export function appendHistory(
   const base = progress ?? {}
   return { ...base, history: pushHistory(base.history, entry) }
 }
+
+/**
+ * 最高纪录（内容 id → 成绩，越大越好；无尽类玩法用，见 GameDef.scoreOf）。
+ * 与历史记录同样宽容：不是对象、值不是非负有限数的条目一律丢掉，绝不抛错。
+ */
+export function readBestScore(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const out: Record<string, number> = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (key !== '' && typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) out[key] = Math.floor(raw)
+  }
+  return out
+}
+
+/**
+ * 开新局时从旧存档继承的**跨局战绩**：历史记录与最高纪录。
+ * 局面本身与本局进度不继承；「开始新游戏」「重新开始」都走这里，免得战绩跟着旧局面一起被删掉。
+ */
+export function carriedProgress(progress: Record<string, unknown> | undefined): Record<string, unknown> {
+  const history = readHistory(progress?.history)
+  const bestScore = readBestScore(progress?.bestScore)
+  return {
+    ...(history.length > 0 ? { history } : {}),
+    ...(Object.keys(bestScore).length > 0 ? { bestScore } : {}),
+  }
+}

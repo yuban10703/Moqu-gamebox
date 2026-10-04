@@ -3,6 +3,7 @@
  *
  * 两种模式由「难度」选择（详情页的难度区就是模式选择，壳层不用改）：
  *   - 入门 / 熟练 / 挑战：你（0 号位）对恶魔（1 号位，电脑）；恶魔的每一步由 tickMs + { type: 'tick' } 推进；
+ *   - 无尽 endless：对恶魔一轮接一轮，输掉一轮才结束；恶魔每 3 轮升一档（入门 → 熟练 → 挑战），成绩 = 赢下的轮数；
  *   - 双人同屏 hotseat：两个人在同一台设备上轮流，0 号位在下方、1 号位在上方，按钮永远替「当前行动者」操作。
  *
  * 状态只存 (difficulty, seed, log)：局面由 engine.replayDuel 复算，decode 逐步重放校验。
@@ -29,7 +30,10 @@ export const RULES_VERSION = 1
 export const CONTENT_VERSION = 1
 /** 恶魔每一步的间隔：墨水屏上看得清它用了什么、打了谁（≥ MIN_TICK_MS） */
 export const DEVIL_DELAY_MS = 1000
-export const DIFFICULTY_IDS = ['starter', 'skilled', 'challenging', 'hotseat'] as const
+export const DIFFICULTY_IDS = ['starter', 'skilled', 'challenging', 'endless', 'hotseat'] as const
+/** 无尽模式里恶魔每隔几轮升一档 */
+export const ENDLESS_LEVEL_EVERY = 3
+const ENDLESS_LEVELS: readonly BotLevel[] = ['starter', 'skilled', 'challenging']
 export type DifficultyId = (typeof DIFFICULTY_IDS)[number]
 
 export interface BuckshotState {
@@ -54,7 +58,26 @@ export function isDifficulty(value: unknown): value is DifficultyId {
 }
 
 export function modeOf(difficulty: DifficultyId): Mode {
-  return difficulty === 'hotseat' ? 'hotseat' : 'vs'
+  if (difficulty === 'hotseat') return 'hotseat'
+  return difficulty === 'endless' ? 'endless' : 'vs'
+}
+
+/** 有没有恶魔（1 号位是电脑）：对恶魔三档与无尽都有，双人同屏没有 */
+export function hasDevil(difficulty: DifficultyId): boolean {
+  return modeOf(difficulty) !== 'hotseat'
+}
+
+/** 恶魔这一轮用哪一档：固定难度就是难度本身；无尽模式按轮数升档（第 1～3 轮入门、4～6 熟练、7 轮起挑战） */
+export function devilLevelAt(difficulty: DifficultyId, round: number): BotLevel | null {
+  if (!hasDevil(difficulty)) return null
+  if (difficulty !== 'endless') return difficulty as BotLevel
+  return ENDLESS_LEVELS[Math.min(Math.floor(round / ENDLESS_LEVEL_EVERY), ENDLESS_LEVELS.length - 1)]!
+}
+
+/** 无尽模式的成绩：赢下的轮数（其它模式没有成绩，返回 null） */
+export function scoreOf(state: BuckshotState): number | null {
+  if (state.difficulty !== 'endless') return null
+  return duelOf(state).roundWins[0]
 }
 
 export function createState(seed: number, difficulty: string): BuckshotState {
@@ -118,8 +141,8 @@ export function reduceState(state: BuckshotState, action: BuckshotAction): Bucks
       return commit(state, duel, { seat: actor, move })
     }
     case 'tick': {
-      if (modeOf(state.difficulty) !== 'vs' || duel.phase !== 'turn' || duel.turn !== 1) illegal('the devil is not due to act')
-      const level = state.difficulty as BotLevel
+      const level = devilLevelAt(state.difficulty, duel.round)
+      if (level === null || duel.phase !== 'turn' || duel.turn !== 1) illegal('the devil is not due to act')
       const rng = createRng((state.seed ^ Math.imul(state.log.length + 1, 0x27d4eb2f)) >>> 0)
       return commit(state, duel, { seat: 1, move: decideMove(observe(duel, 1), level, rng) })
     }
@@ -132,12 +155,13 @@ export function statusOf(state: BuckshotState): GameStatus {
   const duel = duelOf(state)
   if (duel.phase !== 'matchOver') return 'playing'
   if (modeOf(state.difficulty) === 'hotseat') return 'won'
+  // 无尽模式只会以输掉一轮收场；成绩（赢下的轮数）由 scoreOf 交给壳层记最高纪录
   return duel.winner === 0 ? 'won' : 'lost'
 }
 
 export function tickMsOf(state: BuckshotState): number | null {
   const duel = duelOf(state)
-  return modeOf(state.difficulty) === 'vs' && duel.phase === 'turn' && duel.turn === 1 ? DEVIL_DELAY_MS : null
+  return hasDevil(state.difficulty) && duel.phase === 'turn' && duel.turn === 1 ? DEVIL_DELAY_MS : null
 }
 
 export function legalActions(state: BuckshotState): BuckshotAction[] {
@@ -195,7 +219,7 @@ export function decodeState(raw: unknown): BuckshotState {
     return { seat: seat as Seat, move: readMove((entry as { move?: unknown }).move) }
   })
   // 对恶魔时，「开始」「下一轮」只会记在真人（0 号位）名下；恶魔只会在自己的回合里用道具 / 开枪（由引擎校验回合）
-  if (modeOf(value.difficulty) === 'vs' && log.some((e) => e.seat === 1 && (e.move.kind === 'begin' || e.move.kind === 'nextRound'))) {
+  if (hasDevil(value.difficulty) && log.some((e) => e.seat === 1 && (e.move.kind === 'begin' || e.move.kind === 'nextRound'))) {
     illegal('the devil never presses begin / next round')
   }
   const state: BuckshotState = { difficulty: value.difficulty, seed, log }

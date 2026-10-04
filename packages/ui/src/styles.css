@@ -403,6 +403,22 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   padding-left: 1.2em;
 }
 
+/* 详情页「历史记录」上方的最高纪录（无尽类玩法） */
+.eink-history__best {
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+/* 破纪录：黑底白字的小角标，紧跟在最高纪录后面 */
+.eink-result-record {
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0 0.4em;
+  background: var(--ink-black);
+  color: var(--ink-white);
+  font-size: 0.85em;
+}
+
 .eink-diagnostics__raw pre {
   white-space: pre-wrap;
   word-break: break-all;

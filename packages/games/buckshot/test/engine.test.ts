@@ -296,3 +296,28 @@ describe('剩余数量（只用公开信息）', () => {
     expect(liveChance(observe(state, 1))).toBe(0)
   })
 })
+
+describe('无尽模式（引擎）', () => {
+  it('赢下第 3 轮也不结束；第 4 轮起沿用第 3 轮的设定；输一轮才结束', () => {
+    let state = applyMove(startDuel(9, 'endless'), 0, { kind: 'begin' })
+    // 直接把恶魔打到 0 血来推进轮数（构造局面：当前一发实弹、恶魔 1 血）
+    for (let round = 0; round < 4; round++) {
+      state = { ...state, load: [true, ...state.load.slice(1)], pos: 0, hp: [state.hp[0], 1], turn: 0, phase: 'turn' }
+      state = applyMove(state, 0, { kind: 'shoot', target: 'opponent' })
+      expect(state.phase).toBe('roundOver')
+      expect(state.roundWins[0]).toBe(round + 1)
+      state = applyMove(state, 0, { kind: 'nextRound' })
+      expect(state.round).toBe(round + 1)
+      expect(state.maxHp).toBe(MAX_HP_BY_ROUND[Math.min(round + 1, 2)])
+    }
+    expect(state.items[0]).toHaveLength(ITEMS_PER_LOAD_BY_ROUND[2]!)
+    expect(state.load.length).toBeGreaterThanOrEqual(SHELLS_BY_ROUND[2]![0])
+    // 输掉一轮：整场结束，胜者是恶魔
+    state = applyMove(state, 0, { kind: 'begin' })
+    state = { ...state, load: [true, ...state.load.slice(1)], pos: 0, hp: [1, state.hp[1]], turn: 0 }
+    state = applyMove(state, 0, { kind: 'shoot', target: 'self' })
+    expect(state.phase).toBe('matchOver')
+    expect(state.winner).toBe(1)
+    expect(state.roundWins[0]).toBe(4)
+  })
+})

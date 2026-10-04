@@ -2,6 +2,7 @@
  * 恶魔轮盘赌的 GameDef 实现。
  *
  * - 对恶魔（入门 / 熟练 / 挑战）：恶魔的每一步靠 tickMs + { type: 'tick' } 推进（规则层零时间引用）；
+ * - 无尽（endless）：对恶魔一轮接一轮，输一轮才结束；成绩（赢下的轮数）经 scoreOf 交给壳层记最高纪录；
  * - 双人同屏（hotseat）：按钮与道具永远替当前行动者操作；
  * - 装填后按「开始」才进入回合（墨水屏上先看清这一管装了什么）；轮与轮之间按「下一轮」；
  * - 不提供撤销（撤销等于看过结果再重来）—— 注册时隐藏壳层的撤销按钮。
@@ -20,6 +21,7 @@ import {
   itemUsable,
   legalActions,
   reduceState,
+  scoreOf,
   statusOf,
   tickMsOf,
   type BuckshotAction,
@@ -76,4 +78,6 @@ export const buckshotGame: GameDef<BuckshotState, BuckshotAction> = {
   },
 
   contentId: (state) => state.difficulty,
+  /** 无尽模式的成绩 = 赢下的轮数，壳层据此记最高纪录（其它模式返回 null，不记） */
+  scoreOf: (state) => scoreOf(state),
 }

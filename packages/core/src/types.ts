@@ -307,6 +307,12 @@ export interface GameDef<S, A> {
    * 缺省时壳层回退读 state.moves。
    */
   movesOf?(state: S): number
+  /**
+   * 无尽类玩法的成绩（越大越好，如撑过的轮数）；不适用时返回 null。
+   * 声明了它，壳层就在一局结束时按内容 id 记「最高纪录」（跨局保留），并在结果面板显示
+   * `${i18nNamespace}.result.best`（参数 count）与破纪录时的 `${i18nNamespace}.result.newRecord`。
+   */
+  scoreOf?(state: S): number | null
   status(state: S): GameStatus
   view(state: S): GameView
   controls(state: S): ControlSpec[]

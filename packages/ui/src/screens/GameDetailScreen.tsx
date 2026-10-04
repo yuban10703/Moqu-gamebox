@@ -3,7 +3,7 @@
  * 「已有存档时开新局」必须明确询问，绝不静默丢局。
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
+import { readBestScore, readHistory, type HistoryEntry, type SaveEnvelope } from '@eink/core'
 import { computeRootLayout } from '@eink/core'
 import { ActionButton, Dialog, Pager, StatBar, TopBar } from '../components.js'
 import { useUi } from '../contexts.js'
@@ -78,6 +78,8 @@ export function GameDetailScreen({
    * 坏记录会被丢掉 —— 绝不能让详情页因为旧存档打不开）。
    */
   const history: HistoryEntry[] = readHistory(progress.history)
+  /** 无尽类玩法：当前选中难度（模式）的最高纪录；没有成绩时不显示 */
+  const bestScore = entry.game.scoreOf ? readBestScore(envelope?.progress?.bestScore)[difficulty] : undefined
   const [pagerNeeded, setPagerNeeded] = useState(false)
 
   useLayoutEffect(() => {
@@ -311,6 +313,11 @@ export function GameDetailScreen({
       ) : (
       <section className="eink-section">
         <h2>{i18n.t('shell.detail.history')}</h2>
+        {bestScore !== undefined ? (
+          <p className="eink-history__best">
+            {i18n.plural(`${entry.game.i18nNamespace}.result.best`, bestScore, { count: bestScore })}
+          </p>
+        ) : null}
         {history.length === 0 ? (
           <p className="eink-muted">{i18n.t('shell.detail.historyEmpty')}</p>
         ) : (
