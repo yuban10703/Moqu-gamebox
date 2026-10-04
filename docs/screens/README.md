@@ -7,9 +7,11 @@
 - `rotate-hint-p6.png` —— 「建议竖屏游玩」提示的真机证据；
 - `diagnostics-p6.png` —— 诊断页真机；
 - `web-*.png` —— 早期网页版截图（历史）。
+- `readme-*.png` —— 仓库首页 README 的展示图（构建产物 + 浏览器 439×847 / 879×407 @1.5x，脚本化走到对局中途截取）。
 
 ## 当前口径（文档引用这些）
 
+- `readme-library.png` / `readme-<游戏>.png` / `readme-buckshot-landscape.png`（README 展示图）
 - `device-01-library.png`
 - `device-02-detail.png`
 - `device-03-game.png`
