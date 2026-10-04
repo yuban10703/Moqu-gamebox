@@ -553,6 +553,17 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   cursor: not-allowed;
 }
 
+/*
+ * 禁用的主按钮不能还是黑底：黑底 = 「这是现在该按的那一个」，禁用时这个暗示是错的
+ * （斗地主轮到电脑时「3 分」「出牌」都是禁用，原先是一块黑底灰字，看着像能点）。
+ * 退回普通禁用样式：白底 + 点线框。
+ */
+.eink-button[data-emphasis='primary']:disabled {
+  background: var(--ink-white);
+  color: #444;
+  font-weight: inherit;
+}
+
 .eink-link {
   border: none;
   background: none;
@@ -1359,6 +1370,274 @@ html[data-font-scale='1.5'] .eink-tile__title {
   flex-wrap: wrap;
   justify-content: var(--controls-actions-justify, flex-start);
   width: var(--controls-actions-width, auto);
+}
+
+/* ------------------------------------------------------------------ 6b 牌桌（扑克类玩法） */
+
+/*
+ * 牌桌：与格子棋盘平级，铺满棋盘区（.eink-board-area 是尺寸查询容器，cqw / cqh 即可用区）。
+ * 所有尺寸都从容器算：小牌（桌面上的牌）、手牌、头像。JS 只给「每排几张」（--hand-cols）。
+ * 1-bit：黑白实线、实心 / 空心符号区分花色；选中的手牌抬高（位置直接变，没有动画）。
+ */
+.eink-cardtable {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lseat center rseat'
+    'lplay banner rplay'
+    'mplay mplay mplay'
+    'hand hand hand';
+  gap: 4px 6px;
+  /* 桌面小牌：宽 9% 容器宽、也不超过 7% 容器高 */
+  --small-w: min(10cqw, 8.5cqh, 56px);
+  --small-h: calc(var(--small-w) * 1.4);
+  /* 手牌：一排 --hand-cols 张、每张露出一半；高度上两排叠压后约占容器 40% */
+  --hand-span: var(--hand-cols, 10);
+  /* 120px 上限：10 寸横屏上按比例会放到 160px 以上，牌大得不像牌 */
+  --hand-w: min(calc(100cqw / (0.5 * (var(--hand-span) - 1) + 1)), var(--hand-max-h, 17cqh), 120px);
+  --hand-h: calc(var(--hand-w) * 1.4);
+  --avatar: min(15cqw, 11cqh, 72px);
+  font-size: min(1em, 3.6cqh);
+}
+
+.eink-cardtable__seat[data-position='left'] {
+  grid-area: lseat;
+}
+
+.eink-cardtable__seat[data-position='right'] {
+  grid-area: rseat;
+}
+
+.eink-cardtable__center {
+  grid-area: center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.eink-cardtable__banner-slot {
+  grid-area: banner;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.eink-cardtable__played[data-position='left'] {
+  grid-area: lplay;
+  justify-content: flex-start;
+}
+
+.eink-cardtable__played[data-position='right'] {
+  grid-area: rplay;
+  justify-content: flex-end;
+}
+
+.eink-cardtable__played[data-position='bottom'] {
+  grid-area: mplay;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.eink-cardtable__hand {
+  grid-area: hand;
+  /* 给抬高的选中牌留出位置，免得压住上面「自己出的牌」那一行 */
+  padding-top: calc(var(--hand-h) * 0.22);
+}
+
+/* 座位：头像（含身份角标）→ 名字 → 剩余张数 */
+.eink-cardtable__seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.eink-cardtable__avatar {
+  position: relative;
+  width: var(--avatar);
+  height: var(--avatar);
+  border: 2px solid var(--ink-black);
+  border-radius: 6px;
+  background: var(--ink-white);
+  display: flex;
+}
+
+.eink-cardtable__avatar > svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* 正在出牌 / 叫分的那一家：头像框加粗（线宽区分，不用灰度） */
+.eink-cardtable__seat[data-active='yes'] .eink-cardtable__avatar {
+  border-width: 4px;
+}
+
+.eink-cardtable__badge {
+  position: absolute;
+  top: -0.6em;
+  right: -0.9em;
+  background: var(--ink-black);
+  color: var(--ink-white);
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  white-space: nowrap;
+}
+
+.eink-cardtable__name {
+  font-size: 0.85em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.eink-cardtable__count {
+  font-size: 0.8em;
+  line-height: 1.2;
+  border: 1.5px solid var(--ink-black);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+/* 各家本轮出的牌 / 文字状态 */
+.eink-cardtable__played {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+  min-height: var(--small-h);
+}
+
+.eink-cardtable__status {
+  border: 2px solid var(--ink-black);
+  padding: 2px 8px;
+  font-size: 0.9em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.eink-cardtable__selftag {
+  align-self: center;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+/* 「你的回合」：粗边 + 右下加厚（截图里那种压感），不用阴影 */
+.eink-cardtable__banner {
+  border: 2px solid var(--ink-black);
+  border-right-width: 4px;
+  border-bottom-width: 4px;
+  padding: 4px 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--ink-white);
+}
+
+/* 牌：白底黑框圆角，左上角竖排「点数 + 花色」 */
+.eink-card {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  border: 2px solid var(--ink-black);
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.eink-card__corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.12em 0 0 0.12em;
+  gap: 0.05em;
+}
+
+.eink-card__rank--joker {
+  font-size: 0.9em;
+}
+
+/* 一排小牌：互相叠压（每张露出 55%），折行时靠整排的左内边距抵消第一张的负边距 */
+.eink-cardrow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  padding-left: calc(var(--small-w) * 0.45);
+}
+
+.eink-card--small {
+  width: var(--small-w);
+  height: var(--small-h);
+  margin-left: calc(var(--small-w) * -0.45);
+  font-size: calc(var(--small-w) * 0.4);
+}
+
+/* 未公开的底牌：牌背斜纹（纯黑白纹理） */
+.eink-card--back {
+  background-image: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 6px);
+}
+
+/* 手牌：每排居中、每张露出一半；第二排叠在第一排下半截上 */
+.eink-cardtable__handrow {
+  display: flex;
+  justify-content: center;
+  padding-left: calc(var(--hand-w) * 0.5);
+}
+
+.eink-cardtable__handrow + .eink-cardtable__handrow {
+  margin-top: calc(var(--hand-h) * -0.42);
+}
+
+.eink-card--hand {
+  width: var(--hand-w);
+  height: var(--hand-h);
+  margin-left: calc(var(--hand-w) * -0.5);
+  font-size: calc(var(--hand-w) * 0.36);
+  cursor: pointer;
+}
+
+/* 选中：整张抬高 22%（位置直接变，没有过渡） */
+.eink-card--hand[data-selected='yes'] {
+  transform: translateY(calc(var(--hand-h) * -0.22));
+}
+
+/*
+ * 棋盘区明显偏宽（极矮横屏 / 宽横屏）：手牌排成**一排**。
+ * 分两排是为了竖屏省宽度；横屏宽度富余、高度紧张，两排反而让牌被高度压小（879×407 实测只有 48px 宽）。
+ * 一排时每张的宽度按总张数算（--hand-total），高度上限放宽到 26% 容器高。
+ */
+@container (min-aspect-ratio: 8 / 5) {
+  .eink-cardtable {
+    --hand-span: var(--hand-total, 10);
+    --hand-max-h: 26cqh;
+  }
+
+  .eink-cardtable__hand {
+    display: flex;
+    justify-content: center;
+    padding-left: calc(var(--hand-w) * 0.5);
+  }
+
+  .eink-cardtable__handrow {
+    display: contents;
+  }
 }
 
 /* ------------------------------------------------------------------ 7 媒体查询 */

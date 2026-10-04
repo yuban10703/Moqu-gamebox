@@ -71,6 +71,8 @@ export const library: GameLibrary = {
 }
 ```
 
+扑克类玩法用 `view().table`（`CardTableView`：座位 / 底牌 / 手牌 / 提示）代替格子棋盘，壳层自动换成牌桌渲染，点手牌同样走 `selectAction`；参考 `packages/games/doudizhu`（含按座位驱动的引擎与联机框架）。
+
 方向键相关的两个可选项：`dpadLayout`（缺省倒 T，撤销 / 重开收进方向键两侧；`'row'` 四键平铺一行，用于上 / 下不是空间方向的玩法）与 `dpadDefault: false`（点格子本来就能玩时默认收起方向键）。
 
 壳层会自动获得：游戏库入口、详情页、难度选择、关卡分页列表、统一外框（暂停/返回/重开/覆盖确认）、

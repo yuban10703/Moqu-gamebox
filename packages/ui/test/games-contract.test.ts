@@ -15,6 +15,7 @@ import { gomokuGame } from '@eink/gomoku'
 import { lightsoutGame } from '@eink/lightsout'
 import { klotskiGame } from '@eink/klotski'
 import { match3Game } from '@eink/match3'
+import { doudizhuGame } from '@eink/doudizhu'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
 import { snakeGame } from '@eink/snake'
@@ -44,6 +45,7 @@ const GAMES: Array<GameDef<any, any>> = [
   snakeGame as GameDef<any, any>,
   tetrisGame as GameDef<any, any>,
   match3Game as GameDef<any, any>,
+  doudizhuGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {
@@ -140,15 +142,19 @@ describe('所有游戏的存档契约', () => {
 /**
  * 自动步进（tick）的跨游戏契约。
  *
- * 用户要求：**只有贪吃蛇与俄罗斯方块**自动前进/下落，其余 10 款行为完全不变。
+ * 用户要求：**只有贪吃蛇与俄罗斯方块**自动前进/下落；斗地主用它推进电脑的回合
+ * （只在轮到电脑时声明间隔，轮到真人时返回 null —— 一个定时器都不起）。其余玩法行为完全不变。
  * 这条约束放在这里守：它是"每加一款游戏都可能被破坏、而单测很难发现"的那类约定。
  */
+/** 开局就一直自动步进的玩法（不等真人）；其余声明了 tickMs 的玩法允许在等真人时返回 null */
+const ALWAYS_TICKING = new Set(['snake', 'tetris'])
+
 describe('自动步进的声明（tickMs）', () => {
-  it('只有贪吃蛇与俄罗斯方块声明 tickMs，其余玩法一个定时器都不起', () => {
+  it('只有贪吃蛇、俄罗斯方块与斗地主（电脑回合）声明 tickMs，其余玩法一个定时器都不起', () => {
     const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
       .map((game) => game.id)
       .sort()
-    expect(withTick).toEqual(['snake', 'tetris'])
+    expect(withTick).toEqual(['doudizhu', 'snake', 'tetris'])
   })
 
   it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {
@@ -157,9 +163,10 @@ describe('自动步进的声明（tickMs）', () => {
       for (const difficulty of game.difficulties.map((item) => item.id)) {
         const state = game.create(4242, difficulty)
         const first = game.tickMs(state, difficulty)
-        // 尚未结束的局面必须给出一个可用的间隔
-        expect(first, `${game.id}/${difficulty}`).not.toBeNull()
-        expect(first!, `${game.id}/${difficulty}`).toBeGreaterThanOrEqual(MIN_TICK_MS)
+        // 一直自动步进的玩法：尚未结束的局面必须给出一个可用的间隔；其余玩法等真人时可以是 null
+        if (ALWAYS_TICKING.has(game.id)) expect(first, `${game.id}/${difficulty}`).not.toBeNull()
+        if (first === null) continue
+        expect(first, `${game.id}/${difficulty}`).toBeGreaterThanOrEqual(MIN_TICK_MS)
         // 纯函数：同一状态重复问、以及从存档读回来之后问，答案必须一致
         expect(game.tickMs(state, difficulty)).toBe(first)
         expect(game.tickMs(game.decode(game.encode(state)), difficulty)).toBe(first)

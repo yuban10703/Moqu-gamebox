@@ -27,6 +27,7 @@ import { sudokuEn, sudokuGame, sudokuZh } from '@eink/sudoku'
 import { snakeEn, snakeGame, snakeZh } from '@eink/snake'
 import { tetrisEn, tetrisGame, tetrisZh } from '@eink/tetris'
 import { match3En, match3Game, match3Zh } from '@eink/match3'
+import { doudizhuEn, doudizhuGame, doudizhuZh } from '@eink/doudizhu'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -170,9 +171,21 @@ export const library: GameLibrary = {
         total: match3Game.difficulties.length,
       }),
     }),
+    defineGame({
+      game: doudizhuGame,
+      // 撤销等于看过牌再重来：本作不提供撤销，壳层的撤销按钮直接不渲染
+      hideShellControls: ['undo'],
+      rulesKeys: ['doudizhu.rules.body', 'doudizhu.rules.body2'],
+      defaultDifficulty: 'starter',
+      // 无关卡：每副牌是一「局」，进度按「赢过的难度 / 3」算
+      progressFor: (completed) => ({
+        done: doudizhuGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: doudizhuGame.difficulties.length,
+      }),
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn },
   },
 }

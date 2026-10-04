@@ -25,6 +25,7 @@ import {
   TopBar,
   useKeyboardControls,
 } from '../components.js'
+import { CardTable } from '../CardTable.js'
 import { useUi } from '../contexts.js'
 import { supportsSwipe, type GameRegistryEntry } from '../registry.js'
 import { CRAMPED_TICK_SLOWDOWN, useSession } from '../session.js'
@@ -244,6 +245,7 @@ export function GameScreen({
   // 壳层自己渲染这些 id 的控件（撤销/重开/下一关），游戏声明它们只为传达 enabled 之类的状态，
   // 不能再被当成「游戏自定义按钮」渲染一遍
   const SHELL_CONTROL_IDS = new Set(['undo', 'restart', 'nextLevel', 'next-level'])
+  const nextLevelControl = session.controls.find((control) => control.id === 'next-level')
   const gameActions = session.controls.filter(
     (control) => control.role === 'action' && !SHELL_CONTROL_IDS.has(control.id),
   )
@@ -374,7 +376,13 @@ export function GameScreen({
                 }
               : {})}
           >
-            {session.view.board ? (
+            {session.view.table ? (
+              // 扑克类玩法：牌桌代替格子棋盘；点手牌同样交给游戏的 selectAction
+              <CardTable
+                table={session.view.table}
+                {...(session.selectCell ? { onCardSelect: session.selectCell } : {})}
+              />
+            ) : session.view.board ? (
               <Board
                 board={session.view.board}
                 labelFor={cellLabel}
@@ -445,10 +453,11 @@ export function GameScreen({
                   />
                 ) : null}
                 {/* 「下一关」由游戏自己声明（id: next-level）：无关卡的游戏不声明 → 这个按钮不渲染；
-                    关卡制游戏在最后一关声明 enabled:false → 按钮显示为禁用。 */}
-                {session.controls.some((control) => control.id === 'next-level') ? (
+                    关卡制游戏在最后一关声明 enabled:false → 按钮显示为禁用。
+                    文案取游戏声明的 labelKey（斗地主是「下一局」），缺省「下一关」。 */}
+                {nextLevelControl ? (
                   <ActionButton
-                    labelKey="shell.result.next"
+                    labelKey={nextLevelControl.labelKey || 'shell.result.next'}
                     emphasis="primary"
                     size="large"
                     disabled={
@@ -492,6 +501,8 @@ export function GameScreen({
                     <ActionButton
                       key={control.id}
                       labelKey={control.labelKey}
+                      // 带参数的文案（例如「提示 (4)」）：插值后作为最终文字
+                      {...(control.labelParams ? { text: i18n.t(control.labelKey, control.labelParams) } : {})}
                       size="large"
                       emphasis={control.emphasis}
                       disabled={!control.enabled}

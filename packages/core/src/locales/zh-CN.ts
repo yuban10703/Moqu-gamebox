@@ -163,4 +163,16 @@ export const zhCN: Dict = {
   'shell.about.author.copied': '已复制',
   'shell.about.author.copyFailed': '复制失败',
   'shell.about.author.donate': '打赏码',
+
+  // 牌桌（扑克类玩法）：牌面字符与读屏标签
+  'shell.cards.joker': '王',
+  'shell.cards.jokerSmall': '小王',
+  'shell.cards.jokerBig': '大王',
+  'shell.cards.suit.spade': '黑桃',
+  'shell.cards.suit.heart': '红桃',
+  'shell.cards.suit.club': '梅花',
+  'shell.cards.suit.diamond': '方块',
+  'shell.cards.hidden': '未公开的牌',
+  'shell.cards.hand': '我的手牌',
+  'shell.cards.count__other': '{count} 张',
 }

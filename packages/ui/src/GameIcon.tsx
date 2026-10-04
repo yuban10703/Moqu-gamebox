@@ -94,6 +94,14 @@ const SHAPES: Record<string, ReactNode> = {
       <rect x="9" y="12" width="6" height="6" />
     </>
   ),
+  // 斗地主：两张错开叠放的扑克牌，前一张左上角一个黑桃
+  doudizhu: (
+    <>
+      <rect x="3.5" y="6" width="10" height="14" rx="1.5" transform="rotate(-12 8.5 13)" />
+      <rect x="10.5" y="4" width="10" height="14" rx="1.5" fill="#fff" />
+      <path d="M15.5 7.3c-1.6 1.7-3 2.8-3 4.1 0 .9.7 1.5 1.5 1.5.6 0 1-.3 1.3-.7l-.5 1.8h1.4l-.5-1.8c.3.4.7.7 1.3.7.8 0 1.5-.6 1.5-1.5 0-1.3-1.4-2.4-3-4.1z" fill="currentColor" stroke="none" />
+    </>
+  ),
   // 消消乐：三连（三枚实心棋子连成一线，与五子棋的「棋盘 + 单子」区分开）
   match3: (
     <>

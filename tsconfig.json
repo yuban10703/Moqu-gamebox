@@ -45,6 +45,8 @@
       "@eink/tetris/*": ["packages/games/tetris/src/*"],
       "@eink/match3": ["packages/games/match3/src/index.ts"],
       "@eink/match3/*": ["packages/games/match3/src/*"],
+      "@eink/doudizhu": ["packages/games/doudizhu/src/index.ts"],
+      "@eink/doudizhu/*": ["packages/games/doudizhu/src/*"],
       "@eink/ui": ["packages/ui/src/index.ts"],
       "@eink/ui/*": ["packages/ui/src/*"],
       "@eink/platform": ["packages/platform/src/index.ts"],

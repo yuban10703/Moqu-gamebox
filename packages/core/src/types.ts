@@ -102,8 +102,58 @@ export interface StatView {
   value: string
 }
 
+/**
+ * 牌桌（扑克类玩法用，与格子棋盘二选一）：壳层画成「上方底牌 / 左右两家 / 中间提示 / 下方手牌」。
+ *
+ * 只描述**能看到的东西**：别人的手牌只给张数（联机时服务器也只会下发这些）。
+ * 牌面字符（点数、花色符号）由壳层画，游戏只给结构化的点数与花色，不给像素与样式。
+ */
+export interface CardFace {
+  /** 牌的 id：点手牌时壳层把它交给 selectAction */
+  id: number
+  /** 点数文字（A、2、10…）；王为空串，由 joker 决定怎么画 */
+  rank: string
+  suit: 'spade' | 'heart' | 'club' | 'diamond' | null
+  joker?: 'small' | 'big'
+  /** 已选中（壳层把它抬高一截） */
+  selected?: boolean
+}
+
+export interface CardTableSeat {
+  position: 'left' | 'right' | 'bottom'
+  /** 座位名的文案 key */
+  nameKey: string
+  /** 头像样式编号（壳层自带几种 1-bit 头像；bottom 座位不画头像） */
+  avatar: number
+  /** 身份角标（如「地主」）的文案 key */
+  badgeKey?: string
+  /** 剩余张数（null = 不显示） */
+  count: number | null
+  /** 正在等这一家出牌 / 叫分 */
+  active: boolean
+  /** 本轮最近一手出的牌（null = 没出牌） */
+  played: CardFace[] | null
+  /** 本轮最近一手的文字状态（不出 / 不叫 / 2 分…），与 played 二选一 */
+  statusKey?: string
+  statusParams?: Record<string, string | number>
+}
+
+export interface CardTableView {
+  kind: 'cards'
+  seats: CardTableSeat[]
+  /** 桌面中央的牌（斗地主的底牌）；hidden = 还没公开，画成牌背 */
+  center: { cards: CardFace[]; hidden: number } | null
+  /** 自己的手牌（理牌顺序） */
+  hand: CardFace[]
+  /** 桌面中央的一行提示（你的回合 / 请叫分…） */
+  bannerKey?: string
+  bannerParams?: Record<string, string | number>
+}
+
 export interface GameView {
   board: BoardView | null
+  /** 扑克类玩法用牌桌代替棋盘（有它时 board 为 null） */
+  table?: CardTableView | null
   stats: StatView[]
   /** 结果页文案（仅在 status 非 playing 时有意义） */
   result: { titleKey: string; details: Array<{ key: string; params?: Record<string, string | number> }> } | null
@@ -128,6 +178,8 @@ export interface ControlSpec {
   tone?: 'normal' | 'muted'
   /** 需要二次确认的危险操作（如覆盖已有进度） */
   confirm?: boolean
+  /** labelKey 的插值参数（例如「提示 ({count})」里的方案数） */
+  labelParams?: Record<string, string | number>
 }
 
 export type GameStatus = 'playing' | 'won' | 'lost'

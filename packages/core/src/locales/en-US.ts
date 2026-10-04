@@ -162,4 +162,16 @@ export const enUS: Dict = {
   'shell.about.author.copied': 'Copied',
   'shell.about.author.copyFailed': 'Copy failed',
   'shell.about.author.donate': 'Tip code',
+
+  'shell.cards.joker': 'JK',
+  'shell.cards.jokerSmall': 'Small joker',
+  'shell.cards.jokerBig': 'Big joker',
+  'shell.cards.suit.spade': 'Spades',
+  'shell.cards.suit.heart': 'Hearts',
+  'shell.cards.suit.club': 'Clubs',
+  'shell.cards.suit.diamond': 'Diamonds',
+  'shell.cards.hidden': 'Hidden card',
+  'shell.cards.hand': 'My hand',
+  'shell.cards.count__one': '{count} card',
+  'shell.cards.count__other': '{count} cards',
 }

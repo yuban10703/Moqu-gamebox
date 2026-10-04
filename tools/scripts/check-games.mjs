@@ -58,7 +58,11 @@ for (const id of games) {
    * 因此先剔除块注释与行注释，再找调用形式（Math.random( / Date.now(）。
    */
   const stripComments = (code) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-  for (const file of readdirSync(`${ROOT}packages/games/${id}/src`)) {
+  // 递归扫描：游戏包可以有子目录（例如斗地主的 net/），子目录里同样不许调用 Math.random / Date.now
+  const sources = readdirSync(`${ROOT}packages/games/${id}/src`, { recursive: true }).filter(
+    (file) => typeof file === 'string' && /\.tsx?$/.test(file),
+  )
+  for (const file of sources) {
     const code = stripComments(read(`packages/games/${id}/src/${file}`))
     if (/Math\.random\s*\(/.test(code)) {
       problems.push(`${id}/src/${file}: 调用了 Math.random（游戏内随机必须用 createRng）`)
