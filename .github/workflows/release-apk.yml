@@ -127,13 +127,38 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${JKS_B64:-}" ] || [ -z "${JKS_PASS:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASS:-}" ]; then
+          # 从网页粘贴进 Secrets 的值常常带上换行/回车（GitHub 的输入框会原样保存），
+          # keytool / gradle 会拿着 "密码\n" 去解，报一个看不出原因的
+          # "keystore password was incorrect" —— 2026-10-05 首次正式签名发布就是这么红的。
+          # 这里统一剥掉换行与回车；**不动空格**，免得把含空格的口令改坏。
+          trim() { printf '%s' "$1" | tr -d '\n\r'; }
+          JKS_B64="$(trim "${JKS_B64:-}")"
+          JKS_PASS="$(trim "${JKS_PASS:-}")"
+          KEY_ALIAS="$(trim "${KEY_ALIAS:-}")"
+          KEY_PASS="$(trim "${KEY_PASS:-}")"
+          if [ -z "$JKS_B64" ] || [ -z "$JKS_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
             echo "keystore=no" >> "$GITHUB_OUTPUT"
             echo "::warning::没配齐 ANDROID_KEYSTORE_BASE64 / _PASSWORD / KEY_ALIAS / KEY_PASSWORD —— 本次用 debug 签名，包与包之间签名不同，换版本要先卸载"
             exit 0
           fi
+          # 只打印长度与指纹，绝不打印内容 —— 出错时这两行就能定位是"粘歪了"还是"密码不对"
+          echo "Secrets 长度：base64=${#JKS_B64}（keystore 2708 字节 → 3612）密码=${#JKS_PASS} 别名=${#KEY_ALIAS}"
           JKS="$RUNNER_TEMP/moqu-release.jks"
-          printf '%s' "$JKS_B64" | tr -d '\n\r ' | base64 -d > "$JKS"
+          if ! printf '%s' "$JKS_B64" | base64 -d > "$JKS" 2>/dev/null; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 不是合法 base64（长度 ${#JKS_B64}，应为 3612）—— 重新粘贴 .jks.b64 的全部内容"
+            exit 1
+          fi
+          SIZE=$(wc -c < "$JKS")
+          echo "解出的 keystore：$SIZE 字节（应为 2708）"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::解出来的 keystore 太小（$SIZE 字节），看起来 base64 被截断了"
+            exit 1
+          fi
+          if ! keytool -list -keystore "$JKS" -storepass "$JKS_PASS" > "$RUNNER_TEMP/keytool.txt" 2>&1; then
+            echo "::error::keystore 打不开 —— 多半是 ANDROID_KEYSTORE_PASSWORD 与生成密钥时不一致"
+            cat "$RUNNER_TEMP/keytool.txt"
+            exit 1
+          fi
           {
             echo "EINK_KEYSTORE_FILE=$JKS"
             echo "EINK_KEYSTORE_PASSWORD=$JKS_PASS"
@@ -141,8 +166,8 @@ jobs:
             echo "EINK_KEY_PASSWORD=$KEY_PASS"
           } >> "$GITHUB_ENV"
           echo "keystore=yes" >> "$GITHUB_OUTPUT"
-          # 只打印证书指纹（密码绝不落日志）
-          keytool -list -keystore "$JKS" -storepass "$JKS_PASS" | tail -4
+          echo "签名证书（指纹应与你本地 keytool -list -v 一致）："
+          grep -E "Alias name|Certificate fingerprint" "$RUNNER_TEMP/keytool.txt" || tail -4 "$RUNNER_TEMP/keytool.txt"
 
       - name: 构建 APK（有正式签名则 release 签名，否则 debug；产物都可直接侧载）
         if: steps.gate.outputs.publish == 'yes'
