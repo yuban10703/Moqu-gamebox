@@ -29,6 +29,19 @@
 
 **`wrangler.jsonc` 里的 `name` 必须与你 Cloudflare 上那个 Worker 同名**（现为 `moqu`），否则会去部署/新建另一个 Worker。
 
+**只保留一个配置文件**：本仓库用 `wrangler.jsonc`，不要再加 `wrangler.toml`（两个同时存在 wrangler 会直接报错）。
+
+### 已应用的 Cloudflare 面板提示：Workers Logs
+
+面板提示补 `observability` 块（记录每次请求的日志），已按原样写进 `wrangler.jsonc`：
+
+```jsonc
+"observability": { "logs": { "enabled": true, "invocation_logs": true, "persist": true } }
+```
+
+Free 计划**也包含** Workers Logs（20 万条/天、保留 3 天；Paid 为 2000 万条/月、7 天），最小 wrangler 版本 3.78.6。
+若某天部署因计划权限报 `persist` 相关错误，把它去掉即可（保留 `enabled` 与 `invocation_logs` 仍会记录日志）。
+
 ## 二、Pages
 
 Pages 的构建配置里只有「构建命令 + 构建输出目录」，没有部署命令（Cloudflare 读构建命令的退出码，成功后自己上传产物）：

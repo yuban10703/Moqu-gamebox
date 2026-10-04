@@ -25,5 +25,17 @@
   "compatibility_date": "2025-04-01",
   "assets": {
     "directory": "./apps/web/dist"
+  },
+  /**
+   * Workers Logs（Cloudflare 面板提示补上的那块，2026-10-05 应用）。
+   * Free 计划也包含：20 万条/天、保留 3 天；Paid 为 2000 万条/月、7 天。
+   * `invocation_logs` 记录每次请求的日志（方法/URL/状态），`persist` 打开持久化。
+   */
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    }
   }
 }
