@@ -182,7 +182,7 @@ export const zhCN: Dict = {
   'shell.duel.wins': '胜 {count}',
   'shell.duel.spent': '已打出',
   'shell.duel.chamber': '枪里',
-  'shell.duel.recent': '最近',
+  'shell.duel.recent': '战斗记录',
   'shell.duel.token.live': '实弹',
   'shell.duel.token.blank': '空包弹',
   'shell.duel.token.unknown': '未知的一发',

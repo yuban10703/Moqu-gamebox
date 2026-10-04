@@ -175,6 +175,46 @@ describe('展示模型', () => {
     expect(top.items.every((i) => !i.selectable)).toBe(true)
   })
 
+  it('回合中直接给出剩余实弹 / 空包弹数量；装填阶段不给', () => {
+    const state = createState(8, 'skilled')
+    expect(buildView(state).duel!.remaining).toBeNull()
+    const playing = reduceState(state, { type: 'begin' })
+    const duel = duelOf(playing)
+    const remaining = buildView(playing).duel!.remaining!
+    expect(remaining.key).toBe('buckshot.remaining.exact')
+    expect(remaining.params).toEqual({ live: duel.loadLive, blank: duel.loadBlank })
+  })
+
+  it('战斗记录：整场保留不截断；道具与效果合成一条；恶魔回合的记录高亮', () => {
+    const over = playOut(createState(31, 'challenging'))
+    const log = buildView(over).duel!.log
+    // 你能看到的事件里，紧跟在道具后面的效果事件都并进了道具那一条，其余一一对应
+    const visible = observe(duelOf(over), 0).events
+    const effects = visible.filter((e, i) => ['peek', 'eject', 'heal', 'hurt'].includes(e.type) && visible[i - 1]?.type === 'item')
+    expect(log.length).toBe(visible.length - effects.length)
+    expect(log.some((l) => l.key.startsWith('buckshot.log.use.'))).toBe(true)
+    expect(log.every((l) => !/log\.(item|peek|eject|heal|hurt)/.test(l.key))).toBe(true)
+    // 恶魔的开枪全部高亮、你的开枪全部不高亮
+    for (const line of log) {
+      if (line.key.startsWith('buckshot.log.shoot')) {
+        expect(line.highlight === true).toBe(line.subjectKey === 'buckshot.name.devil')
+      }
+    }
+    expect(log.some((l) => l.highlight)).toBe(true)
+  })
+
+  it('对手的放大镜：只记「偷看了」，不泄露结果', () => {
+    for (let seed = 1; seed < 400; seed++) {
+      const over = playOut(createState(seed, 'challenging'))
+      const lines = buildView(over).duel!.log.filter((l) => l.key.startsWith('buckshot.log.use.magnifier'))
+      const devil = lines.filter((l) => l.subjectKey === 'buckshot.name.devil')
+      if (devil.length === 0) continue
+      expect(devil.every((l) => l.key === 'buckshot.log.use.magnifier.hidden')).toBe(true)
+      return
+    }
+    throw new Error('400 场里恶魔一次放大镜都没用')
+  })
+
   it('整场结束：结果面板给胜负与轮次比分', () => {
     const over = playOut(createState(17, 'skilled'))
     const result = buildView(over).result!

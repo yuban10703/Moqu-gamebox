@@ -180,7 +180,7 @@ export const enUS: Dict = {
   'shell.duel.wins': 'won {count}',
   'shell.duel.spent': 'Spent',
   'shell.duel.chamber': 'In gun',
-  'shell.duel.recent': 'Recent',
+  'shell.duel.recent': 'Battle log',
   'shell.duel.token.live': 'Live shell',
   'shell.duel.token.blank': 'Blank shell',
   'shell.duel.token.unknown': 'Unknown shell',

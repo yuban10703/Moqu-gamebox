@@ -5,12 +5,9 @@
  * 只用 SeatView，不碰枪里弹的真实顺序。
  */
 import type { ControlSpec, DuelLine, DuelSide, DuelToken, DuelView, GameView, StatView } from '@eink/core'
-import { MAX_ITEMS, ROUND_COUNT, type DuelEvent, type Seat } from './engine.js'
-import { observe, type SeatView } from './observe.js'
+import { MAX_ITEMS, ROUND_COUNT, opponent, type DuelEvent, type Seat } from './engine.js'
+import { observe, remainingShells, type SeatView } from './observe.js'
 import { duelOf, humanActor, isHuman, itemUsable, modeOf, statusOf, type BuckshotState } from './rules.js'
-
-/** 最近记录显示几条 */
-export const LOG_LINES = 4
 
 export function nameKey(state: BuckshotState, seat: Seat): string {
   if (modeOf(state.difficulty) === 'hotseat') return seat === 0 ? 'buckshot.name.p1' : 'buckshot.name.p2'
@@ -21,6 +18,59 @@ function perspective(state: BuckshotState): SeatView {
   const duel = duelOf(state)
   const seat: Seat = modeOf(state.difficulty) === 'hotseat' ? duel.turn : 0
   return observe(duel, seat)
+}
+
+/** 这条事件是在谁的回合里发生的（装填 / 一轮结束不属于任何一方） */
+function turnOwner(event: DuelEvent): Seat | null {
+  switch (event.type) {
+    case 'shoot':
+      return event.shooter
+    case 'item':
+    case 'peek':
+    case 'eject':
+    case 'heal':
+    case 'hurt':
+      return event.user
+    case 'skip':
+      // 「某某被铐住、跳过」发生在铐人的那一方回合里
+      return opponent(event.seat)
+    default:
+      return null
+  }
+}
+
+/** 道具的效果：紧跟在 item 事件后面、同一个使用者的那条（看到的结果 / 回血 / 掉血 / 退弹） */
+type Effect = Extract<DuelEvent, { type: 'peek' | 'eject' | 'heal' | 'hurt' }>
+
+function isEffectOf(item: Extract<DuelEvent, { type: 'item' }>, next: DuelEvent | undefined): next is Effect {
+  if (!next || !('user' in next) || next.user !== item.user) return false
+  return next.type === 'peek' || next.type === 'eject' || next.type === 'heal' || next.type === 'hurt'
+}
+
+/** 「你用了 X：效果」—— 看不到的结果（对手的放大镜 / 手机）只说他看了 */
+function itemLine(state: BuckshotState, event: Extract<DuelEvent, { type: 'item' }>, effect: Effect | null): DuelLine {
+  const subjectKey = nameKey(state, event.user)
+  const base = `buckshot.log.use.${event.item}`
+  switch (event.item) {
+    case 'magnifier':
+      if (effect?.type !== 'peek') return { key: `${base}.hidden`, subjectKey }
+      return { key: `${base}.${effect.live ? 'live' : 'blank'}`, subjectKey }
+    case 'phone':
+      if (effect?.type !== 'peek') return { key: `${base}.hidden`, subjectKey }
+      if (effect.live === null) return { key: `${base}.none`, subjectKey }
+      return { key: `${base}.${effect.live ? 'live' : 'blank'}`, subjectKey, params: { n: effect.offset } }
+    case 'beer':
+      return { key: `${base}.${effect?.type === 'eject' && effect.live ? 'live' : 'blank'}`, subjectKey }
+    case 'cigarettes':
+    case 'medicine':
+      if (effect?.type === 'hurt') return { key: `${base}.hurt`, subjectKey, params: { amount: effect.amount } }
+      if (effect?.type === 'heal' && effect.amount > 0) return { key: `${base}.heal`, subjectKey, params: { amount: effect.amount } }
+      return { key: `${base}.full`, subjectKey }
+    case 'handcuffs':
+      return { key: base, subjectKey, objectKey: nameKey(state, opponent(event.user)) }
+    default:
+      return { key: base, subjectKey }
+  }
 }
 
 function lineFor(state: BuckshotState, event: DuelEvent): DuelLine {
@@ -43,22 +93,46 @@ function lineFor(state: BuckshotState, event: DuelEvent): DuelLine {
         params: { damage: event.damage },
       }
     case 'item':
-      return { key: `buckshot.log.item.${event.item}`, subjectKey: name(event.user) }
+      return itemLine(state, event, null)
     case 'peek':
-      if (event.live === null) return { key: 'buckshot.log.phoneNone' }
-      if (event.offset === 1) return { key: event.live ? 'buckshot.log.peekLive' : 'buckshot.log.peekBlank' }
-      return { key: event.live ? 'buckshot.log.phoneLive' : 'buckshot.log.phoneBlank', params: { n: event.offset } }
+      // 正常情况下已并进道具那一条；单独出现时按「看到了什么」兜底
+      if (event.live === null) return { key: 'buckshot.log.use.phone.none', subjectKey: name(event.user) }
+      return { key: `buckshot.log.use.magnifier.${event.live ? 'live' : 'blank'}`, subjectKey: name(event.user) }
     case 'eject':
-      return { key: event.live ? 'buckshot.log.ejectLive' : 'buckshot.log.ejectBlank', subjectKey: name(event.user) }
+      return { key: `buckshot.log.use.beer.${event.live ? 'live' : 'blank'}`, subjectKey: name(event.user) }
     case 'heal':
-      return { key: 'buckshot.log.heal', subjectKey: name(event.user), params: { amount: event.amount } }
+      return { key: 'buckshot.log.use.medicine.heal', subjectKey: name(event.user), params: { amount: event.amount } }
     case 'hurt':
-      return { key: 'buckshot.log.hurt', subjectKey: name(event.user), params: { amount: event.amount } }
+      return { key: 'buckshot.log.use.medicine.hurt', subjectKey: name(event.user), params: { amount: event.amount } }
     case 'skip':
       return { key: 'buckshot.log.skip', subjectKey: name(event.seat) }
     case 'round':
       return { key: 'buckshot.log.round', subjectKey: name(event.winner), params: { round: event.round + 1 } }
   }
+}
+
+/**
+ * 整场的记录（旧 → 新）：道具与它的效果合成一条；不是「我方」回合里发生的事标 highlight（壳层圈框）。
+ * 「我方」= 对恶魔时的你；双人同屏时是当前行动者（于是框里正好是「对方上一回合做了什么」）。
+ */
+export function buildLog(state: BuckshotState, view: SeatView): DuelLine[] {
+  const lines: DuelLine[] = []
+  const events = view.events
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]!
+    let line: DuelLine
+    if (event.type === 'item') {
+      const next = events[i + 1]
+      const effect = isEffectOf(event, next) ? next : null
+      if (effect) i++
+      line = itemLine(state, event, effect)
+    } else {
+      line = lineFor(state, event)
+    }
+    const owner = turnOwner(event)
+    lines.push(owner !== null && owner !== view.seat ? { ...line, highlight: true } : line)
+  }
+  return lines
 }
 
 function sideFor(state: BuckshotState, view: SeatView, seat: Seat): DuelSide {
@@ -102,10 +176,14 @@ export function buildDuel(state: BuckshotState): DuelView {
   } else if (view.phase === 'matchOver') {
     caption = { key: 'buckshot.caption.match', subjectKey: nameKey(state, view.winner!) }
   } else {
-    caption = {
-      key: 'buckshot.caption.turn',
-      subjectKey: nameKey(state, view.turn),
-      params: { left: view.left, live: view.loadLive, blank: view.loadBlank },
+    caption = { key: 'buckshot.caption.turn', subjectKey: nameKey(state, view.turn), params: { left: view.left } }
+  }
+  let remaining: DuelLine | null = null
+  if (view.phase === 'turn') {
+    const left = remainingShells(view)
+    remaining = {
+      key: left.approx ? 'buckshot.remaining.inverted' : 'buckshot.remaining.exact',
+      params: { live: left.live, blank: left.blank },
     }
   }
   const tags: DuelLine[] = []
@@ -117,9 +195,10 @@ export function buildDuel(state: BuckshotState): DuelView {
     spent: view.phase === 'load' ? [] : view.spent.map((shell) => (shell.live ? 'live' : 'blank')),
     chamber,
     caption,
+    remaining,
     tags,
     sawn: view.saw,
-    log: view.events.slice(-LOG_LINES).map((event) => lineFor(state, event)),
+    log: buildLog(state, view),
   }
 }
 

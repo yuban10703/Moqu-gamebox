@@ -3,14 +3,14 @@
  *
  *   [上方一家：头像 · 名字 / 角标 / 胜局 · 血量 · 道具]
  *   [枪（锯短时枪管变短）+ 状态标签]
- *   [弹仓：已打出 | 枪里]  [一行说明]
- *   [最近记录（最多 4 条）]
+ *   [弹仓：已打出 | 枪里]  [剩余：实弹 n · 空包弹 m]  [一行说明]
+ *   [整场记录（可滚动，默认停在最新一条；对手回合的几条合进一个框）]
  *   [下方一家：名字 · 血量 · 道具（点了就是使用）]
  *
- * 1-bit：血量是电池格（实心 / 空心），实弹实心、空包空心，已打出的实弹画斜纹、空包打叉；
- * 没有动画 —— 发生了什么全靠「最近」记录用文字交代。尺寸由 CSS 按棋盘区（容器查询）算。
+ * 1-bit：血量是爱心（实心 / 空心），实弹实心、空包空心，已打出的实弹画斜纹、空包打叉；
+ * 没有动画 —— 发生了什么全靠记录用文字交代。尺寸由 CSS 按棋盘区（容器查询）算。
  */
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import type { DuelItem, DuelLine, DuelSide, DuelToken, DuelView } from '@eink/core'
 import { useUi } from './contexts.js'
 
@@ -136,14 +136,67 @@ function useLine(): (line: DuelLine) => string {
     })
 }
 
+const HEART = 'M12 21 C5 15.6 1.6 12 1.6 7.8 1.6 4.6 4.1 2.4 7 2.4 9.1 2.4 10.9 3.6 12 5.4 13.1 3.6 14.9 2.4 17 2.4 19.9 2.4 22.4 4.6 22.4 7.8 22.4 12 19 15.6 12 21Z'
+
+/** 血量：一格一颗爱心，有血实心、没血空心 */
 function Hp({ hp, max }: { hp: number; max: number }): ReactNode {
   const { i18n } = useUi()
   return (
     <span className="eink-duel__hp" role="img" aria-label={i18n.t('shell.duel.hp', { hp, max })}>
-      {Array.from({ length: max }, (_, index) => (
-        <span key={index} className="eink-duel__cell" data-full={index < hp ? 'yes' : 'no'} />
-      ))}
+      {Array.from({ length: max }, (_, index) => {
+        const full = index < hp
+        return (
+          <svg key={index} className="eink-duel__heart" data-full={full ? 'yes' : 'no'} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d={HEART} fill={full ? '#000' : '#fff'} stroke="#000" strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
+        )
+      })}
     </span>
+  )
+}
+
+/** 把连续的高亮行（对手回合）合成一组，壳层给整组画一个框 */
+function groupLog(log: readonly DuelLine[]): Array<{ highlight: boolean; lines: Array<{ line: DuelLine; index: number }> }> {
+  const groups: Array<{ highlight: boolean; lines: Array<{ line: DuelLine; index: number }> }> = []
+  log.forEach((line, index) => {
+    const highlight = line.highlight === true
+    const last = groups.at(-1)
+    if (last && last.highlight === highlight) last.lines.push({ line, index })
+    else groups.push({ highlight, lines: [{ line, index }] })
+  })
+  return groups
+}
+
+/** 整场记录：可以往上翻；有新记录时自动停到最新一条 */
+function Log({ log }: { log: readonly DuelLine[] }): ReactNode {
+  const { i18n } = useUi()
+  const line = useLine()
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [log.length])
+  const lastIndex = log.length - 1
+  return (
+    <div ref={ref} className="eink-duel__log" role="log" aria-label={i18n.t('shell.duel.recent')}>
+      {groupLog(log).map((group) => {
+        const items = group.lines.map(({ line: entry, index }) => (
+          <li key={index} data-latest={index === lastIndex ? 'yes' : 'no'}>
+            {line(entry)}
+          </li>
+        ))
+        const key = group.lines[0]!.index
+        return group.highlight ? (
+          <ol key={key} className="eink-duel__turnbox">
+            {items}
+          </ol>
+        ) : (
+          <ol key={key} className="eink-duel__plain">
+            {items}
+          </ol>
+        )
+      })}
+    </div>
   )
 }
 
@@ -278,18 +331,13 @@ export function DuelPanel({ duel, onItemSelect }: DuelPanelProps): ReactNode {
             <Token key={`c-${index}`} kind={kind} />
           ))}
         </div>
+        {duel.remaining ? <p className="eink-duel__remaining">{line(duel.remaining)}</p> : null}
         <p className="eink-duel__caption" role="status">
           {line(duel.caption)}
         </p>
       </section>
 
-      <ol className="eink-duel__log" aria-label={i18n.t('shell.duel.recent')}>
-        {duel.log.map((entry, index) => (
-          <li key={`${index}-${entry.key}`} data-latest={index === duel.log.length - 1 ? 'yes' : 'no'}>
-            {line(entry)}
-          </li>
-        ))}
-      </ol>
+      <Log log={duel.log} />
 
       {bottom ? <Side side={bottom} onSelect={onItemSelect} /> : null}
     </div>

@@ -75,6 +75,12 @@ export type DuelEvent =
 
 export type Phase = 'load' | 'turn' | 'roundOver' | 'matchOver'
 
+export interface SpentShell {
+  live: boolean
+  by: 'shot' | 'beer'
+  flipped: boolean
+}
+
 export interface DuelState {
   mode: Mode
   seed: number
@@ -90,9 +96,9 @@ export interface DuelState {
   /** 装填时公开的数量 */
   loadLive: number
   loadBlank: number
-  /** 这一管里打出 / 退出过的弹（公开） */
-  spent: Array<{ live: boolean; by: 'shot' | 'beer' }>
-  /** 这一管里用过逆转器（公开：之后「装填时的数量」不再能直接推算剩余） */
+  /** 这一管里打出 / 退出过的弹（公开）；flipped = 它在打出前被逆转过（奇数次），原本是另一种 */
+  spent: SpentShell[]
+  /** 当前这一发被逆转过（奇数次，公开）：它的实空与装填时的身份相反；换下一发时清掉 */
   inverted: boolean
   items: [ItemId[], ItemId[]]
   /** 最近一次装填各自新拿到几件（界面标「新」） */
@@ -290,7 +296,8 @@ function useItem(state: DuelState, seat: Seat, slot: number): DuelState {
       next = {
         ...next,
         pos: cur + 1,
-        spent: [...next.spent, { live, by: 'beer' }],
+        inverted: false,
+        spent: [...next.spent, { live, by: 'beer', flipped: state.inverted }],
         events: [...next.events, { type: 'eject', user: seat, live }],
       }
       if (shellsLeft(next) === 0) next = reload(next)
@@ -329,7 +336,7 @@ function useItem(state: DuelState, seat: Seat, slot: number): DuelState {
       const load = state.load.map((v, i) => (i === cur ? !v : v))
       // 逆转是公开的：谁原本知道这一发，现在也知道它被翻过来了
       const known = next.known.map((row) => row.map((v, i) => (i === cur && v !== null ? !v : v))) as DuelState['known']
-      next = { ...next, load, known, inverted: true }
+      next = { ...next, load, known, inverted: !state.inverted }
       break
     }
     case 'medicine': {
@@ -361,7 +368,8 @@ function shoot(state: DuelState, seat: Seat, at: 'self' | 'opponent'): DuelState
     hp,
     pos: state.pos + 1,
     saw: false,
-    spent: [...state.spent, { live, by: 'shot' }],
+    inverted: false,
+    spent: [...state.spent, { live, by: 'shot', flipped: state.inverted }],
     events: [...state.events, { type: 'shoot', shooter: seat, target, live, damage }],
   }
   if (hp[target] === 0) return endRound(next, opponent(target))

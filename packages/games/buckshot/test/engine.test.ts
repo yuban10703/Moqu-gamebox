@@ -16,7 +16,7 @@ import {
   type ItemId,
   type Seat,
 } from '../src/engine.js'
-import { observe } from '../src/observe.js'
+import { liveChance, observe, remainingShells } from '../src/observe.js'
 
 /** 构造一个已经开始回合的局面：指定弹序、血量、道具与轮到谁 */
 function scene(over: Partial<DuelState> & { load: boolean[] }): DuelState {
@@ -135,7 +135,7 @@ describe('道具', () => {
   it('啤酒：退掉当前这一发（公开），退空就重新装填', () => {
     let state = scene({ load: [true, false], items: [['beer', 'beer'], []] })
     state = item(state, 0, 'beer')
-    expect(state.spent).toEqual([{ live: true, by: 'beer' }])
+    expect(state.spent).toEqual([{ live: true, by: 'beer', flipped: false }])
     expect(state.turn).toBe(0)
     state = item(state, 0, 'beer')
     expect(state.phase).toBe('load')
@@ -185,6 +185,17 @@ describe('道具', () => {
     state = applyMove(state, 0, { kind: 'shoot', target: 'self' })
     expect(state.hp[0]).toBe(4)
     expect(state.turn).toBe(0)
+    // 打出去的那一发记着「被逆转过」；换到下一发后标记清掉
+    expect(state.spent.at(-1)).toEqual({ live: false, by: 'shot', flipped: true })
+    expect(state.inverted).toBe(false)
+  })
+
+  it('逆转器用两次等于没用', () => {
+    let state = scene({ load: [true, false], items: [['inverter', 'inverter'], []] })
+    state = item(state, 0, 'inverter')
+    state = item(state, 0, 'inverter')
+    expect(state.load[0]).toBe(true)
+    expect(state.inverted).toBe(false)
   })
 
   it('过期药：一半 +2 血、一半 −1 血（两种结果都会出现，−1 也可能致命）', () => {
@@ -252,5 +263,36 @@ describe('座位视角不泄露弹序', () => {
       expect('load' in playing).toBe(false)
       expect('pos' in playing).toBe(false)
     }
+  })
+})
+
+describe('剩余数量（只用公开信息）', () => {
+  it('装填数量减去打出 / 退出的弹，就是枪里真实剩余', () => {
+    let state = scene({ load: [true, false, true, false, false], items: [['beer'], []] })
+    expect(remainingShells(observe(state, 0))).toEqual({ live: 2, blank: 3, approx: false })
+    state = item(state, 0, 'beer') // 退出实弹
+    expect(remainingShells(observe(state, 1))).toEqual({ live: 1, blank: 3, approx: false })
+    state = applyMove(state, 0, { kind: 'shoot', target: 'self' }) // 空包，继续
+    const left = remainingShells(observe(state, 0))
+    expect(left).toEqual({ live: 1, blank: 2, approx: false })
+    const rest = state.load.slice(state.pos)
+    expect([rest.filter(Boolean).length, rest.filter((v) => !v).length]).toEqual([left.live, left.blank])
+  })
+
+  it('当前一发被逆转：按逆转前计数并标出来；打出之后又是准确数量', () => {
+    let state = scene({ load: [true, false, false], items: [['inverter'], []] })
+    state = item(state, 0, 'inverter')
+    expect(remainingShells(observe(state, 1))).toEqual({ live: 1, blank: 2, approx: true })
+    state = applyMove(state, 0, { kind: 'shoot', target: 'opponent' }) // 逆转后是空包
+    expect(state.hp[1]).toBe(4)
+    const left = remainingShells(observe(state, 1))
+    expect(left).toEqual({ live: 0, blank: 2, approx: false })
+    expect(state.load.slice(state.pos).every((v) => !v)).toBe(true)
+  })
+
+  it('概率估计考虑逆转：剩 1 实 0 空、当前被逆转 → 当前必是空包', () => {
+    let state = scene({ load: [true], items: [['inverter'], []] })
+    state = item(state, 0, 'inverter')
+    expect(liveChance(observe(state, 1))).toBe(0)
   })
 })

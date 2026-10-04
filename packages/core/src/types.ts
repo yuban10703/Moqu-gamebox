@@ -162,6 +162,8 @@ export interface DuelLine {
   params?: Record<string, string | number>
   subjectKey?: string
   objectKey?: string
+  /** 记录里要圈出来的一条（对手回合发生的事）；相邻的几条壳层合进同一个框 */
+  highlight?: boolean
 }
 
 export interface DuelItem {
@@ -204,11 +206,13 @@ export interface DuelView {
   chamber: DuelToken[]
   /** 枪下的一行说明（装填数量 / 还剩几发 / 本轮结果） */
   caption: DuelLine
+  /** 枪里剩余的数量（实弹 / 空包弹），直接醒目显示在弹仓下方；装填阶段等不需要时为 null */
+  remaining?: DuelLine | null
   /** 枪上的状态标签（手锯：伤害 ×2；用过逆转器…） */
   tags: DuelLine[]
   /** 枪管是否被锯短（画法不同） */
   sawn: boolean
-  /** 最近的几条记录（旧 → 新） */
+  /** 整场的记录（旧 → 新）；壳层放进可滚动的框里、默认停在最新一条 */
   log: DuelLine[]
 }
 
