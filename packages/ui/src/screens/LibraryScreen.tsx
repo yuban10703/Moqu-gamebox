@@ -185,7 +185,7 @@ export function LibraryScreen({
   }, [entries.length, corruptGameIds.length, continued?.game.id, offline, platform.storage.persistent])
 
   return (
-    <div className="eink-screen eink-screen--sticky-footer">
+    <div className="eink-screen eink-screen--library eink-screen--sticky-footer">
       <header className="eink-screen__header">
         <h1>{i18n.t('shell.app.title')}</h1>
         <p className="eink-badges">
@@ -231,7 +231,7 @@ export function LibraryScreen({
          * 整栏可点即继续；标题已经写了「继续上一局」，栏内就只留有用的信息
          * （游戏名 + 关卡），不再重复文案。
          */
-        <section className="eink-section">
+        <section className="eink-section eink-section--continue">
           <div className="eink-section__head">
             <h2>{i18n.t('shell.library.continue')}</h2>
           </div>

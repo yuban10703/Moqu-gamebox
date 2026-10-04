@@ -20,9 +20,9 @@ export const snakeGlyph = '蛇'
 export const snakeZh: Dict = {
   'snake.title': '贪吃蛇',
   'snake.rules.body':
-    '蛇会自己往前爬：三档难度统一 0.5 秒一格（这就是墨水屏一次整屏刷新的节奏；难度差异在规则上 —— 穿墙 / 障碍 / 每食长两节 —— 不在手速上）。点方向键 / 方向盘 / 滑动 = 立刻朝那个方向走一格：点一下就走一格，连点就连走，节奏完全由你掌控；不点的时候它才按上面的间隔自己爬。每次操作之后都会重新计时，绝不会刚点完就自己再走一格。',
+    '蛇自己往前爬：三档都是 0.5 秒一格（难度差异在规则，不在手速）。点方向键 / 方向盘 / 滑动 = 立刻朝那个方向走一格，连点就连走；每次操作后重新计时，刚点完不会又自己走一格。',
   'snake.rules.body2':
-    '不能原地掉头（那个方向按钮会变暗，点了会提示走不通）。入门档可以从一边穿到另一边；熟练档是实心墙，撞墙即结束；挑战档场内还有障碍，而且吃一个食物长两节。注意：按下方向后，如果那一格是墙、障碍或蛇自己的身体，本局会当场结束 —— 和它自己爬过去是同一个规则；但这一步算你的操作，点「撤销」就能退回按下之前，输掉之后也还能撤销。把整块棋盘填满即取胜；点顶栏的「暂停」随时停表，暂停时棋盘完全不动。',
+    '不能原地掉头（按钮会变暗）。入门可穿墙；熟练是实心墙；挑战还有障碍，且吃一个食物长两节。撞墙 / 障碍 / 自己身体当场结束（这一步算你的操作，可撤销）；填满棋盘即取胜；「暂停」时棋盘完全不动。',
   'snake.rules.restart':
     '重新开始会回到同一种子的初始局面并清空撤销记录，无法撤销回重开之前。',
   'snake.stat.score': '分数',
@@ -60,9 +60,9 @@ export const snakeZh: Dict = {
 export const snakeEn: Dict = {
   'snake.title': 'Snake',
   'snake.rules.body':
-    'The snake crawls on its own: 0.5s per cell on every difficulty (that is the rhythm of one full e-ink refresh; the difficulty comes from the rules - wrap, obstacles, two extra segments per meal - not from speed). Direction keys / the pad / swipes move it one cell that way immediately: one tap, one cell; tap again to keep moving at your own pace, and it only crawls by itself at that interval when you let go. Every input restarts the clock, so it never takes another step the instant you press.',
+    'The snake crawls on its own: 0.5s per cell on every difficulty (difficulty changes the rules, not the speed). A direction key, the pad or a swipe moves it one cell that way at once - tap again to keep going, and every input restarts the clock.',
   'snake.rules.body2':
-    'You cannot turn back on yourself (that direction button is dimmed and reports that the move is blocked). Starter wraps around the edges, Skilled has solid walls, and Challenging adds obstacles plus two extra segments per meal. Note: if the cell you press towards is a wall, an obstacle or the snake itself, the run ends at once - the same rule as when it crawls there by itself; that step counts as your input, so Undo takes it back, and it still works after a crash. Filling the whole board wins. Pause from the top bar stops the clock - while paused the board does not move at all.',
+    'It cannot turn back on itself (that button is dimmed). Starter wraps at the edges, Skilled has solid walls, Challenging adds obstacles and two extra segments per meal. Hitting a wall, an obstacle or itself ends the run at once - that step counts as your input, so Undo takes it back. Fill the board to win; Pause freezes everything.',
   'snake.rules.restart':
     'Restarting returns to the opening position for the same seed and clears the undo history; you cannot undo back past a restart.',
   'snake.stat.score': 'Score',

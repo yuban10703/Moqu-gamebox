@@ -11,10 +11,9 @@ import type { Dict } from '@eink/core'
 
 export const match3Zh: Dict = {
   'match3.title': '消消乐',
-  'match3.rules.body': '点一格选中，再点相邻的一格交换。交换后横或竖连成三格以上即消除并计分。',
-  'match3.rules.body2': '换不出三连的交换会被拒绝：棋子放回原处，也不消耗步数。',
-  'match3.rules.body3':
-    '达到目标分数即过关；步数用尽仍未达标则本局失败。没有可交换的组合时棋盘会自动重排。',
+  'match3.rules.body': '点一格选中，再点相邻格交换；横竖连成三格以上即消除计分。',
+  'match3.rules.body2': '换不出三连的交换会被拒绝，不扣步数。',
+  'match3.rules.body3': '达到目标分数过关，步数用尽失败；无可交换组合时自动重排。',
   'match3.rules.restart':
     '重开会清空分数与撤销记录，回到同一局的初始棋盘；同一难度与同一开局种子完全可复现。',
   'match3.illegal.notice': '换不出三连的交换不能走：棋子会放回原处，也不扣步数',
@@ -36,10 +35,10 @@ export const match3Zh: Dict = {
 export const match3En: Dict = {
   'match3.title': 'Match Three',
   'match3.rules.body':
-    'Tap a piece, then tap an adjacent piece to swap. Three or more in a row or column clear and score.',
-  'match3.rules.body2': 'A swap that makes no match is refused: the pieces go back and no move is spent.',
+    'Tap a piece, then an adjacent one to swap; three or more in a row or column clear and score.',
+  'match3.rules.body2': 'A swap that makes no match is refused and costs no move.',
   'match3.rules.body3':
-    'Reach the target score to win; run out of moves first and the round is lost. If no swap can match anything, the board is reshuffled automatically.',
+    'Reach the target score to win; run out of moves and the round is lost. With no match available the board reshuffles.',
   'match3.rules.restart':
     'Restart clears the score and the undo records and returns to the same opening board; the same difficulty and starting seed stay fully reproducible.',
   'match3.illegal.notice': 'A swap must make a match: the pieces go back and no move is spent',

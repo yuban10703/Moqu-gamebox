@@ -1370,6 +1370,61 @@ html[data-bold-lines='on'] .eink-board {
     /* 按钮尺寸由 JS 内联给出，这里用 max-height 封顶（CSS 无法覆盖内联 height） */
     max-height: 44px;
   }
+
+  /*
+   * 首页在极矮横屏必须**一屏放得下**（含右下角那一排翻页按钮）。
+   *
+   * 实测（P6Plus 879×407，18px）：内容区 263px，而「继续栏 85 + 12 + 全部游戏区块 199
+   * （标题 30 + 卡片 92 + 翻页行 48 + 内外边距）」= 296px —— 超出 33px，
+   * 翻页行被折在滚动区外，只露出 16px（用户反馈「要小幅滚动」）。
+   *
+   * 为什么不用「整页自动缩放」：这一档正文就是 18px 下限，263/296 ≈ 0.89 会把正文压到 16px；
+   * 而且 1-bit 面板上分数像素缩放会让字形边缘发虚。压卡片高度 + 收紧区块留白没有这两个代价，
+   * 正文与触摸目标（翻页按钮 48px）都不动。
+   *
+   * 预算（26px 档最紧，实测内容区只有 233px）：继续栏并成一行 45 + 行距 8 + 全部游戏 173
+   * （= 2 边框 + 4 内边距 + 39 标题 + 4 + 72 卡片 + 4 + 48 翻页行）= 226 ≤ 233 ✓；
+   * 18px 档 202 ≤ 262 ✓、22px 档 214 ≤ 247 ✓，三档都**不再需要滚动**、翻页行完整可见。
+   * 卡片 72px 的依据：两行标题在 26px 档是 54.6 + 内边距 12 + 边框 4 = 70.6 ≤ 72 ✓（不会把卡片撑高）。
+   */
+  .eink-screen--library {
+    --tile-min-height: 72px;
+    --tile-padding: 6px;
+  }
+
+  .eink-screen--library .eink-screen__content {
+    gap: 8px;
+  }
+
+  .eink-screen--library .eink-section {
+    padding-top: 4px;
+    gap: 4px;
+  }
+
+  .eink-screen--library .eink-section__head h2 {
+    font-size: 1em;
+  }
+
+  /*
+   * 「继续上一局」的标题与细栏**并排成一行**：这一档里标题竖着放要多吃 30~50px，
+   * 而横屏的宽度完全够（栏本身仍有 min-width:0 + 省略号，长游戏名不会溢出）。
+   * 栏的上下内边距同时收到 2px：这一档每一像素都算数。
+   */
+  .eink-screen--library .eink-section--continue {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .eink-screen--library .eink-section--continue .eink-section__head {
+    flex: 0 0 auto;
+  }
+
+  .eink-screen--library .eink-continue {
+    width: auto;
+    flex: 1 1 auto;
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
 }
 
 /*
