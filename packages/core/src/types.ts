@@ -18,7 +18,8 @@ export type MoveDir = 'up' | 'down' | 'left' | 'right'
  *
  * 推箱子：floor / wall / goal / box / boxOnGoal / player / playerOnGoal
  * 通用：empty（空格）、hidden（未翻开）、flag（标记）、mine（雷）、
- *       number（已翻开且带数字）、tile（承载数字/文字的方块）、given（题目给定，描边更重）
+ *       number（已翻开且带数字）、tile（承载数字/文字的方块）、given（题目给定，描边更重）、
+ *       head / tail（有朝向的头部 / 尾端，配合 CellView.facing 画成朝向一侧的图形；贪吃蛇用）
  */
 export type CellKind =
   | 'floor'
@@ -35,6 +36,8 @@ export type CellKind =
   | 'number'
   | 'tile'
   | 'given'
+  | 'head'
+  | 'tail'
 
 export interface CellView {
   /** 行优先索引 */
@@ -52,6 +55,12 @@ export interface CellView {
    * 墨水屏不能靠颜色，用形状标记比在文字前加前缀更干净（数字本身保持整齐）。
    */
   wrong?: boolean
+  /**
+   * 有朝向的图形朝哪边（目前只对 head / tail 有意义）：
+   * head = 前进方向（圆头与眼睛朝这边）；tail = 远离身体的方向（尾尖指向这边）。
+   * 图形按 up 画好，壳层按朝向整体旋转 —— 不靠灰度，单靠形状就能看出往哪走。
+   */
+  facing?: MoveDir
   /** 右/下邻格属于同一块棋子：该边不画格线（华容道用） */
   mergeRight?: boolean
   mergeBottom?: boolean

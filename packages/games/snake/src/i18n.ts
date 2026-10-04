@@ -57,11 +57,11 @@ export const snakeZh: Dict = {
   // 这里的 mine / box / goal / flag 分别被本作用作 蛇头 / 蛇身 / 食物 / 撞上的蛇头
   'snake.cell.wall': '障碍',
   'snake.cell.empty': '空格',
-  'snake.cell.mine': '蛇头',
+  'snake.cell.head': '蛇头',
   'snake.cell.box': '蛇身',
   'snake.cell.goal': '食物',
   'snake.cell.flag': '撞上的蛇头',
-  'snake.cell.tile': '蛇尾',
+  'snake.cell.tail': '蛇尾',
 }
 
 export const snakeEn: Dict = {
@@ -102,9 +102,9 @@ export const snakeEn: Dict = {
   // snake head / body / food / crashed head.
   'snake.cell.wall': 'Obstacle',
   'snake.cell.empty': 'Empty cell',
-  'snake.cell.mine': 'Snake head',
+  'snake.cell.head': 'Snake head',
   'snake.cell.box': 'Snake body',
   'snake.cell.goal': 'Food',
   'snake.cell.flag': 'Crashed snake head',
-  'snake.cell.tile': 'Snake tail',
+  'snake.cell.tail': 'Snake tail',
 }

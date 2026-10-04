@@ -2,61 +2,64 @@
  * 展示模型：把局面翻译成「与呈现技术无关」的棋盘与控件描述。
  *
  * 1-bit 可读性（没有灰阶、没有动画，只能靠形状与反白）：
- *   蛇头 = 整格反白（kind 'mine'，壳层画成黑底）
+ *   蛇头 = 黑色子弹形剪影 + 两只白眼睛，**朝向前进方向**（kind 'head' + facing）
  *   蛇身 = 占满格子的空心板条箱（kind 'box'，白底 + 外框 + 对角线）
- *   蛇尾 = 格子里一个实心小方块（kind 'tile' + '■'，用户要求：尾巴也要有自己的形状）
+ *   蛇尾 = 黑色收尖的楔形，**尖端指向远离身体的方向**（kind 'tail' + facing）
  *   食物 = 空心圆环（kind 'goal'）
  *   障碍 = 斜纹底（kind 'wall'，壳层用纹理而不是灰度）
  *   空格 = 纯白（kind 'empty'）
  *   撞死后的蛇头 = 白底 + 加粗「×」（kind 'flag'），与活着的黑格蛇头一眼可分
  * 这六种形状两两不同，且都不依赖深浅，因此单色墨水屏上也分得清。
+ *
+ * 头与尾原先是「整格涂黑」与「格中一个 ■」：看不出朝向，也不像蛇（用户要求改得美观）。
+ * 现在按朝向画剪影：头的平直后端、尾的宽底都贴着身体那一侧，整条蛇首尾相接。
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
-import { ALL_DIRS, OPPOSITE_DIR, canUndo, directionOf, gameStatus, type SnakeState } from './rules.js'
+import type { MoveDir } from '@eink/core'
+import {
+  ALL_DIRS,
+  OPPOSITE_DIR,
+  canUndo,
+  directionBetween,
+  directionOf,
+  gameStatus,
+  type SnakeState,
+} from './rules.js'
 import { DIFFICULTIES, DIFFICULTY_IDS, difficultySpec } from './meta.js'
 
-/** 用到的 kind 的固定字形（蛇头/食物的字形由 buildBoard 计算） */
+/** 用到的 kind 的固定字形（头 / 尾 / 身体 / 食物都由壳层画图形，不用文字） */
 export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
   wall: '',
   empty: '',
   box: '',
-  mine: '',
+  head: '',
+  tail: '',
   goal: '',
   flag: '×',
-  // 蛇尾：实心小方块（比整格反白的蛇头小一档，见 TAIL_SCALE）
-  tile: '■',
 }
 
 /**
  * 壳层无障碍标签用的 key。约定固定为 `<namespace>.cell.<kind>`，
  * 因此注册表里直接写 `(kind) => `snake.cell.${kind}`` 即可，不需要额外映射表。
- * 本作借用的通用 kind：mine = 蛇头（整格反白）、box = 蛇身、tile = 蛇尾（实心小方块）、
- * goal = 食物、flag = 撞死后的蛇头，因此这几条标签说的是本作语义而不是 kind 的字面意思。
+ * 本作借用的通用 kind：box = 蛇身、goal = 食物、flag = 撞死后的蛇头，
+ * 因此这几条标签说的是本作语义而不是 kind 的字面意思（head / tail 则正好同义）。
  */
 export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   wall: 'snake.cell.wall',
   empty: 'snake.cell.empty',
-  mine: 'snake.cell.mine',
+  head: 'snake.cell.head',
+  tail: 'snake.cell.tail',
   box: 'snake.cell.box',
   goal: 'snake.cell.goal',
   flag: 'snake.cell.flag',
-  tile: 'snake.cell.tile',
 }
-
-/**
- * 蛇尾方块相对格子的字号比例。
- *
- * 0.8：比整格反白的蛇头弱一档，也不与占满格子的蛇身板条箱混淆 ——
- * 三者在一格里的观感是「满格黑 / 满格框 / 中间一个小方块」，1-bit 下层次清楚。
- */
-const TAIL_SCALE = 0.8
 
 /** 逐格判定：障碍 → 蛇头 → **蛇尾** → 蛇身 → 食物 → 空格（顺序即优先级，互不重叠） */
 export function cellKindAt(state: SnakeState, index: number): CellKind {
   if (state.obstacles.includes(index)) return 'wall'
-  if (index === state.body[0]) return state.dead ? 'flag' : 'mine'
+  if (index === state.body[0]) return state.dead ? 'flag' : 'head'
   // 尾巴单独一种形状（用户要求）：初始长度 3，所以尾巴与蛇头不会重合
-  if (state.body.length > 1 && index === state.body[state.body.length - 1]) return 'tile'
+  if (state.body.length > 1 && index === state.body[state.body.length - 1]) return 'tail'
   if (state.body.includes(index)) return 'box'
   if (index === state.food) return 'goal'
   return 'empty'
@@ -66,16 +69,31 @@ export function cellGlyphAt(state: SnakeState, index: number): string {
   return CELL_GLYPHS[cellKindAt(state, index)] ?? ''
 }
 
+/**
+ * 头 / 尾的朝向：头 = 前进方向（脖子 → 头）；尾 = 远离身体的方向（倒数第二节 → 尾）。
+ * 入门档可穿墙，directionBetween 已按环绕计算，跨边的那一节同样朝向正确。
+ */
+export function facingAt(state: SnakeState, kind: CellKind): MoveDir | undefined {
+  if (state.body.length < 2) return undefined
+  if (kind === 'head') return directionOf(state)
+  if (kind === 'tail') {
+    const size = difficultySpec(state.difficulty).size
+    return directionBetween(size, state.body[state.body.length - 2]!, state.body[state.body.length - 1]!)
+  }
+  return undefined
+}
+
 export function buildBoard(state: SnakeState): BoardView {
   const spec = difficultySpec(state.difficulty)
   const cells: CellView[] = []
   for (let index = 0; index < spec.size * spec.size; index++) {
     const kind = cellKindAt(state, index)
+    const facing = facingAt(state, kind)
     cells.push({
       index,
       kind,
       glyph: CELL_GLYPHS[kind] ?? '',
-      ...(kind === 'tile' ? { textScale: TAIL_SCALE } : {}),
+      ...(facing ? { facing } : {}),
     })
   }
   return { kind: 'grid', cols: spec.size, rows: spec.size, cells }

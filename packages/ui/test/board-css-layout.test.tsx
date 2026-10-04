@@ -110,3 +110,47 @@ describe('未翻格的斜纹画在棋盘上（用户报「斜纹斜着对不齐�
     expect(container.querySelector('.eink-board')!.getAttribute('data-cover')).toBeNull()
   })
 })
+
+describe('有朝向的格子（head / tail + facing，贪吃蛇用）', () => {
+  const FACINGS = { up: 0, right: 90, down: 180, left: 270 } as const
+
+  it('朝向写成 data-facing，图形按「朝上」画好后整体旋转；不给像素尺寸', () => {
+    for (const [facing, degrees] of Object.entries(FACINGS)) {
+      for (const kind of ['head', 'tail'] as const) {
+        const board: BoardView = {
+          kind: 'grid',
+          cols: 1,
+          rows: 1,
+          cells: [{ index: 0, kind, glyph: '', facing: facing as keyof typeof FACINGS }],
+        }
+        const { container, unmount } = render(<Board board={board} />)
+        const cell = container.querySelector('.eink-board__cell') as HTMLElement
+        expect(cell.dataset.facing).toBe(facing)
+        const svg = cell.querySelector('svg')!
+        expect(svg.getAttribute('width')).toBeNull()
+        expect(svg.querySelector('g')?.getAttribute('transform')).toBe(`rotate(${degrees} 12 12)`)
+        // 纯黑白：图形只用 #000 / #fff
+        for (const node of svg.querySelectorAll('[fill]')) {
+          expect(['#000', '#fff']).toContain(node.getAttribute('fill'))
+        }
+        unmount()
+      }
+    }
+  })
+
+  it('头有两只白眼睛，尾没有（两者形状不同，不靠深浅区分）', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 2,
+      rows: 1,
+      cells: [
+        { index: 0, kind: 'head', glyph: '', facing: 'right' },
+        { index: 1, kind: 'tail', glyph: '', facing: 'left' },
+      ],
+    }
+    const { container } = render(<Board board={board} />)
+    const [head, tail] = [...container.querySelectorAll('.eink-board__cell')]
+    expect(head!.querySelectorAll('circle[fill="#fff"]')).toHaveLength(2)
+    expect(tail!.querySelectorAll('circle')).toHaveLength(0)
+  })
+})

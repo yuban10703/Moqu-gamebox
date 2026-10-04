@@ -53,7 +53,7 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 
 呈现约定：
 - `CellView.glyph` 是**格内文字**（数字类玩法直接放数字）；`kind` 决定壳层画图形还是显示文字
-- `kind` 取值：推箱子的 7 种 + 通用 `empty/hidden/flag/mine/number/tile/given`
+- `kind` 取值：推箱子的 7 种 + 通用 `empty/hidden/flag/mine/number/tile/given/head/tail`；`head/tail` 配合 `CellView.facing` 画成有朝向的剪影（贪吃蛇：蛇头是带两只白眼睛的圆头、朝前进方向，蛇尾是收尖的楔形、指向远离身体的方向）
 - `selected` 高亮当前格；`textScale` 由游戏声明字号系数（默认 0.66）
 - `BoardView.groups`：每 N×M 格一组，壳层画更粗的分组线（数独 3×3 用）
 - `ControlSpec.role='dpad'` 画方向键、`'action'` 画按钮；**壳层自有 id**：`undo`/`restart`/`nextLevel`/`next-level`/`move-<dir>`

@@ -54,38 +54,56 @@ describe('棋盘展示模型', () => {
     )
   })
 
-  it('蛇尾是单独的实心小方块（用户要求：尾巴也要有自己的形状）', () => {
-    const state = createState(SEED, 'challenging')
-    const tail = state.body[state.body.length - 1]!
-    expect(cellKindAt(state, tail)).toBe('tile')
-    expect(cellGlyphAt(state, tail)).toBe('■')
-    const tailCell = buildBoard(state).cells.find((cell) => cell.index === tail)!
-    // 比整格反白的蛇头弱一档：靠字号缩小，不靠灰阶
-    expect(tailCell.textScale).toBeGreaterThan(0)
-    expect(tailCell.textScale).toBeLessThan(1)
-    // 蛇身仍是板条箱、蛇头仍是反白格，三者互不相同
-    for (const cell of state.body.slice(1, -1)) expect(cellKindAt(state, cell)).toBe('box')
-    expect(cellKindAt(state, state.body[0]!)).toBe('mine')
-    // 撞死之后蛇尾照样是尾巴（只有蛇头换成叉号）
-    const dead = deadState()
-    expect(cellKindAt(dead, dead.body[dead.body.length - 1]!)).toBe('tile')
-  })
-
-  it('蛇头反白、蛇身空心箱、食物圆环、障碍斜纹、空格纯白（形状两两不同）', () => {
+  it('蛇头是朝向前进方向的剪影、蛇尾是指向远离身体方向的尖尾（用户要求：头尾美观、有自己的形状）', () => {
     const state = createState(SEED, 'challenging')
     const head = state.body[0]!
-    expect(cellKindAt(state, head)).toBe('mine')
-    for (const cell of state.body.slice(1, -1)) expect(cellKindAt(state, cell)).toBe('box')
-    expect(cellKindAt(state, state.food)).toBe('goal')
-    for (const cell of state.obstacles) expect(cellKindAt(state, cell)).toBe('wall')
-    const empty = Array.from({ length: SIZE * SIZE }, (_, index) => index).filter(
-      (index) =>
-        !state.body.includes(index) &&
-        !state.obstacles.includes(index) &&
-        index !== state.food,
-    )
-    expect(empty.length).toBeGreaterThan(0)
-    for (const cell of empty) expect(cellKindAt(state, cell)).toBe('empty')
+    const tail = state.body[state.body.length - 1]!
+    expect(cellKindAt(state, head)).toBe('head')
+    expect(cellKindAt(state, tail)).toBe('tail')
+    // 头尾都画图形，不放文字（不再是整格反白 / 格中一个 ■）
+    expect(cellGlyphAt(state, head)).toBe('')
+    expect(cellGlyphAt(state, tail)).toBe('')
+    const cells = buildBoard(state).cells
+    // 开局横放、朝右：头朝右，尾尖朝左（远离身体）
+    expect(cells[head]!.facing).toBe('right')
+    expect(cells[tail]!.facing).toBe('left')
+    // 只有头尾带朝向；蛇身仍是板条箱
+    for (const cell of state.body.slice(1, -1)) {
+      expect(cellKindAt(state, cell)).toBe('box')
+      expect(cells[cell]!.facing).toBeUndefined()
+    }
+    expect(cells.filter((cell) => cell.facing !== undefined)).toHaveLength(2)
+  })
+
+  it('转向后蛇头立即朝新方向；尾巴始终指向远离倒数第二节的方向', () => {
+    // 头 (6,6) 朝右，身体向左横放
+    const start = stateWith('skilled', { body: [78, 77, 76], food: 0 })
+    const up = turn(start, 'up')
+    const upCells = buildBoard(up).cells
+    expect(upCells[up.body[0]!]!.facing).toBe('up')
+    // 拐弯处：尾巴 (5,6) 的前一节是 (6,6)，尾尖朝左
+    expect(upCells[up.body[up.body.length - 1]!]!.facing).toBe('left')
+    // 再走两格，尾巴拐过弯后跟着朝下（远离向上走的身体）
+    const later = tick(tick(up))
+    const laterCells = buildBoard(later).cells
+    expect(laterCells[later.body[later.body.length - 1]!]!.facing).toBe('down')
+  })
+
+  it('入门档穿墙：跨过边界的那一节，头尾朝向仍按环绕计算', () => {
+    // 头在第 0 列、脖子在第 11 列（刚从右边界穿过来）→ 头朝右；尾巴在第 10 列、前一节第 11 列 → 尾尖朝左
+    const state = stateWith('starter', { body: [0, 11, 10], food: 100 })
+    const cells = buildBoard(state).cells
+    expect(cells[0]!.facing).toBe('right')
+    expect(cells[10]!.facing).toBe('left')
+  })
+
+  it('撞死之后蛇头换成叉号（不带朝向），蛇尾照样是尖尾', () => {
+    const dead = deadState()
+    const cells = buildBoard(dead).cells
+    expect(cellKindAt(dead, dead.body[0]!)).toBe('flag')
+    expect(cells[dead.body[0]!]!.facing).toBeUndefined()
+    expect(cellKindAt(dead, dead.body[dead.body.length - 1]!)).toBe('tail')
+    expect(cells[dead.body[dead.body.length - 1]!]!.facing).toBeDefined()
   })
 
   it('撞死后的蛇头换成白底加粗叉号，与活着的黑格一眼可分', () => {
