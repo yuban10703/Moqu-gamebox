@@ -10,15 +10,15 @@
 | 屏幕尺寸 | 10.3 吋 | 型号规格 |
 | 分辨率（物理） | 1872 × 1404（当前为横屏） | `wm size` / 诊断页 `screen` |
 | 系统密度 | 240（dpi 基准 160 → DPR 1.5） | `wm density` |
-| 黑白 / 彩色 | 黑白（待你确认是否为彩屏版本） | 待确认 |
+| 黑白 / 彩色 | 黑白（型号非彩屏版；系统不提供面板类型字段，按型号判定 —— 应用本身只输出 1-bit，与面板无关） | 型号规格 |
 | Android 版本 | 11（API 30） | `ro.build.version.release` / `ro.build.version.sdk` |
 | 固件 | `D60_SMT_V02_2022_0309`（incremental 1658） | `ro.build.display.id` |
 | 系统 WebView | **156.0.8078.4**（com.google.android.webview） | `dumpsys webviewupdate` / 诊断页 |
 | CSS 视口（横屏） | **1248 × 903 @ DPR 1.5** | 诊断页 `viewport(css)` |
-| CSS 视口（竖屏） | 待测 | — |
+| CSS 视口（竖屏） | **936 × 1215 @ DPR 1.5**（真机实测 2026-10-05；物理 1404×1872 − 状态栏 33） | 诊断页 `viewport(css)` |
 | 触摸点数 / 粗指针 | 5 / coarse=true | 诊断页 `touch` |
-| 实体按键 | 待采集（诊断页未展示 `hardwareKeys` 字段） | — |
-| 触笔 | 待采集 | — |
+| 实体按键 | 音量± / 电源 / 返回 / 菜单 / 方向 / 唤醒；**没有专用翻页键**（`adb shell getevent -pl` 实测 2026-10-05；`KEYCODE_PAGE_UP/DOWN` 只有外接键盘会发，应用已支持） | `getevent -pl` |
+| 触笔 | **有**：输入设备里存在 `onyx_emp_Wacom I2C Digitizer`（真机实测 2026-10-05） | `getevent -pl` |
 | BOOX 屏幕接口 / 刷新控制 | **不适用**：相关能力与 SDK 已于 2026-10-04 从应用里完全移除 | 见下方「关于 Onyx SDK（历史）」 |
 
 ## 运行环境基线（2026-10-03 复核，构建目标据此确定）
@@ -43,7 +43,7 @@
   （本应用 CSS 有约 190 处 `var(--)`、10 处 `display:grid`）。Kindle 还是封闭平台，装不了我们的 APK。
   用户已决定不为它做兼容版。
 - `minSdk 23` / `targetSdk 35` 在实机（API 30 / 33）运行正常；
-- 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **71px**（真机实测；离线模型按当前方向键摆法算是 83px）—— 远超 48px 门槛。
+- 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **86px**（真机实测 2026-10-05，消消乐挑战档，棋盘 612²；同款在 P6Plus 439×847 @18px 是 57px）—— 远超 48px 门槛。
 
 ## 关于 Onyx SDK（历史记录）
 
@@ -71,7 +71,7 @@
 | 单步操作残影 | 轻微，可接受 | 未做长时间观察，待 100 步连续测试 |
 | 整屏全刷 | 应用无法触发（SDK 不可用）；系统手势可用 | — |
 | 文字最小可读字号 | 标准档（18/20px）完全可读 | 三个棋盘符号在 1-bit 下区分清楚 |
-| 棋盘格子可点尺寸 | 71 CSS px（7×7 关卡，真机实测） | 远高于 48px |
+| 棋盘格子可点尺寸 | 86 CSS px（7×7 关卡，真机实测 2026-10-05） | 远高于 48px |
 | 返回键 | 正常：应用内返回、系统返回键均按预期 | 系统返回键由网页层 `__einkHandleBack` 接管 |
 | 关卡分页 | 正常：16 关分 2 页，上一页/下一页文案正确 | — |
 | 存档持久化 | **通过**：杀进程后重启，步数 1 被恢复；SQLite 库 20KB | 落在 `/data/data/com.einkgamebox/databases/eink-gamebox.db` |
@@ -119,8 +119,8 @@ storage: android
 | 连接 | `adb connect 10.1.1.69:5555` |
 | 厂商 / 型号 | ONYX / **P6Plus**（brand Onyx，fingerprint `ONYX/TabBoox/TabBoox`） |
 | Android | **13（SDK 33）**，incremental 592 |
-| 屏幕 | 物理 824×1648，density 300 → **CSS 视口 439×847 @dpr 1.875（竖屏）** |
-| WebView | Chrome/146.0.7680.178 |
+| 屏幕 | 物理 824×1648，density 300 → **CSS 视口 439×847 @dpr 1.875（竖屏）**；横屏 **879×407**（2026-10-05 复测一致） |
+| WebView | Chrome/**146.0.7680.178**（2026-10-05 复测一致；NoteX2 是 156.0.8078.4 —— 两台不同，别混用） |
 | 触摸 | 5 点，coarse |
 | 存储 | `android`（原生 SQLite，与 Note X2 相同） |
 | 波形 | `onyx waveform sg` |
