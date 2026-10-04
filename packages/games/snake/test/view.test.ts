@@ -27,8 +27,8 @@ import { SEED, hamiltonianCycle, stateWith, tick, turn } from './helpers.js'
 const SIZE = 12
 
 function deadState(): SnakeState {
-  // 头 (0,5)=5 朝左：先转向 up，再自动前进一格即撞墙
-  return tick(turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up'))
+  // 头 (5,0)=5 朝左：按上 = 立即朝上走一格 → 出界，当场结束
+  return turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
 }
 
 function wonState(): SnakeState {
@@ -99,17 +99,19 @@ describe('棋盘展示模型', () => {
     expect(JSON.stringify(view)).not.toMatch(/px|rgb|style|class|dom/i)
   })
 
-  it('转向后立刻给出文字确认（棋盘要等下一个 tick 才动，这段时间不能没有反馈）', () => {
+  it('玩法自己不再产生提示文字（按下方向键当帧就走一格，棋盘本身就是反馈）', () => {
+    // 上一版这里会亮一行「下一格向下」—— 因为那时转向要等下一个 tick 才动。
+    // 现在按键立即执行，文字提示只会是噪音；"走不通"仍由壳层的 illegalNoticeKey 负责。
     const turned = turn(createState(SEED, 'skilled'), 'down')
-    expect(buildView(turned).notice).toEqual({ textKey: 'snake.turn.down' })
-    // 缓冲被消费掉之后提示自然退场
+    expect(buildView(turned).notice).toBeNull()
     expect(buildView(tick(turned)).notice).toBeNull()
+    expect(buildView(deadState()).notice).toBeNull()
   })
 })
 
 describe('统计栏与结果页', () => {
   it('统计三项：分数 / 蛇长 / 步数', () => {
-    const state = tick(turn(createState(SEED, 'skilled'), 'down'))
+    const state = turn(createState(SEED, 'skilled'), 'down')
     expect(buildStats(state)).toEqual([
       { labelKey: 'snake.stat.score', value: '0' },
       { labelKey: 'snake.stat.length', value: '3' },
@@ -164,7 +166,7 @@ describe('控件', () => {
     const undoOf = (state: SnakeState): boolean =>
       buildControls(state).find((control) => control.id === 'undo')!.enabled
     expect(undoOf(start)).toBe(false)
-    const moved = tick(turn(start, 'down'))
+    const moved = turn(start, 'down')
     expect(undoOf(moved)).toBe(true)
     // 撞死之后仍然可以撤销（那一步正是最想退回的）
     expect(undoOf(deadState())).toBe(true)

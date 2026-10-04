@@ -3,13 +3,14 @@
  * 壳层自动步进（tick）的行为测试 —— 用 vitest 的假定时器把"时间"完全握在手里。
  *
  * 覆盖本轮验收点名的每一条：
- * 1. 到点派发 `{ type: 'tick' }`：贪吃蛇每隔 tickMs 自动前进一格；
- * 2. **输入延迟补偿**：玩家每次有效输入后重置计时，保证拿到完整的一个间隔
- *    （否则刚按完就自动走一格，在墨水屏上像"吞输入"）；
- * 3. 暂停 / 结束 / 页面隐藏 / 离开对局一律停表，且**不泄漏定时器**；
- * 4. 定时器到点派发的 tick 被规则拒绝时**不崩、不弹提示**，直接安全停表；
- * 5. 间隔钳位（≥ MIN_TICK_MS 400ms）与极矮横屏的减速系数；
- * 6. 没有声明 tickMs 的玩法一个定时器都不起（其余 10 款行为不变）。
+ * 1. 到点派发 `{ type: 'tick' }`：贪吃蛇每隔 tickMs 自动前进一格（**三档统一 500ms**）；
+ * 2. **玩家输入当帧生效**：点方向键立即走一格（不依赖定时器），棋盘的这次变化与时间无关；
+ * 3. **输入延迟补偿**：玩家每次有效输入后重置计时，保证拿到完整的一个间隔
+ *    （否则刚按完就自动再走一格，在墨水屏上像"吞输入"）；
+ * 4. 暂停 / 结束 / 页面隐藏 / 离开对局一律停表，且**不泄漏定时器**；
+ * 5. 定时器到点派发的 tick 被规则拒绝时**不崩、不弹提示**，直接安全停表；
+ * 6. 间隔钳位（≥ MIN_TICK_MS 400ms）与极矮横屏的减速系数；
+ * 7. 没有声明 tickMs 的玩法一个定时器都不起（其余 10 款行为不变）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -21,7 +22,7 @@ import {
   type GameView,
 } from '@eink/core'
 import { createPlatform, type AppStorage } from '@eink/platform'
-import { snakeGame } from '@eink/snake'
+import { difficultySpec, directionOf, snakeGame } from '@eink/snake'
 import { CRAMPED_TICK_SLOWDOWN, useSession } from '../src/session.js'
 
 afterEach(() => {
@@ -51,11 +52,14 @@ function SnakeHarness({
       <span data-testid="auto">{session.autoTickMs === null ? 'off' : String(session.autoTickMs)}</span>
       <span data-testid="moves">{session.state.moves}</span>
       <span data-testid="head">{session.state.body[0]}</span>
-      <span data-testid="pending">{session.state.pendingDir ?? '-'}</span>
+      {/* 朝向由蛇身推出（状态里没有"待生效的方向"字段了） */}
+      <span data-testid="dir">
+        {session.state.body.length >= 2 ? directionOf(session.state) : '-'}
+      </span>
       <span data-testid="finished">{session.finished ? 'yes' : 'no'}</span>
       <button onClick={() => session.runControl?.('move-up')}>turn-up</button>
-      {/* 朝右时按左是原地掉头：规则层会拒绝，会话也不该把它当成"有效输入" */}
       <button onClick={() => session.runControl?.('move-left')}>turn-left</button>
+      <button onClick={() => session.runControl?.('move-right')}>turn-right</button>
       <button onClick={() => session.undo()}>undo</button>
       <button onClick={session.pause}>pause</button>
       <button onClick={session.resume}>resume</button>
@@ -94,14 +98,15 @@ describe('自动步进：到点派发 tick', () => {
     vi.useFakeTimers()
   })
 
-  it('贪吃蛇每隔 tickMs 自动前进一格（入门档 850ms）', async () => {
+  it('贪吃蛇每隔 tickMs 自动前进一格（三档统一 500ms）', async () => {
     await mount()
-    expect(text('auto')).toBe('850')
+    expect(text('auto')).toBe('500')
+    expect(Number(text('auto'))).toBeGreaterThanOrEqual(MIN_TICK_MS)
     expect(text('moves')).toBe('0')
     const heads: string[] = [text('head')]
 
     for (let step = 1; step <= 3; step++) {
-      await advance(850)
+      await advance(500)
       expect(text('moves')).toBe(String(step))
       heads.push(text('head'))
     }
@@ -111,21 +116,68 @@ describe('自动步进：到点派发 tick', () => {
     expect(vi.getTimerCount()).toBe(1)
   })
 
-  it('间隔按难度取不同的值（熟练 680ms / 挑战 520ms）', async () => {
+  it('间隔**不随难度变化**：入门 / 熟练 / 挑战在壳层里拿到的都是同一个值', async () => {
     vi.useRealTimers()
     vi.useFakeTimers()
-    const skilled = await createPlatform({ kv: createMemoryKv(), now: () => 1 })
-    render(<SnakeHarness storage={skilled.storage} difficulty="skilled" />)
-    await settle()
-    expect(text('auto')).toBe('680')
-    await advance(680)
-    expect(text('moves')).toBe('1')
+    const observed: string[] = []
+    for (const difficulty of ['starter', 'skilled', 'challenging'] as const) {
+      cleanup()
+      const platform = await createPlatform({ kv: createMemoryKv(), now: () => 1 })
+      render(<SnakeHarness storage={platform.storage} difficulty={difficulty} />)
+      await settle()
+      observed.push(text('auto'))
+      // 到点确实走一格（不是把间隔写得比声明更大就完事）
+      await advance(Number(text('auto')))
+      expect(text('moves')).toBe('1')
+    }
+    // 1) 三个难度一模一样（差 1ms 都算"没统一"）
+    expect(new Set(observed).size).toBe(1)
+    // 2) 就是选定的 500ms，并且不低于 core 的 400ms 硬下限（统一值不靠壳层钳位兜底）
+    expect(observed).toEqual(['500', '500', '500'])
+    expect(Number(observed[0])).toBeGreaterThanOrEqual(MIN_TICK_MS)
+    // 3) 与玩法**自己声明的**值一致：壳层没有偷偷改数字
+    expect(Number(observed[0])).toBe(difficultySpec('starter').tickMs)
+  })
+})
 
-    cleanup()
-    const challenging = await createPlatform({ kv: createMemoryKv(), now: () => 1 })
-    render(<SnakeHarness storage={challenging.storage} difficulty="challenging" />)
-    await settle()
-    expect(text('auto')).toBe('520')
+describe('玩家输入当帧生效：点方向键立即走一格', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('点下去当帧就换向并前进一格，完全不需要推进定时器', async () => {
+    await mount()
+    const before = text('head')
+    expect(text('dir')).toBe('right')
+
+    fireEvent.click(screen.getByText('turn-up'))
+
+    // 关键断言：这一步与时间无关 —— 没推进任何定时器，局面已经变了
+    expect(text('moves')).toBe('1')
+    expect(text('dir')).toBe('up')
+    expect(text('head')).not.toBe(before)
+  })
+
+  it('连续快速点两个方向（上 → 左）不丢输入：两格都走掉了', async () => {
+    await mount()
+    fireEvent.click(screen.getByText('turn-up'))
+    fireEvent.click(screen.getByText('turn-left'))
+    expect(text('moves')).toBe('2')
+    expect(text('dir')).toBe('left')
+
+    // 计时从**最后一次输入**算起：再走 499ms 都不会自己动，满 500ms 才动
+    await advance(499)
+    expect(text('moves')).toBe('2')
+    await advance(1)
+    expect(text('moves')).toBe('3')
+    expect(text('dir')).toBe('left')
+  })
+
+  it('按当前朝向 = 手动往前一格（不是把蛇按住不动的办法）', async () => {
+    await mount()
+    fireEvent.click(screen.getByText('turn-right'))
+    expect(text('moves')).toBe('1')
+    expect(text('dir')).toBe('right')
   })
 })
 
@@ -134,48 +186,50 @@ describe('输入延迟补偿：有效输入后重置计时', () => {
     vi.useFakeTimers()
   })
 
-  it('刚按完不会立刻自动走一格，而是重新拿到完整的一个间隔', async () => {
+  it('输入本身当帧走一格，但输入之后不会紧接着又被自动 tick 推一格', async () => {
     await mount()
-    // t=800ms：还差 50ms 就要自动走一格
-    await advance(800)
+    // t=450ms：还差 50ms 就要自动走一格
+    await advance(450)
     expect(text('moves')).toBe('0')
 
-    // 此刻玩家按下「上」：计时必须从这一刻重新开始
+    // 此刻玩家按下「上」：当帧走一格，并且计时必须从这一刻重新开始
     fireEvent.click(screen.getByText('turn-up'))
-    expect(text('pending')).toBe('up')
-
-    // 再走 100ms（t=900）：若没有重置，t=850 时就会自动走掉一格
-    await advance(100)
-    expect(text('moves')).toBe('0')
-
-    // 从输入算起满 850ms（t=1650）才走：而且走的是刚按下的方向（缓冲被消费）
-    await advance(750)
     expect(text('moves')).toBe('1')
-    expect(text('pending')).toBe('-')
+    expect(text('dir')).toBe('up')
+
+    // 再走 100ms（t=550）：若没有重置，t=500 时就会自动走掉一格
+    await advance(100)
+    expect(text('moves')).toBe('1')
+
+    // 从输入算起满 500ms（t=950）才自动再走一格：沿刚按下的方向（朝上）
+    await advance(400)
+    expect(text('moves')).toBe('2')
+    expect(text('dir')).toBe('up')
   })
 
   it('被拒绝的输入不算有效输入，不会重置计时（规则层已明确提示走不通）', async () => {
     await mount()
-    await advance(800)
+    await advance(450)
     // 蛇头朝右，按「左」是原地掉头：规则层拒绝它（壳层给"走不通"提示）
     fireEvent.click(screen.getByText('turn-left'))
-    expect(text('pending')).toBe('-') // 缓冲没有被写脏
-    // 若被拒绝的输入也重置计时，这一刻（t=850）就还不会走
+    expect(text('moves')).toBe('0') // 被拒绝：一格都没走
+    expect(text('dir')).toBe('right')
+    // 若被拒绝的输入也重置计时，这一刻（t=500）就还不会走
     await advance(50)
     expect(text('moves')).toBe('1')
   })
 
   it('撤销也是一次有效输入：撤销后同样重新计时', async () => {
     await mount()
-    fireEvent.click(screen.getByText('turn-up'))
-    await advance(850)
-    expect(text('moves')).toBe('1')
-    await advance(700)
+    fireEvent.click(screen.getByText('turn-up')) // t=0：当帧走一格
+    await advance(500) // t=500：自动再走一格
+    expect(text('moves')).toBe('2')
+    await advance(400) // t=900：下一次自动步进原本在 t=1000
     fireEvent.click(screen.getByText('undo'))
-    expect(text('moves')).toBe('0') // 撤销回「按上之前」
-    await advance(100)
-    expect(text('moves')).toBe('0') // 若没重置，t=1700 早就该走了
-    await advance(750)
+    expect(text('moves')).toBe('0') // 撤销回「按上之前」（连自动走的那格一起退回）
+    await advance(100) // t=1000：若没重置，原定的自动步进就会在这里发生
+    expect(text('moves')).toBe('0')
+    await advance(500) // t=1500 = 撤销时刻 + 500ms
     expect(text('moves')).toBe('1')
   })
 })
@@ -187,7 +241,7 @@ describe('停表：暂停 / 结束 / 隐藏 / 离开对局', () => {
 
   it('暂停面板打开时棋盘完全不动，恢复后继续', async () => {
     await mount()
-    await advance(850)
+    await advance(500)
     expect(text('moves')).toBe('1')
 
     fireEvent.click(screen.getByText('pause'))
@@ -197,8 +251,8 @@ describe('停表：暂停 / 结束 / 隐藏 / 离开对局', () => {
     expect(text('moves')).toBe('1') // 一格都没走
 
     fireEvent.click(screen.getByText('resume'))
-    expect(text('auto')).toBe('850')
-    await advance(850)
+    expect(text('auto')).toBe('500')
+    await advance(500)
     expect(text('moves')).toBe('2')
   })
 
@@ -208,8 +262,8 @@ describe('停表：暂停 / 结束 / 隐藏 / 离开对局', () => {
     const platform = await createPlatform({ kv: createMemoryKv(), now: () => 1 })
     render(<SnakeHarness storage={platform.storage} difficulty="skilled" />)
     await settle()
-    fireEvent.click(screen.getByText('turn-up')) // 朝上：6 格后撞墙
-    for (let step = 0; step < 8 && text('finished') !== 'yes'; step++) await advance(680)
+    fireEvent.click(screen.getByText('turn-up')) // 朝上：按下的那一格立刻走掉，之后自动爬
+    for (let step = 0; step < 8 && text('finished') !== 'yes'; step++) await advance(500)
     expect(text('finished')).toBe('yes')
     expect(text('auto')).toBe('off')
     expect(vi.getTimerCount()).toBe(0)
@@ -236,8 +290,8 @@ describe('停表：暂停 / 结束 / 隐藏 / 离开对局', () => {
     await act(async () => {
       document.dispatchEvent(new Event('visibilitychange'))
     })
-    expect(text('auto')).toBe('850')
-    await advance(850)
+    expect(text('auto')).toBe('500')
+    await advance(500)
     expect(text('moves')).toBe('1')
   })
 
@@ -349,8 +403,18 @@ describe('间隔钳位与极矮横屏减速', () => {
     const platform = await createPlatform({ kv: createMemoryKv(), now: () => 1 })
     render(<SnakeHarness storage={platform.storage} tickSlowdown={CRAMPED_TICK_SLOWDOWN} />)
     await settle()
-    expect(text('auto')).toBe(String(Math.round(850 * CRAMPED_TICK_SLOWDOWN)))
-    await advance(Math.round(850 * CRAMPED_TICK_SLOWDOWN))
+    // 统一 500ms × 1.5 = 750ms。
+    // 写死 750 是有意的：旧值 850 会被放大成 1275ms、"三档不同值"那版是 900ms，
+    // 一旦哪边又改回分档速度，这条会立刻红。
+    expect(text('auto')).toBe(String(Math.round(500 * CRAMPED_TICK_SLOWDOWN)))
+    expect(text('auto')).toBe('750')
+    // 与玩法声明的统一值联动：放大的是**声明值**本身，不是另写一个数
+    expect(Number(text('auto'))).toBe(
+      Math.round(difficultySpec('starter').tickMs * CRAMPED_TICK_SLOWDOWN),
+    )
+    // 放大之后仍不低于硬下限（这里远高于它：防的是"减速系数被改成 <1"）
+    expect(Number(text('auto'))).toBeGreaterThanOrEqual(MIN_TICK_MS)
+    await advance(Math.round(500 * CRAMPED_TICK_SLOWDOWN))
     expect(text('moves')).toBe('1')
   })
 
@@ -396,10 +460,10 @@ describe('会话层面的事实（供真机探针使用）', () => {
 
   it('autoTickMs 是"计时器真的挂着"的可断言事实，而不是猜的', async () => {
     await mount()
-    expect(text('auto')).toBe('850')
+    expect(text('auto')).toBe('500')
     fireEvent.click(screen.getByText('pause'))
     expect(text('auto')).toBe('off')
     fireEvent.click(screen.getByText('resume'))
-    expect(text('auto')).toBe('850')
+    expect(text('auto')).toBe('500')
   })
 })

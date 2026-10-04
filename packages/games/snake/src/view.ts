@@ -126,15 +126,15 @@ export function buildView(state: SnakeState): GameView {
     stats: buildStats(state),
     result,
     /*
-     * 转向已记录 = 棋盘上的**立即**反馈。
+     * 玩法自己**不再产生**任何提示文字。
      *
-     * 为什么需要：自动前进的间隔最长 850ms，而转向要到下一个 tick 才改变棋盘 ——
-     * 没有这条文字，玩家按完方向键可能整整一秒看不到任何变化，会以为输入被吞了
-     * （墨水屏输入延迟的典型体验问题）。这里用稳定文字确认，退场由下一个 tick 自然完成
-     * （那时 pendingDir 已被消费）。
-     * 非法方向仍由会话用 illegalNoticeKey 统一提示，这里不自己造。
+     * 上一版这里会给"已缓冲的转向"亮一行「下一格向上」——因为那时转向要等下一个 tick
+     * 才改变棋盘，中间几百毫秒没有任何反馈、看起来像吞输入。现在按下方向键**当帧就走一格**，
+     * 棋盘本身就是反馈，多一行文字只会是噪音。
+     * 唯一还需要文字的场合是"这一步走不通"（原地掉头 / 本局已结束）：那是壳层按
+     * illegalNoticeKey 统一提示的，不经过这里。
      */
-    notice: status === 'playing' && state.pendingDir ? { textKey: `snake.turn.${state.pendingDir}` } : null,
+    notice: null,
   }
 }
 

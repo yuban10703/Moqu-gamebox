@@ -136,7 +136,7 @@ export const snakeGame: GameDef<SnakeState, SnakeAction> = {
 
   /**
    * 方向键的动作名由游戏自己说明（壳层优先走 controlAction）：
-   * 方向按钮 = **转向**（写入下一个 tick 生效的缓冲方向，不再是「按一次走一格」）；
+   * 方向按钮 = **转向并立即走一格**（按下当帧就换向、当帧就前进，不再有"下一个 tick 生效"的缓冲）；
    * 撤销 / 重开也映射一次，壳层改走 controlAction 时不会失效。
    */
   controlAction(_state: SnakeState, controlId: string): SnakeAction | null {
@@ -147,7 +147,9 @@ export const snakeGame: GameDef<SnakeState, SnakeAction> = {
   },
 
   /**
-   * 自动前进的间隔：由难度声明（入门 850ms / 熟练 680ms / 挑战 520ms，依据见 meta.ts）。
+   * 自动前进的间隔：由难度声明（**三档统一 500ms**，依据见 meta.ts）。
+   * 速度不参与难度（难度差异在规则上），这只是「玩家不操作时」的节奏 ——
+   * 点方向键是立即走一格，想快就自己点。
    * 已结束一律返回 null —— 壳层据此停表，不留一个空转的定时器。
    */
   tickMs(state: SnakeState): number | null {

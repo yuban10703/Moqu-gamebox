@@ -3,7 +3,7 @@
  * 并且游戏实际产出的每个 labelKey 都能取到文案 —— 否则界面上会出现 ⟦key⟧ 占位符。
  */
 import { describe, expect, it } from 'vitest'
-import { baseKeys, compareDicts, coreDictEn, coreDictZh, createI18n } from '@eink/core'
+import { MIN_TICK_MS, baseKeys, compareDicts, coreDictEn, coreDictZh, createI18n } from '@eink/core'
 import { snakeEn, snakeGlyph, snakeZh } from '../src/i18n.js'
 import { snakeGame } from '../src/index.js'
 import {
@@ -14,7 +14,7 @@ import {
   encodeState,
   type SnakeState,
 } from '../src/rules.js'
-import { difficultySpec } from '../src/meta.js'
+import { DIFFICULTY_IDS, difficultySpec } from '../src/meta.js'
 import { CELL_LABEL_KEYS, buildControls, buildView } from '../src/view.js'
 import { SEED, hamiltonianCycle, stateWith, tick, turn } from './helpers.js'
 
@@ -26,10 +26,10 @@ const i18nZh = createI18n('zh-CN', { 'zh-CN': zh, 'en-US': en })
 const i18nEn = createI18n('en-US', { 'zh-CN': zh, 'en-US': en })
 
 function sampleStates(): SnakeState[] {
-  // 转向之后（缓冲里还有方向）的状态也要覆盖：它带着 "下一格向上" 的提示文案
+  // 覆盖四类局面：开局、按键走过一格（立即执行）、撞死、填满棋盘获胜
   const turned = turn(createState(SEED, 'challenging'), 'down')
   const moved = tick(turned)
-  const dead = tick(turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up'))
+  const dead = turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
   const score = (SIZE * SIZE - INITIAL_LENGTH) / difficultySpec('skilled').growth
   const won = stateWith('skilled', {
     body: hamiltonianCycle(SIZE),
@@ -99,7 +99,7 @@ describe('中英字典对齐', () => {
     expect(i18nEn.missingKeys()).toEqual([])
   })
 
-  it('玩法说明如实写明「会自动前进」与「怎么暂停」，间隔不低于 400ms 下限', () => {
+  it('玩法说明如实写明「会自动前进」与「怎么暂停」，间隔写的是**三档统一值**（0.5 秒）', () => {
     expect(snakeZh['snake.rules.body']).toContain('自己往前爬')
     expect(snakeZh['snake.rules.body2']).toContain('暂停')
     expect(snakeEn['snake.rules.body']).toMatch(/crawls on its own/i)
@@ -110,9 +110,20 @@ describe('中英字典对齐', () => {
     const enSeconds = [...(snakeEn['snake.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?)s(?=[ ,.])/g)].map(
       (match) => Number(match[1]),
     )
-    expect(zhSeconds.length).toBeGreaterThanOrEqual(3)
-    expect(enSeconds.length).toBeGreaterThanOrEqual(3)
-    for (const value of [...zhSeconds, ...enSeconds]) expect(value * 1000).toBeGreaterThanOrEqual(400)
+    // 用户要求"不同难度的延迟应该统一"：说明里只能出现**一个**间隔值（0.5 秒），
+    // 不能再宣传"越难越快"的分档速度（旧文案 0.6 / 0.48 / 0.4）。
+    expect(zhSeconds).toEqual([0.5])
+    expect(enSeconds).toEqual([0.5])
+    expect(snakeZh['snake.rules.body']).not.toMatch(/0\.6|0\.48|0\.4/)
+    expect(snakeEn['snake.rules.body']).not.toMatch(/0\.6|0\.48|0\.4/)
+    for (const value of [...zhSeconds, ...enSeconds]) {
+      // 不低于 400ms 硬下限，并且与玩法声明的统一值一致（文案不会和 meta.ts 漂移）
+      expect(value * 1000).toBeGreaterThanOrEqual(MIN_TICK_MS)
+      expect(value * 1000).toBe(difficultySpec('starter').tickMs)
+    }
+    // 文案说"统一"，三档声明就必须真的统一
+    const declared = DIFFICULTY_IDS.map((id) => difficultySpec(id).tickMs)
+    expect(new Set(declared).size).toBe(1)
   })
 
   it('难度 id 与其它游戏一致（壳层 prop 直接传 id），labelKey 落在本命名空间', () => {
@@ -140,7 +151,7 @@ describe('游戏产出的每个 key 都能取到文案', () => {
         ...view.stats.map((stat) => stat.labelKey),
         ...controls.map((control) => control.labelKey),
         ...(view.result ? [view.result.titleKey] : []),
-        // 转向缓冲的文字确认（snake.turn.<dir>）也必须中英都能取到
+        // 玩法自己产出的提示（现在恒为 null）与壳层的非法提示都必须中英都能取到
         ...(view.notice ? [view.notice.textKey] : []),
         ...(view.result?.details ?? []).map((detail) => `${detail.key}__other`),
       ]

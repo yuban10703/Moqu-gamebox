@@ -5,16 +5,24 @@
  *
  * 1. **慢速自动步进（tick），不是动画**。墨水屏（1-bit、无快刷）不能做连续运动，
  *    但"每按一次才走一格"在真机上被用户否掉了：本作改成**蛇按固定间隔自动前进一格**
- *    （间隔由各难度声明，见 meta.ts 的 tickMs，最快一档 520ms、硬下限 400ms）。
+ *    （间隔由玩法声明，见 meta.ts 的 tickMs，**三档统一 500ms**，硬下限 400ms）。
  *    规则层依然不引用时间：到点由壳层会话派发 `{ type: 'tick' }`，reduce 把它解释成
- *    「朝当前朝向前进一格」。因此状态里仍然没有时间、没有速度，只有「第几步」——
+ *    「沿当前朝向前进一格」。因此状态里仍然没有时间、没有速度，只有「第几步」——
  *    同一 seed + 同一「玩家输入 + tick」序列，双端必然复现同一个局面。
  *
- * 2. **玩家输入是「转向」，不是「走一格」**。方向键 / 方向盘 / 滑动写入一个**单槽缓冲**
- *    `pendingDir`，下一个 tick 生效。单槽本身就是「一个 tick 内连按多次只取最后一个合法方向」
- *    这条要求：后来的合法方向覆盖先前的，不需要队列。方向合法性一律相对**当前朝向**判定
- *    （原地掉头仍然非法、会给出文字提示）—— 若相对缓冲值判定，缓冲里就会攒出一个
- *    相对当前朝向是掉头的方向，tick 一到蛇会直接撞进自己的脖子。
+ * 2. **玩家输入是「转向并立即走一格」，不是「记下方向等下一次 tick」**。
+ *    用户反馈原话：「延迟太高了……在我点击按钮后应该立即换向，而不是等固定延迟」。
+ *    因此 `{ type: 'turn', dir }` 的语义是：**把朝向改成 dir，并当场沿 dir 前进一格**
+ *    （与 `tick` 走的是同一条 step 路径，唯一差别是这条记录不带 `auto`）。
+ *    - 点一下 = 走一格；连点 = 连走，节奏完全由玩家掌握（配合壳层「有效输入后重置计时」，
+ *      连点之间不会被自动步进插队）；
+ *    - 不点 = 按 `tickMs` 自动爬；
+ *    - 按当前朝向也是「立即前进一格」：否则连点同一个方向会变成**把蛇按住不动**
+ *      （每次输入都重置计时，蛇永远等不到 tick），那是个比吞输入更糟的缺陷；
+ *    - `dir === 当前朝向的反向` 仍然非法（几何上会直接咬到脖子）：这是**唯一**被拒绝的
+ *      方向输入，壳层按 illegalNoticeKey 给出明确文字提示。
+ *    - 不再需要任何缓冲槽：单槽缓冲是为"一个 tick 内连按只取最后一个"设计的，
+ *      而立即执行本身就是"按几次就走几格"，不存在丢输入（连点「上→左」= 先上一格再左一格）。
  *
  * 3. **随机性写成「种子 + 游标」**（与 2048 完全一致的写法）。食物位置来自
  *    `createRng((seed + cursor) >>> 0)`，游标记录已消耗的抽样次数；
@@ -22,7 +30,7 @@
  *    因此同一 seed + 同一动作序列在双端得到完全相同的局面，规则层禁止 Math.random / Date.now。
  *
  * 4. **撤销存逆操作，不存整盘快照**。每一步只压入一条很小的记录：
- *    「这一刻掉了哪节尾 / 食物在哪 / 游标到哪 / 分数、待长节数、步数、缓冲方向是多少」，
+ *    「这一刻掉了哪节尾 / 食物在哪 / 游标到哪 / 分数、待长节数、步数是多少」，
  *    撤销时把蛇头退回上一格、把掉掉的尾接回去即可精确还原。
  *    整盘快照（蛇身最长可到 144 格）在每走一步都要落盘的场景下会让存档膨胀几十倍。
  *
@@ -32,10 +40,16 @@
  *    自动步进会持续往栈里塞记录，因此撤销栈**封顶**（MAX_HISTORY_ENTRIES），
  *    裁剪时裁到一条玩家操作上，保证栈底永远落在「可撤销边界」。
  *
- * 6. **原地掉头是非法输入，不是自杀**：经典规则里这种输入被忽略。
- *    壳层会按 illegalNoticeKey 给出明确文字提示（方向盘按钮保持可点，不会静默无响应）；
- *    真正撞到自己（撞到脖子以外的身体）仍然是失败，输掉之后也能撤销。
+ * 6. **撞上去就是失败，不问这一步是谁让蛇走的**。原地掉头（几何上必咬脖子）是非法输入、
+ *    不是自杀 —— 这一点与经典规则一致；但"朝某个方向走一格"这个动作本身，只要那一格是墙 /
+ *    障碍 / 自己的身体，**无论来自自动步进还是玩家按键，都当场结束本局**。
+ *    为什么不把玩家的致命按键"拒绝并提示"：那条路会让同一格出现两种结果
+ *    （自己爬过去死、按过去不死），规则说明里无法自洽；而且拒绝之后蛇仍会按原朝向继续爬，
+ *    大概率在下一个 tick 照旧撞死 —— 只是把死亡推迟几百毫秒。
+ *    玩家按键走出来的那一步**不带 `auto`**，因此撞死之后「撤销」可以精确退回按键之前
+ *    （壳层的结果面板就带这个按钮），误触并不会真的毁掉这一局。
  */
+
 import { IllegalActionError, createRng, type GameStatus, type MoveDir } from '@eink/core'
 import {
   SNAKE_ID,
@@ -80,11 +94,15 @@ export const MAX_HISTORY_ENTRIES = 300
 
 export type SnakeAction =
   /**
-   * 转向：写入单槽缓冲，下一个 tick 生效。
-   * 原地掉头（相对**当前朝向**）非法；重复按同一个方向是合法但无变化的输入。
+   * 走一格（玩家输入）：把朝向改成 dir 并**立即**沿 dir 前进一格。
+   *
+   * - dir === 当前朝向 = 往前手动走一格（合法：连点同一个方向就是连续前进，
+   *   不允许用它把蛇"按住不动"）；
+   * - dir === 当前朝向的反向 = 非法（抛错，界面给文字提示），这是唯一被拒绝的方向输入；
+   * - 这一格若撞墙 / 障碍 / 自己，本局**当场结束**（与自动步进同一条规则，见文件头第 6 条）。
    */
   | { type: 'turn'; dir: MoveDir }
-  /** 自动前进一格（由壳层定时器到点派发）；方向 = 缓冲方向，没有缓冲就沿当前朝向 */
+  /** 自动前进一格（由壳层定时器到点派发）；方向 = 当前朝向 */
   | { type: 'tick' }
   /** 撤销到**玩家上一次操作之前**（自动步进会一并退回，见 undo） */
   | { type: 'undo' }
@@ -94,10 +112,12 @@ export type SnakeAction =
 /**
  * 一条撤销记录（逆操作）。
  *
- * · step：自动前进的一步（`auto: true`）或老存档里的手动一步。`tail` 是这一步掉掉的尾格
- *   （null = 这一步是「长身子」的步，没掉尾）；撤销 = 去掉蛇头、必要时把尾接回去，
- *   再把食物 / 游标 / 分数 / 待长节数 / 步数 / 缓冲方向还原。
- * · turn：玩家转向。蛇身没有变化，撤销只要把缓冲方向还原。
+ * · step：走了一格（`auto: true` = 自动步进走的，缺字段 = 玩家按键走的）。
+ *   `tail` 是这一步掉掉的尾格（null = 这一步是「长身子」的步，没掉尾）；
+ *   撤销 = 去掉蛇头、必要时把尾接回去，再把食物 / 游标 / 分数 / 待长节数 / 步数还原。
+ * · turn：**只存在于老存档里**。旧语义下「转向」只写缓冲、不移动，因此记录里没有蛇身信息；
+ *   新语义下转向本身就走一格（记成 step），所以新存档不会再产生这种记录。
+ *   它在新语义下不改变任何局面，撤销/裁剪时一律跳过（见 isSkippedByUndo）。
  * · death：致命一步。蛇身**没有变化**（蛇头没有进入墙里），撤销只要把 dead 清掉。
  *
  * `auto` 只出现在自动步进产生的记录上（老存档没有该字段 = 玩家操作，语义正确）。
@@ -111,11 +131,11 @@ export type SnakeUndoEntry =
       readonly score: number
       readonly pending: number
       readonly moves: number
-      readonly pendingDir: MoveDir | null
       readonly auto?: true
     }
-  | { readonly kind: 'turn'; readonly pendingDir: MoveDir | null; readonly moves: number }
-  | { readonly kind: 'death'; readonly moves: number; readonly pendingDir: MoveDir | null; readonly auto?: true }
+  /** 老存档遗留：旧语义的「只转向不移动」记录（新存档不再产生） */
+  | { readonly kind: 'turn'; readonly moves: number }
+  | { readonly kind: 'death'; readonly moves: number; readonly auto?: true }
 
 export interface SnakeState {
   readonly difficulty: DifficultyId
@@ -131,20 +151,19 @@ export interface SnakeState {
   readonly pending: number
   /** 分数 = 吃到的食物数量 */
   readonly score: number
-  /** 步数（含致命的一步）；自动前进的每一步都算一步 */
+  /** 步数（含致命的一步）；自动前进与玩家按键走的每一步都算一步 */
   readonly moves: number
   /** 已消耗的随机数个数 */
   readonly cursor: number
   /** 本局是否已经撞墙 / 撞障碍 / 撞到自己 */
   readonly dead: boolean
   /**
-   * 玩家缓冲的转向：下一个 tick 生效；null = 直行。
+   * 撤销栈（重开清空）。
    *
-   * 单槽缓冲正是「一个 tick 内连按多次只取最后一个合法方向」的语义：
-   * 后按的合法方向覆盖先按的，不会因为积压而在某一格连转两次。
+   * 注意：**状态里没有「待生效的方向」这种字段**。玩家按键立即执行，不需要缓冲；
+   * 老存档里的 `pendingDir` 仍然能被 decode 接受，但只是兼容字段、不会被读进状态
+   * （见 EncodedSnakeState.pendingDir 与 decodeState）。
    */
-  readonly pendingDir: MoveDir | null
-  /** 撤销栈（重开清空） */
   readonly history: readonly SnakeUndoEntry[]
   /**
    * 撤销栈是否被裁剪过（超过 MAX_HISTORY_ENTRIES 时裁掉最旧的一段）。
@@ -291,7 +310,6 @@ export function createState(seed: number, difficultyId: DifficultyId): SnakeStat
     moves: 0,
     cursor: placed.cursor,
     dead: false,
-    pendingDir: null,
     history: [],
     trimmed: false,
   }
@@ -314,7 +332,8 @@ export function gameStatus(state: SnakeState): GameStatus {
  *
  * 为什么必须裁到玩家操作：撤销的语义是「退回上一次玩家操作之前」，
  * 栈底若落在一条自动步进上，最老的那次撤销就会变成「退回半格」——
- * 正是这条语义要避免的。没有玩家操作可依（整栈都是自动步进）时退回「保留最后 N 条」，
+ * 正是这条语义要避免的。老存档里的「转向缓冲」记录在新语义下不改变任何局面，
+ * 同样不能当边界。没有玩家操作可依（整栈都是自动步进）时退回「保留最后 N 条」，
  * 此时本来也没有可撤销的玩家操作（canUndo 为假）。
  */
 function pushEntry(history: readonly SnakeUndoEntry[], entry: SnakeUndoEntry): {
@@ -324,7 +343,7 @@ function pushEntry(history: readonly SnakeUndoEntry[], entry: SnakeUndoEntry): {
   const next = [...history, entry]
   if (next.length <= MAX_HISTORY_ENTRIES) return { history: next, trimmed: false }
   let cut = next.length - MAX_HISTORY_ENTRIES
-  while (cut < next.length && isAutoEntry(next[cut]!)) cut++
+  while (cut < next.length && isSkippedByUndo(next[cut]!)) cut++
   if (cut >= next.length) cut = next.length - MAX_HISTORY_ENTRIES
   return { history: next.slice(cut), trimmed: true }
 }
@@ -335,13 +354,23 @@ export function isAutoEntry(entry: SnakeUndoEntry): boolean {
 }
 
 /**
+ * 撤销时应当**自动跳过**的记录 —— 它们都不是「玩家的一次操作」：
+ * - 自动步进（`auto: true`，玩家没按任何东西）；
+ * - 老存档里的「转向缓冲」记录（新语义下转向本身就走一格，这种记录不再改变任何局面，
+ *   如果把它当成一次操作，按钮点下去会"什么都没发生"）。
+ */
+export function isSkippedByUndo(entry: SnakeUndoEntry): boolean {
+  return isAutoEntry(entry) || entry.kind === 'turn'
+}
+
+/**
  * 有没有「玩家操作」可撤 —— 界面据此决定撤销按钮是否可点。
  *
  * 与老行为唯一的差别：开局一步都没走、只有自动前进时，撤销按钮不再无意义地亮着
  * （那时撤销只会把自动前进退掉，而玩家什么都没做过）。
  */
 export function canUndo(state: SnakeState): boolean {
-  return state.history.some((entry) => !isAutoEntry(entry))
+  return state.history.some((entry) => !isSkippedByUndo(entry))
 }
 
 function withEntry(state: SnakeState, entry: SnakeUndoEntry): SnakeState {
@@ -357,7 +386,6 @@ function die(state: SnakeState, auto: boolean): SnakeState {
   const entry: SnakeUndoEntry = {
     kind: 'death',
     moves: state.moves,
-    pendingDir: state.pendingDir,
     ...(auto ? { auto: true as const } : {}),
   }
   return withEntry(
@@ -366,6 +394,14 @@ function die(state: SnakeState, auto: boolean): SnakeState {
   )
 }
 
+/**
+ * 走一格（唯一的移动实现）。`auto` 只影响撤销记录上的标记：
+ * - `auto: false` = 玩家按键走的一步（撤销时算一次"玩家操作"）；
+ * - `auto: true` = 自动步进走的一步（撤销时会被跳过）。
+ *
+ * 除了这一个标记，两条路径的规则**完全相同**：
+ * 原地掉头非法（抛错）、撞墙 / 撞障碍 / 撞自己当场结束、吃到食物一样长身子。
+ */
 function step(state: SnakeState, dir: MoveDir, auto: boolean): SnakeState {
   const spec = difficultySpec(state.difficulty)
   if (gameStatus(state) !== 'playing') {
@@ -406,11 +442,9 @@ function step(state: SnakeState, dir: MoveDir, auto: boolean): SnakeState {
     score: state.score,
     pending: state.pending,
     moves: state.moves,
-    pendingDir: state.pendingDir,
     ...(auto ? { auto: true as const } : {}),
   }
-  // 一步走出去，缓冲的转向就被消费掉了（撤销时由上一条记录还原）
-  const base = { ...state, body, pending, moves: state.moves + 1, pendingDir: null }
+  const base = { ...state, body, pending, moves: state.moves + 1 }
   if (next !== state.food) {
     return withEntry(base, entry)
   }
@@ -429,33 +463,21 @@ function step(state: SnakeState, dir: MoveDir, auto: boolean): SnakeState {
 }
 
 /**
- * 转向：写入单槽缓冲。
+ * 玩家输入：改朝向并**当场**沿新方向走一格。
  *
- * - 相对**当前朝向**的原地掉头非法（与旧规则一致，壳层给文字提示）；
- * - 「按当前朝向」等价于「取消缓冲」，因此按同一方向重复按不会往撤销栈里塞垃圾记录；
- * - 合法但无变化（缓冲已经是这个方向）时返回**原状态对象**：壳层照样会重置自动步进的计时
- *   （玩家确实操作了），但局面与撤销栈完全不动。
+ * 语义与 `tick` 完全一致（同一条 step），唯一差别是记录不带 `auto`：
+ * - 点一次 = 走一格 → 点下去当帧棋盘就变（用户反馈的"等固定延迟"不再存在）；
+ * - 连点两次不同方向 = 走两格（例如上→左：先上一格再左一格），不丢输入；
+ * - 按当前朝向 = 手动前进一格（合法）；按反向 = 非法（抛错，界面提示）；
+ * - 这一格会撞墙 / 障碍 / 自己时**当场结束**，且因为这一步算玩家操作，撤销可以退回。
  */
 function turn(state: SnakeState, dir: MoveDir): SnakeState {
-  if (gameStatus(state) !== 'playing') {
-    throw new IllegalActionError(SNAKE_ID, 'game already finished')
-  }
-  const heading = directionOf(state)
-  if (dir === OPPOSITE_DIR[heading]) {
-    throw new IllegalActionError(SNAKE_ID, `cannot reverse into ${dir}`)
-  }
-  const effective: MoveDir | null = dir === heading ? null : dir
-  if (state.pendingDir === effective) return state
-  return withEntry({ ...state, pendingDir: effective }, {
-    kind: 'turn',
-    pendingDir: state.pendingDir,
-    moves: state.moves,
-  })
+  return step(state, dir, false)
 }
 
-/** 自动前进一格：方向 = 缓冲方向（没有缓冲就沿当前朝向） */
+/** 自动前进一格：沿当前朝向（玩家按键会立即改变朝向，因此"想往哪走"不需要缓冲） */
 function tick(state: SnakeState): SnakeState {
-  return step(state, state.pendingDir ?? directionOf(state), true)
+  return step(state, directionOf(state), true)
 }
 
 /** 单步撤销：把栈顶那一条逆操作还原（不判断它是玩家操作还是自动步进） */
@@ -464,10 +486,11 @@ function undoOne(state: SnakeState): SnakeState {
   if (!entry) throw new IllegalActionError(SNAKE_ID, 'nothing to undo')
   const history = state.history.slice(0, -1)
   if (entry.kind === 'turn') {
-    return { ...state, pendingDir: entry.pendingDir, moves: entry.moves, history }
+    // 老存档遗留记录：旧语义下它只改缓冲方向，新语义下没有可还原的局面变化
+    return { ...state, moves: entry.moves, history }
   }
   if (entry.kind === 'death') {
-    return { ...state, dead: false, moves: entry.moves, pendingDir: entry.pendingDir, history }
+    return { ...state, dead: false, moves: entry.moves, history }
   }
   // body[1] 就是旧蛇头，因此「去掉蛇头」= slice(1)；这一步若掉过尾，再把它接回去
   const body =
@@ -480,7 +503,6 @@ function undoOne(state: SnakeState): SnakeState {
     score: entry.score,
     pending: entry.pending,
     moves: entry.moves,
-    pendingDir: entry.pendingDir,
     dead: false,
     history,
   }
@@ -490,8 +512,8 @@ function undoOne(state: SnakeState): SnakeState {
  * 撤销：**退回玩家上一次操作之前**。
  *
  * 自动步进也是状态变化（不记录就无法精确回退），但它不是玩家的操作 ——
- * 因此先把栈顶连续的自动步进一次退干净，再退掉一条玩家操作。
- * 若栈里只有自动步进（玩家还没操作过），退到栈空为止，不报错。
+ * 因此先把栈顶「玩家没做过的事」一次退干净（自动步进；老存档里的转向缓冲记录），
+ * 再退掉一条玩家操作。若栈里只有自动步进（玩家还没操作过），退到栈空为止，不报错。
  *
  * 为什么不给每个 tick 单独留一次撤销：那样按一次撤销只退回半格，
  * 在墨水屏上（一次操作要等几百毫秒才有反馈）体验极差。
@@ -503,7 +525,7 @@ function undo(state: SnakeState): SnakeState {
    */
   if (state.history.length === 0) throw new IllegalActionError(SNAKE_ID, 'nothing to undo')
   let next = state
-  while (next.history.length > 0 && isAutoEntry(next.history[next.history.length - 1]!)) {
+  while (next.history.length > 0 && isSkippedByUndo(next.history[next.history.length - 1]!)) {
     next = undoOne(next)
   }
   if (next.history.length > 0) next = undoOne(next)
@@ -529,7 +551,13 @@ export function reduceState(state: SnakeState, action: SnakeAction): SnakeState 
   }
 }
 
-/** 当前局面下规则允许的动作（原地掉头不算，因为它会被拒绝） */
+/**
+ * 当前局面下规则允许的动作（原地掉头不算，因为它会被拒绝）。
+ *
+ * 注意「允许」= 规则接受这个动作，**不代表走完不会死**：朝墙走一格是合法的，
+ * 只是会结束本局（见文件头第 6 条）。legal() 的用途是"哪些动作可以派发"，
+ * 因此这里不做生存性筛选 —— 否则界面与回放校验都要跟着学会预测未来。
+ */
 export function legalActions(state: SnakeState): readonly SnakeAction[] {
   const out: SnakeAction[] = []
   if (gameStatus(state) === 'playing') {
@@ -562,21 +590,28 @@ export interface EncodedSnakeStep {
   score: number
   pending: number
   moves: number
-  pendingDir: MoveDir | null
+  /**
+   * 老存档遗留的「下一个 tick 生效的缓冲方向」。
+   * 新语义下没有缓冲，这个字段**恒为 null**；保留它只是为了让老版本解码器
+   * （规则版本仍是 1）读到新存档时看到的是"没有缓冲转向"，而不是一个缺失字段。
+   */
+  pendingDir?: MoveDir | null
   /** 只写 true：自动步进产生的记录（缺字段 = 玩家操作，老存档语义正确） */
   auto?: true
 }
 
+/** 老存档遗留：旧语义的「只转向不移动」记录（新存档不再产生，但必须能读） */
 export interface EncodedSnakeTurn {
   kind: 'turn'
-  pendingDir: MoveDir | null
+  pendingDir?: MoveDir | null
   moves: number
 }
 
 export interface EncodedSnakeDeath {
   kind: 'death'
   moves: number
-  pendingDir: MoveDir | null
+  /** 同 EncodedSnakeStep.pendingDir：老字段，恒为 null */
+  pendingDir?: MoveDir | null
   auto?: true
 }
 
@@ -593,7 +628,15 @@ export interface EncodedSnakeState {
   moves: number
   cursor: number
   dead: boolean
-  /** 缺字段 = 没有缓冲转向（老存档宽容） */
+  /**
+   * 老存档的「转向缓冲」字段：**解码时接受、忽略**（缺字段同样接受）。
+   *
+   * 为什么留着而不是删掉：规则版本仍是 1（本次只改了动作语义，没改存档结构），
+   * 老存档带着这个字段、新存档写 null，两个方向的兼容都成立：
+   * - 老存档 → 新版本：读到的是"没有待生效的转向"，照常开局（转向本身现在立即执行）；
+   * - 新存档 → 老版本：老解码器读到 null = 没有缓冲，语义正确。
+   * 注意校验仍然保留（值必须是四个方向或 null）：一个乱码值说明存档被改过，照样拒绝。
+   */
   pendingDir?: MoveDir | null
   history: EncodedSnakeUndoEntry[]
   /** 缺字段 = 撤销栈没被裁剪过（老存档宽容） */
@@ -613,16 +656,18 @@ export function encodeState(state: SnakeState): EncodedSnakeState {
     moves: state.moves,
     cursor: state.cursor,
     dead: state.dead,
-    pendingDir: state.pendingDir,
+    // 恒为 null：状态里已经没有缓冲方向了（见 EncodedSnakeState.pendingDir）
+    pendingDir: null,
     history: state.history.map((entry): EncodedSnakeUndoEntry => {
       if (entry.kind === 'turn') {
-        return { kind: 'turn', pendingDir: entry.pendingDir, moves: entry.moves }
+        // 老存档遗留记录：原样写回（方向已经无意义，写 null）
+        return { kind: 'turn', pendingDir: null, moves: entry.moves }
       }
       if (entry.kind === 'death') {
         return {
           kind: 'death',
           moves: entry.moves,
-          pendingDir: entry.pendingDir,
+          pendingDir: null,
           ...(entry.auto ? { auto: true as const } : {}),
         }
       }
@@ -634,7 +679,7 @@ export function encodeState(state: SnakeState): EncodedSnakeState {
         score: entry.score,
         pending: entry.pending,
         moves: entry.moves,
-        pendingDir: entry.pendingDir,
+        pendingDir: null,
         ...(entry.auto ? { auto: true as const } : {}),
       }
     }),
@@ -739,15 +784,19 @@ function readOptionalIndex(value: unknown, total: number, field: string): number
 }
 
 /**
- * 缓冲方向：缺字段 / null 都按「直行」处理（老存档宽容）。
- * 给了值就必须是四个方向之一；`'turn'` 之外的非法值一律拒绝。
+ * 老存档的缓冲方向字段：**只校验形状，不读进状态**（转向现在立即执行，没有"待生效"这回事）。
+ *
+ * - 缺字段 / null：照常接受（老存档本来就可能没有这个字段）；
+ * - 四个方向之一：接受并忽略（老存档写的"下一个 tick 要转的方向"在新语义下无效，
+ *   因为 tick 只沿当前朝向走）；
+ * - 其它任何值：仍然拒绝 —— 一个乱码值说明存档被改过，不能当成"没有缓冲"放过去。
  */
-function readPendingDir(value: unknown): MoveDir | null {
+function readLegacyPendingDir(value: unknown): null {
   if (value === null || value === undefined) return null
   if (typeof value !== 'string' || !ALL_DIRS.includes(value as MoveDir)) {
     throw new IllegalActionError(SNAKE_ID, 'bad pendingDir')
   }
-  return value as MoveDir
+  return null
 }
 
 /** `auto` 缺字段 = 玩家操作（老存档里所有记录都是玩家操作，语义正确） */
@@ -772,19 +821,22 @@ function readHistory(value: unknown, size: number, obstacles: ReadonlySet<number
     const entry = raw as RawUndoEntry
     const moves = readCount(entry.moves, 'history moves')
     if (entry.kind === 'turn') {
-      return { kind: 'turn', pendingDir: readPendingDir(entry.pendingDir), moves }
+      // 老存档遗留：只保留 moves（旧语义下转向不移动，因此这条记录没有蛇身信息）
+      readLegacyPendingDir(entry.pendingDir)
+      return { kind: 'turn', moves }
     }
     if (entry.kind === 'death') {
+      readLegacyPendingDir(entry.pendingDir)
       return {
         kind: 'death',
         moves,
-        pendingDir: readPendingDir(entry.pendingDir),
         ...(readAuto(entry.auto) ? { auto: true as const } : {}),
       }
     }
     if (entry.kind !== 'step') throw new IllegalActionError(SNAKE_ID, 'bad history kind')
     const food = readIndex(entry.food, total, 'history food')
     if (obstacles.has(food)) throw new IllegalActionError(SNAKE_ID, 'history food on an obstacle')
+    readLegacyPendingDir(entry.pendingDir)
     return {
       kind: 'step',
       tail: readOptionalIndex(entry.tail, total, 'history tail'),
@@ -793,7 +845,6 @@ function readHistory(value: unknown, size: number, obstacles: ReadonlySet<number
       score: readCount(entry.score, 'history score'),
       pending: readCount(entry.pending, 'history pending'),
       moves,
-      pendingDir: readPendingDir(entry.pendingDir),
       ...(readAuto(entry.auto) ? { auto: true as const } : {}),
     }
   })
@@ -803,13 +854,16 @@ function readHistory(value: unknown, size: number, obstacles: ReadonlySet<number
  * 存档解码：任何缺字段 / 类型不对 / 数值非法都抛 IllegalActionError，
  * 让壳层把「存档损坏」明确告诉用户，而不是带着半个局面继续玩。
  *
- * 除字段校验外还复核六条不变量（它们同时保证撤销栈与状态一致）：
+ * 除字段校验外还复核五条不变量（它们同时保证撤销栈与状态一致）：
  * 1. 蛇长 = 初始长度 + 分数 × 每食增长 − 尚待长出的节数；
  * 2. 游标 = 障碍消耗 + 初始食物 + 每吃一个食物 1 次抽样；
  * 3. 步数 = 撤销栈里**非转向**记录的条数（撤销栈被裁剪过时放宽成 ≤，见 trimmed）；
  * 4. dead 与撤销栈末条必须一致（撞死是最后一步，之后不可能再有动作）；
- * 5. 棋盘填满 ⇔ 食物为「没有食物」，两个方向都判；
- * 6. 缓冲方向不得是当前朝向的掉头方向（否则下一个 tick 一定撞进自己的脖子）。
+ * 5. 棋盘填满 ⇔ 食物为「没有食物」，两个方向都判。
+ *
+ * 老存档里的 `pendingDir` 仍然接受（只校验形状、不读进状态）：
+ * 转向现在立即执行，没有"下一个 tick 生效的方向"这回事，因此不存在
+ * "缓冲方向是掉头 → 下一个 tick 必撞脖子"这条老不变量了。
  */
 export function decodeState(raw: unknown): SnakeState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -834,7 +888,8 @@ export function decodeState(raw: unknown): SnakeState {
   const moves = readCount(value.moves, 'moves')
   const cursor = readCount(value.cursor, 'cursor')
   const dead = readBool(value.dead, 'dead')
-  const pendingDir = readPendingDir(value.pendingDir)
+  // 老字段：校验形状但不读进状态（见 readLegacyPendingDir）
+  readLegacyPendingDir(value.pendingDir)
   // 缺字段 = 没裁剪过（老存档宽容）；只有真的写了 true 才认
   if (value.trimmed !== undefined && value.trimmed !== true && value.trimmed !== false) {
     throw new IllegalActionError(SNAKE_ID, 'bad trimmed flag')
@@ -855,7 +910,7 @@ export function decodeState(raw: unknown): SnakeState {
   }
   const historyPresent = value.history !== undefined && value.history !== null
   if (historyPresent) {
-    // 转向不前进，因此只数非转向记录
+    // 转向现在也走一格；只有老存档里那种「只转向不移动」的记录不计数
     const steps = history.filter((entry) => entry.kind !== 'turn').length
     if (trimmed ? steps > moves : steps !== moves) {
       throw new IllegalActionError(SNAKE_ID, 'history does not match moves')
@@ -863,13 +918,6 @@ export function decodeState(raw: unknown): SnakeState {
     const last = history[history.length - 1]
     if (dead !== (last?.kind === 'death')) {
       throw new IllegalActionError(SNAKE_ID, 'dead disagrees with the last undo entry')
-    }
-  }
-  // 缓冲方向相对当前朝向不能是掉头（否则下一个 tick 必被规则拒绝，局面等于卡死）
-  if (pendingDir !== null) {
-    const heading = directionBetween(spec.size, body[1]!, body[0]!)
-    if (pendingDir === OPPOSITE_DIR[heading]) {
-      throw new IllegalActionError(SNAKE_ID, 'pendingDir reverses the current heading')
     }
   }
 
@@ -884,7 +932,6 @@ export function decodeState(raw: unknown): SnakeState {
     moves,
     cursor,
     dead,
-    pendingDir,
     history,
     trimmed,
   }

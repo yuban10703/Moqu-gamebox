@@ -13,6 +13,7 @@ import {
   canUndo,
   createState,
   decodeState,
+  directionOf,
   encodeState,
   gameStatus,
   legalActions,
@@ -24,6 +25,9 @@ import { DIFFICULTY_IDS, difficultySpec } from '../src/meta.js'
 import { SEED, hamiltonianCycle, stateWith, tick, turn } from './helpers.js'
 
 const SIZE = 12
+/** 初始蛇身在 12×12 下是 [78, 77, 76]：第 6 行、蛇头在 (6,6) 朝右 */
+const HEAD = 78
+const AHEAD = 79
 
 function encoded(state: SnakeState): EncodedSnakeState {
   return JSON.parse(JSON.stringify(encodeState(state))) as EncodedSnakeState
@@ -63,7 +67,7 @@ describe('存档往返', () => {
 
   it('撞死之后的状态照样能存能读（dead 与撤销栈一起进存档）', () => {
     const alive = stateWith('skilled', { body: [5, 6, 7], food: 100 })
-    const dead = tick(turn(alive, 'up')) // 朝上自动走一格即撞墙
+    const dead = turn(alive, 'up') // 按下方向键立即走一格，出界即撞墙
     expect(gameStatus(dead)).toBe('lost')
     const restored = roundTrip(dead)
     expect(restored).toEqual(dead)
@@ -100,13 +104,49 @@ describe('缺字段的存档（旧档兼容）', () => {
     expect(decodeState(moved).moves).toBe(3)
   })
 
-  it('pendingDir / trimmed 缺失时按「无缓冲、未裁剪」处理（老存档不判损坏）', () => {
+  it('pendingDir / trimmed 缺失时照常读：老存档不判损坏，缓冲字段不再进状态', () => {
     const raw = encoded(createState(SEED, 'skilled'))
     const legacy = { ...raw, pendingDir: undefined, trimmed: undefined }
     const restored = decodeState(legacy)
-    expect(restored.pendingDir).toBeNull()
     expect(restored.trimmed).toBe(false)
     expect(restored).toEqual(createState(SEED, 'skilled'))
+    // 转向现在立即执行：状态里没有"待生效的方向"这个字段（连键都不存在）
+    expect(Object.keys(restored)).not.toContain('pendingDir')
+  })
+
+  it('老存档里的 pendingDir（哪怕写的是一个方向）照常读，只是不再有"下一个 tick 生效"的语义', () => {
+    const raw = encoded(createState(SEED, 'skilled'))
+    // 旧版本里 'up' 表示"下一个 tick 转向上"；新版本 tick 只沿当前朝向走，因此这一格照常直行
+    const legacy = { ...raw, pendingDir: 'up' }
+    const restored = decodeState(legacy)
+    expect(restored).toEqual(createState(SEED, 'skilled'))
+    expect(directionOf(restored)).toBe('right')
+    expect(tick(restored).body[0]).toBe(restored.body[0]! + 1) // 直行，不拐弯
+    // 旧存档里"缓冲方向是掉头"也是合法数据（新语义下它根本不被读），不再判成损坏
+    expect(() => decodeState({ ...raw, pendingDir: 'left' })).not.toThrow()
+  })
+
+  it('老存档里的「只转向不移动」记录：能读、能往返，撤销时被跳过（不会点了没反应）', () => {
+    const raw = encoded(createState(SEED, 'skilled'))
+    const legacy = {
+      ...raw,
+      moves: 1,
+      body: [AHEAD, HEAD, HEAD - 1],
+      history: [
+        { kind: 'turn', pendingDir: 'down', moves: 0 }, // 旧语义：只写缓冲、不移动
+        { kind: 'step', tail: HEAD - 2, food: raw.food, cursor: raw.cursor, score: 0, pending: 0, moves: 0, auto: true },
+      ],
+    }
+    const restored = decodeState(legacy)
+    expect(restored.history.map((entry) => entry.kind)).toEqual(['turn', 'step'])
+    expect(restored.moves).toBe(1)
+    // 那条转向记录在新语义下不改变任何局面：它不算"玩家操作"，撤销要跳过它去退真正的那一步
+    const back = reduceState(restored, { type: 'undo' })
+    expect(back.body).toEqual([HEAD, HEAD - 1, HEAD - 2])
+    expect(back.moves).toBe(0)
+    // 再存档一次：老的 turn 记录原样写回，局面仍然一致
+    const again = decodeState(JSON.parse(JSON.stringify(encodeState(restored))))
+    expect(again).toEqual(restored)
   })
 
   it('老存档里的撤销记录没有 auto 字段 → 一律当成玩家操作（撤销语义与旧版一致）', () => {
@@ -165,11 +205,8 @@ describe('损坏的存档必须被拒绝', () => {
       { ...base(), moves: 1, history: [{ kind: 'step', tail: null, food: 1, cursor: -1, score: 0, pending: 0, moves: 0 }] },
     ],
     ['dead 与撤销栈末条不一致', { ...base(), dead: true }],
+    // 老字段仍然要校验形状：乱码值说明存档被改过（但"是掉头方向"不再是错误，见上面的旧档兼容测试）
     ['缓冲方向不是合法方向', { ...base(), pendingDir: 'sideways' }],
-    [
-      '缓冲方向是当前朝向的掉头（下一个 tick 必撞脖子）',
-      { ...base(), pendingDir: 'left' },
-    ],
     [
       'auto 标记不是布尔',
       { ...base(), moves: 1, history: [{ kind: 'death', moves: 0, auto: 'yes' }] },

@@ -20,7 +20,7 @@ import {
   type SnakeState,
 } from '../src/rules.js'
 import { DIFFICULTIES, DIFFICULTY_IDS, type DifficultyId } from '../src/meta.js'
-import { SEED, tick, turnAndTick } from './helpers.js'
+import { SEED, tick, ticks, turn } from './helpers.js'
 
 /** 用固定 rng 走出的一串合法动作（含撤销与重开），用于重放比对 */
 function randomTranscript(difficulty: DifficultyId, seed: number, steps: number): {
@@ -52,15 +52,16 @@ describe('同种子可复现', () => {
     )
   })
 
-  it.each(DIFFICULTY_IDS)('%s：同一「转向 + 自动前进」序列重放得到同一局面', (difficulty) => {
+  it.each(DIFFICULTY_IDS)('%s：同一「按键 + 自动前进」序列重放得到同一局面', (difficulty) => {
     // 这一条正是自动步进的核心口径：定时器只是「什么时候派发 tick」，
-    // 局面完全由「转向 + tick」这条动作序列决定，与真实耗时无关。
+    // 局面完全由「玩家按了哪些方向 + 到点派发了哪些 tick」这条动作序列决定，与真实耗时无关。
+    // 玩家按键现在也是"立即走一格"，因此序列里每一次输入都对应真实的一步。
     const sequence: Array<'up' | 'down' | 'left' | 'right'> = ['down', 'right', 'down', 'right']
     const play = (): SnakeState => {
       let state = createState(SEED, difficulty)
       for (const dir of sequence) {
         try {
-          state = turnAndTick(state, dir)
+          state = turn(state, dir)
         } catch {
           // 某个方向恰好是原地掉头：跳过，序列本身仍然完全一致
         }
@@ -69,6 +70,47 @@ describe('同种子可复现', () => {
     }
     expect(play()).toEqual(play())
     expect(encodeState(play())).toEqual(encodeState(play()))
+  })
+
+  it.each(DIFFICULTY_IDS)('%s：同 seed 下「按键 + tick」混合输入序列逐步可复现', (difficulty) => {
+    // 逐帧比对（而不是只比最终局面）：中间任何一步出现分歧都会被抓到。
+    // 序列本身混了三种情况：按当前朝向（手动前进）、转向（换方向走一格）、不按键（自动前进）。
+    const script: SnakeAction[] = [
+      { type: 'turn', dir: 'down' },
+      { type: 'tick' },
+      { type: 'tick' },
+      { type: 'turn', dir: 'right' },
+      { type: 'turn', dir: 'right' },
+      { type: 'tick' },
+      { type: 'turn', dir: 'down' },
+      { type: 'tick' },
+      { type: 'turn', dir: 'left' },
+    ]
+    const play = (): SnakeState[] => {
+      let state = createState(SEED, difficulty)
+      const frames = [state]
+      for (const action of script) {
+        try {
+          state = reduceState(state, action)
+        } catch {
+          // 掉头被拒绝：两个"录制"过程都会在同一个位置拒绝，帧序列仍然一致
+        }
+        frames.push(state)
+        if (gameStatus(state) !== 'playing') break
+      }
+      return frames
+    }
+    const first = play()
+    const second = play()
+    expect(first).toEqual(second)
+    expect(first.length).toBeGreaterThanOrEqual(3)
+    expect(first.map((frame) => JSON.stringify(encodeState(frame)))).toEqual(
+      second.map((frame) => JSON.stringify(encodeState(frame))),
+    )
+    // 回到存档再重放同样一致（读档不引入新的随机源）
+    expect(decodeState(JSON.parse(JSON.stringify(encodeState(first[first.length - 1]!))))).toEqual(
+      first[first.length - 1],
+    )
   })
 
   it.each(DIFFICULTY_IDS)('%s：纯 tick 序列（玩家完全不操作）同样可复现', (difficulty) => {
@@ -118,23 +160,24 @@ describe('同种子可复现', () => {
     const start = createState(SEED, 'skilled')
     const action = legalActions(start).find((candidate) => candidate.type === 'turn')
     expect(action).toBeDefined()
-    // 一次「玩家操作」= 转向 + 随后的一格自动前进；撤销整段退回，再走一遍结果相同
-    const once = reduceState(reduceState(start, action!), { type: 'tick' })
+    // 一次「玩家操作」= 按键走的那一格（立即执行）；撤销退回，再走一遍结果完全相同
+    const once = reduceState(start, action!)
     const undone = reduceState(once, { type: 'undo' })
     expect(undone).toEqual(start)
-    const again = reduceState(reduceState(undone, action!), { type: 'tick' })
-    expect(again).toEqual(once)
+    expect(reduceState(undone, action!)).toEqual(once)
+    // 再自动走几格也一样（撤销把游标 / 食物一起退回去了）
+    expect(ticks(reduceState(undone, action!), 2)).toEqual(ticks(once, 2))
   })
 
   it('读档后的局面与原局面走出同样的后续（存档不引入新的随机源）', () => {
     const start = createState(SEED, 'challenging')
-    const moved = turnAndTick(start, 'down')
+    const moved = turn(start, 'down')
     const restored = decodeState(JSON.parse(JSON.stringify(encodeState(moved))))
     let a = moved
     let b = restored
     for (const dir of ['right', 'down', 'down', 'left'] as const) {
-      a = turnAndTick(a, dir)
-      b = turnAndTick(b, dir)
+      a = turn(a, dir)
+      b = turn(b, dir)
     }
     expect(b).toEqual(a)
   })

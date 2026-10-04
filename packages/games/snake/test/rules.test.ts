@@ -1,12 +1,15 @@
 /**
- * 规则层测试：初始局面、自动前进（tick）、转向缓冲、吃食物、失败、撤销、胜利。
+ * 规则层测试：初始局面、自动前进（tick）、**立即转向**、吃食物、失败、撤销、胜利。
  *
  * 边界局面全部**手工摆出来**（撞墙 / 撞障碍 / 撞自己 / 填满棋盘），
  * 而不是靠种子碰运气 —— 贪吃蛇的随机性只在食物与障碍位置上，摆好局面才能稳定复现。
  *
- * 本轮的语义变化（用户要求「贪吃蛇要自动前进」）：
- * - 前进只有一条路径：`{ type: 'tick' }`（壳层定时器到点派发），方向 = 缓冲方向或当前朝向；
- * - `{ type: 'turn', dir }` = 玩家转向，写入**单槽缓冲**，下一个 tick 生效；
+ * 本轮的语义变化（用户反馈：「延迟太高了，点按钮后应该立即换向，而不是等固定延迟」）：
+ * - 前进有两条路径，规则完全一样：`{ type: 'tick' }`（壳层定时器到点派发，沿当前朝向）
+ *   与 `{ type: 'turn', dir }`（玩家按下方向键，改朝向并**当帧**走一格）；
+ * - 唯一的差别是撤销记录上的 `auto` 标记：tick 带、玩家按键不带；
+ * - **没有缓冲槽**：「上→左」连点就是先走一格再走一格，两步都生效、不会丢输入；
+ * - 转向撞上墙 / 障碍 / 自己 = 当场结束（和自动爬过去同一条规则），但可用撤销退回；
  * - 撤销 = 退回**玩家上一次操作之前**（自动前进的那几格一起退回）。
  */
 import { readFileSync } from 'node:fs'
@@ -30,6 +33,7 @@ import {
   indexOf,
   isAutoEntry,
   isLegal,
+  isSkippedByUndo,
   legalActions,
   placeFood,
   reduceState,
@@ -37,7 +41,7 @@ import {
 } from '../src/rules.js'
 import { DIFFICULTY_IDS, difficultyOrThrow, difficultySpec } from '../src/meta.js'
 import { snakeGame } from '../src/index.js'
-import { SEED, cycleWithGap, hamiltonianCycle, stateWith, tick, ticks, turn, turnAndTick } from './helpers.js'
+import { SEED, cycleWithGap, hamiltonianCycle, stateWith, tick, ticks, turn } from './helpers.js'
 
 const SIZE = 12
 /** 初始蛇身在 12×12 下是 [78, 77, 76]：第 6 行、蛇头在 (6,6) 朝右 */
@@ -76,9 +80,10 @@ describe('初始状态', () => {
     expect(state.moves).toBe(0)
     expect(state.pending).toBe(0)
     expect(state.dead).toBe(false)
-    expect(state.pendingDir).toBeNull()
     expect(state.trimmed).toBe(false)
     expect(state.history).toEqual([])
+    // 状态里没有「待生效的方向」：转向是立即执行的，不需要缓冲槽
+    expect(Object.keys(state)).not.toContain('pendingDir')
     expect(state.cursor).toBe(spec.obstacles + 1)
     expect(gameStatus(state)).toBe('playing')
     expect(freeCellCount(state)).toBe(spec.size * spec.size - spec.obstacles - INITIAL_LENGTH)
@@ -141,13 +146,13 @@ describe('自动前进（tick）', () => {
   })
 
   it('已经结束之后 tick 抛错（壳层据此安全停表）', () => {
-    const crashed = turnAndTick(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
+    const crashed = turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
     expect(gameStatus(crashed)).toBe('lost')
     expect(() => tick(crashed)).toThrow(IllegalActionError)
     expect(isLegal(crashed, { type: 'tick' })).toBe(false)
   })
 
-  it('回归：老存档里的手动「走一格」动作已不存在（改名成 turn / tick）', () => {
+  it('回归：老存档里的手动「走一格」动作已不存在（动作名是 turn / tick）', () => {
     const state = createState(SEED, 'skilled')
     expect(() => reduceState(state, { type: 'move', dir: 'right' } as never)).toThrow(
       IllegalActionError,
@@ -155,48 +160,43 @@ describe('自动前进（tick）', () => {
   })
 })
 
-describe('转向缓冲', () => {
-  it('转向本身不移动：蛇身不动，只记下缓冲方向', () => {
+describe('立即转向：按下方向键当帧就走一格', () => {
+  it('转向本身就走一格：不需要任何 tick，action 之后局面立刻改变', () => {
     const before = createState(SEED, 'skilled')
-    const turned = turn(before, 'down')
-    expect(turned.body).toEqual(before.body)
-    expect(turned.moves).toBe(before.moves)
-    expect(turned.pendingDir).toBe('down')
-    expect(directionOf(turned)).toBe('right') // 朝向仍由蛇身决定，不受缓冲影响
+    const after = turn(before, 'down')
+    // 这就是用户要的语义：reduce 返回时蛇头已经在新方向上，而不是"记下方向等下一格"
+    expect(after.body[0]).toBe(neighborOf(before, 'down'))
+    expect(after.moves).toBe(before.moves + 1)
+    expect(directionOf(after)).toBe('down')
+    expect(gameStatus(after)).toBe('playing')
+    // 尾巴同时离开，长度不变（没吃到食物）
+    expect(after.body).toHaveLength(INITIAL_LENGTH)
+    expect(after.body).not.toContain(before.body[before.body.length - 1])
   })
 
-  it('缓冲方向在下一个 tick 生效，并且被消费掉', () => {
+  it('连续快速点两个方向不丢输入：上 → 左 = 真的先上一格、再左一格', () => {
     const before = createState(SEED, 'skilled')
-    const turned = turn(before, 'down')
-    const moved = tick(turned)
-    expect(moved.body[0]).toBe(neighborOf(before, 'down'))
-    expect(moved.pendingDir).toBeNull()
-    // 再走一格就恢复直行（朝下），不会一直往下拐
-    expect(directionOf(tick(moved))).toBe('down')
+    const up = turn(before, 'up')
+    const left = turn(up, 'left')
+    expect(up.body[0]).toBe(neighborOf(before, 'up'))
+    expect(left.body[0]).toBe(neighborOf(up, 'left'))
+    expect(directionOf(left)).toBe('left')
+    expect(left.moves).toBe(before.moves + 2)
+    // 两步都是玩家操作（撤销时会整段退回，而不是只退掉最后一步）
+    expect(left.history.map((entry) => isAutoEntry(entry))).toEqual([false, false])
   })
 
-  it('一个 tick 内连按多次只认最后一个合法方向（不丢输入）', () => {
+  it('按当前朝向 = 手动往前走一格（不能用来把蛇按住不动）', () => {
     const before = createState(SEED, 'skilled')
-    // 朝右时：上 → 下 → 上，最后一次是「上」
-    const mashed = turn(turn(turn(before, 'up'), 'down'), 'up')
-    expect(mashed.pendingDir).toBe('up')
-    const moved = tick(mashed)
-    expect(moved.body[0]).toBe(neighborOf(before, 'up'))
+    const straight = turn(before, 'right') // 初始朝向就是右
+    expect(straight.body[0]).toBe(neighborOf(before, 'right'))
+    expect(straight.moves).toBe(before.moves + 1)
+    expect(directionOf(straight)).toBe('right')
+    // 连点同一个方向 = 连续前进
+    expect(turn(straight, 'right').body[0]).toBe(neighborOf(straight, 'right'))
   })
 
-  it('按当前朝向 = 取消缓冲，且不产生撤销记录（合法但无变化的输入）', () => {
-    const before = createState(SEED, 'skilled')
-    const turned = turn(before, 'up')
-    const cancelled = turn(turned, 'right') // 朝右时按「右」= 直行
-    expect(cancelled.pendingDir).toBeNull()
-    expect(cancelled.moves).toBe(before.moves)
-    // 缓冲区从 up 变回 null 是一次真实变化，因此有一条记录；再按一次「右」就完全没有记录了
-    const again = turn(cancelled, 'right')
-    expect(again).toBe(cancelled)
-    expect(again.history).toHaveLength(cancelled.history.length)
-  })
-
-  it('原地掉头（相对当前朝向）非法，且不会写进缓冲', () => {
+  it('原地掉头（相对当前朝向）非法：局面与步数都不变，也不会写进历史', () => {
     const state = createState(SEED, 'skilled')
     expect(directionOf(state)).toBe('right')
     expect(() => turn(state, 'left')).toThrow(IllegalActionError)
@@ -205,25 +205,90 @@ describe('转向缓冲', () => {
     expect(
       legalActions(state).filter((action) => action.type === 'turn'),
     ).toHaveLength(ALL_DIRS.length - 1)
+    expect(state.moves).toBe(0)
+    expect(state.history).toEqual([])
   })
 
-  it('缓冲里已有一个方向时，按它的反向仍然非法（判定基准始终是当前朝向）', () => {
-    // 若按缓冲值判定，缓冲里就会攒出一个「相对蛇头是掉头」的方向，tick 一到必然撞脖子
+  it('刚转向之后立刻按反方向同样非法（判定基准永远是当前朝向，不是上一步的朝向）', () => {
+    // 朝右 → 按上（蛇头已经在上方、朝向变成上）→ 再按下就是掉头，必须被拒绝
     const turned = turn(createState(SEED, 'skilled'), 'up')
-    expect(() => turn(turned, 'left')).toThrow(IllegalActionError)
+    expect(directionOf(turned)).toBe('up')
+    expect(() => turn(turned, 'down')).toThrow(IllegalActionError)
+    // 垂直方向仍然随便转
+    expect(directionOf(turn(turned, 'left'))).toBe('left')
   })
 
   it('已经结束之后不能转向', () => {
-    const dead = turnAndTick(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
+    const dead = turn(stateWith('skilled', { body: [5, 6, 7], food: 100 }), 'up')
     expect(gameStatus(dead)).toBe('lost')
     expect(() => turn(dead, 'right')).toThrow(IllegalActionError)
+  })
+})
+
+describe('立即转向会撞上去时：当场结束（与自动前进同一条规则）', () => {
+  it('按向墙：当场死亡、蛇身不动、这一步算玩家操作（撤销能退回）', () => {
+    const before = stateWith('skilled', { body: [5, 6, 7], food: 100 }) // 头 (5,0) 朝左
+    const after = turn(before, 'up') // 上方出界
+    expect(after.dead).toBe(true)
+    expect(gameStatus(after)).toBe('lost')
+    expect(after.body).toEqual(before.body) // 撞死时蛇头不进入墙里
+    expect(after.moves).toBe(before.moves + 1)
+    // 关键：这一步不带 auto，因此撤销按钮可点、一次撤销就回到按下之前
+    expect(isAutoEntry(after.history[after.history.length - 1]!)).toBe(false)
+    expect(isSkippedByUndo(after.history[after.history.length - 1]!)).toBe(false)
+    expect(canUndo(after)).toBe(true)
+    expect(reduceState(after, { type: 'undo' })).toEqual(before)
+  })
+
+  it('按向自己的身体：同样当场结束，且撤销回得去', () => {
+    // 头 (5,5)=65、脖子 (5,6)=77、(4,6)=76、(4,5)=64、尾 (3,5)=63：朝左按就是撞身体中段
+    const before = stateWith('skilled', {
+      body: [65, 77, 76, 64, 63],
+      food: 100,
+      score: 2,
+      cursor: 3,
+    })
+    const after = turn(before, 'left')
+    expect(after.dead).toBe(true)
+    expect(after.body).toEqual(before.body)
+    expect(reduceState(after, { type: 'undo' })).toEqual(before)
+  })
+
+  it('按向场内障碍：同样当场结束（挑战档）', () => {
+    const obstacles = [1, 2, 3, 77, 100, 101, 102, 103]
+    const before = stateWith('challenging', {
+      body: [65, 64, 63],
+      obstacles,
+      food: 120,
+      cursor: obstacles.length + 1,
+    })
+    const after = turn(before, 'down') // 正下方 (5,6)=77 是障碍
+    expect(after.dead).toBe(true)
+    expect(gameStatus(after)).toBe('lost')
+    expect(after.body).toEqual(before.body)
+  })
+
+  it('穿墙档：按向边界不是死，而是从对边进来', () => {
+    const before = stateWith('starter', { body: [5, 6, 7], food: 100 })
+    const after = turn(before, 'up')
+    expect(after.dead).toBe(false)
+    expect(after.body[0]).toBe(indexOf(SIZE, coordsOf(SIZE, before.body[0]!).x, SIZE - 1))
+  })
+
+  it('走进「这一步正好要离开的尾格」不算撞自己（尾已让开）', () => {
+    // 头 (5,5)=65、脖子 (5,6)=77、(4,6)=76、尾 (4,5)=64：朝左走正好进尾格
+    const before = stateWith('skilled', { body: [65, 77, 76, 64], food: 100, score: 1, cursor: 2 })
+    const after = turn(before, 'left')
+    expect(after.dead).toBe(false)
+    expect(after.body).toEqual([64, 65, 77, 76])
+    expect(gameStatus(after)).toBe('playing')
   })
 })
 
 describe('吃食物', () => {
   it('吃到食物：分数 +1、游标 +1、食物换到新的空格', () => {
     const before = stateWith('skilled', { food: AHEAD })
-    const after = turnAndTick(before, 'right')
+    const after = turn(before, 'right')
     expect(after.body[0]).toBe(AHEAD)
     expect(after.score).toBe(1)
     expect(after.cursor).toBe(before.cursor + 1)
@@ -236,9 +301,9 @@ describe('吃食物', () => {
   })
 
   it('入门/熟练档：吃一个食物长一节（下一步才长）', () => {
-    const eaten = turnAndTick(stateWith('skilled', { food: AHEAD }), 'right')
+    const eaten = turn(stateWith('skilled', { food: AHEAD }), 'right')
     expect(eaten.pending).toBe(difficultySpec('skilled').growth)
-    const grown = tick(turn(eaten, pickFreeDir(eaten)))
+    const grown = turn(eaten, pickFreeDir(eaten))
     expect(grown.pending).toBe(0)
     expect(grown.body).toHaveLength(INITIAL_LENGTH + 1)
   })
@@ -249,14 +314,14 @@ describe('吃食物', () => {
     const fresh = createState(SEED, 'challenging')
     const dir = pickFreeDir(fresh, ['down', 'up'])
     // 把食物摆到蛇头正前方：直接吃
-    const eaten = tick(turn({ ...fresh, food: neighborOf(fresh, dir) }, dir))
+    const eaten = turn({ ...fresh, food: neighborOf(fresh, dir) }, dir)
     expect(eaten.score).toBe(1)
     expect(eaten.pending).toBe(spec.growth)
     expect(eaten.body).toHaveLength(INITIAL_LENGTH) // 吃的那一步不掉尾，长度暂时不变
-    const first = tick(turn(eaten, pickFreeDir(eaten)))
+    const first = turn(eaten, pickFreeDir(eaten))
     expect(first.body).toHaveLength(INITIAL_LENGTH + 1)
     expect(first.pending).toBe(1)
-    const second = tick(turn(first, pickFreeDir(first)))
+    const second = turn(first, pickFreeDir(first))
     expect(second.body).toHaveLength(INITIAL_LENGTH + 2)
     expect(second.pending).toBe(0)
   })
@@ -264,7 +329,7 @@ describe('吃食物', () => {
   it('走进「这一步正好要离开的尾格」是合法的（尾已让开）', () => {
     // 头 (5,5)=65、脖子 (5,6)=77、(4,6)=76、尾 (4,5)=64：朝左走正好进尾格
     const before = stateWith('skilled', { body: [65, 77, 76, 64], food: 100, score: 1, cursor: 2 })
-    const after = tick(turn(before, 'left'))
+    const after = turn(before, 'left')
     expect(after.dead).toBe(false)
     expect(after.body).toEqual([64, 65, 77, 76])
     expect(gameStatus(after)).toBe('playing')
@@ -290,7 +355,7 @@ describe('非法动作被明确拒绝', () => {
 describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
   it('实心墙档：从顶行再往上走即结束，蛇身保持不动', () => {
     const before = stateWith('skilled', { body: [5, 6, 7], food: 100 })
-    const after = tick(turn(before, 'up'))
+    const after = turn(before, 'up')
     expect(after.dead).toBe(true)
     expect(gameStatus(after)).toBe('lost')
     expect(after.body).toEqual(before.body)
@@ -301,7 +366,7 @@ describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
 
   it('穿墙档：同一局面从对边进来，仍然活着', () => {
     const before = stateWith('starter', { body: [5, 6, 7], food: 100 })
-    const after = tick(turn(before, 'up'))
+    const after = turn(before, 'up')
     expect(after.dead).toBe(false)
     expect(gameStatus(after)).toBe('playing')
     expect(after.body[0]).toBe(indexOf(SIZE, coordsOf(SIZE, before.body[0]!).x, SIZE - 1))
@@ -316,7 +381,7 @@ describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
       food: 120,
       cursor: obstacles.length + 1,
     })
-    const after = tick(turn(before, 'down'))
+    const after = turn(before, 'down')
     expect(after.dead).toBe(true)
     expect(gameStatus(after)).toBe('lost')
     expect(after.body).toEqual(before.body)
@@ -330,7 +395,7 @@ describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
       score: 2,
       cursor: 3,
     })
-    const after = tick(turn(before, 'left'))
+    const after = turn(before, 'left')
     expect(after.dead).toBe(true)
     expect(gameStatus(after)).toBe('lost')
     expect(after.body).toEqual(before.body)
@@ -347,8 +412,10 @@ describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
 
   it('穿墙档同样步数不会撞墙（难度差异是规则差异，不只是速度差异）', () => {
     const start = createState(SEED, 'starter')
-    const steps = coordsOf(SIZE, start.body[0]!).y + 1
-    let state = turn(start, 'up')
+    // 玩家先按上走一格，再让它自动爬到顶行并从对边进来（穿墙档不会撞墙）
+    const turned = turn(start, 'up')
+    const steps = coordsOf(SIZE, turned.body[0]!).y + 1
+    let state = turned
     for (let step = 0; step < steps; step++) state = tick(state)
     expect(gameStatus(state)).toBe('playing')
     expect(coordsOf(SIZE, state.body[0]!).y).toBe(SIZE - 1)
@@ -358,25 +425,23 @@ describe('失败：撞墙 / 撞障碍 / 撞自己', () => {
 describe('撤销：退回玩家上一次操作之前', () => {
   it('转向 + 走三格后撤销：一次撤销回到转向之前（不是只退半格）', () => {
     const start = createState(SEED, 'skilled')
-    const after = ticks(turnAndTick(start, 'down'), 3)
+    const after = ticks(turn(start, 'down'), 3)
     expect(after.moves).toBe(4)
     const back = reduceState(after, { type: 'undo' })
     expect(back).toEqual(start)
   })
 
-  it('撤销把缓冲方向也还原（回到「当时还没转向」的状态）', () => {
+  it('一次按键（立即走一格）+ 撤销 = 精确回到按下之前', () => {
     const start = createState(SEED, 'skilled')
-    const turned = turn(start, 'down')
-    const moved = tick(turned)
-    const back = reduceState(moved, { type: 'undo' })
-    expect(back.pendingDir).toBeNull()
-    expect(back).toEqual(start)
+    const moved = turn(start, 'down')
+    expect(moved.moves).toBe(1)
+    expect(reduceState(moved, { type: 'undo' })).toEqual(start)
   })
 
   it('连续两次撤销 = 退回上上次操作之前（自动前进整段回退）', () => {
     const start = createState(SEED, 'skilled')
-    const first = turnAndTick(start, 'down') // 玩家操作 1：转向下并自动走一格
-    const second = ticks(turnAndTick(first, 'right'), 2) // 玩家操作 2：转向右 + 自动走三格
+    const first = turn(start, 'down') // 玩家操作 1：按下 = 立即走一格
+    const second = ticks(turn(first, 'right'), 2) // 玩家操作 2：再按一次 + 自动走两格
     const once = reduceState(second, { type: 'undo' })
     expect(once).toEqual(first)
     const twice = reduceState(once, { type: 'undo' })
@@ -390,14 +455,14 @@ describe('撤销：退回玩家上一次操作之前', () => {
 
   it('吃食物后撤销：食物、分数、游标、待长节数全部还原，再吃一次结果相同', () => {
     const before = stateWith('skilled', { food: AHEAD })
-    const eaten = turnAndTick(before, 'right')
+    const eaten = turn(before, 'right')
     const back = reduceState(eaten, { type: 'undo' })
     expect(back).toEqual(before)
     expect(back.food).toBe(AHEAD)
     expect(back.score).toBe(0)
     expect(back.cursor).toBe(before.cursor)
     // 同种子同局面 → 同一个新食物
-    expect(turnAndTick(back, 'right').food).toBe(eaten.food)
+    expect(turn(back, 'right').food).toBe(eaten.food)
   })
 
   it('玩家一次操作都没做过时撤销按钮不可点（只有自动前进可退）', () => {
@@ -409,7 +474,7 @@ describe('撤销：退回玩家上一次操作之前', () => {
 
   it('重开清空撤销栈并回到初始局面，之后撤销非法', () => {
     const start = createState(SEED, 'skilled')
-    const moved = ticks(turnAndTick(start, 'down'), 2)
+    const moved = ticks(turn(start, 'down'), 2)
     const restarted = reduceState(moved, { type: 'restart' })
     expect(restarted).toEqual(start)
     expect(restarted.history).toEqual([])
@@ -436,7 +501,7 @@ describe('撤销栈封顶（自动步进不能把存档撑爆）', () => {
     return stateWith('starter', { body: [100, 101, 102], food: 5 })
   }
 
-  /** 每回合「转向 + 自动前进一格」：既持续产生自动记录，也不断留下玩家操作边界 */
+  /** 每回合「玩家转向 + 自动前进一格」：既持续产生自动记录，也不断留下玩家操作边界 */
   function zigzag(state: SnakeState, rounds: number): SnakeState {
     let next = state
     for (let round = 0; round < rounds; round++) {
@@ -449,20 +514,19 @@ describe('撤销栈封顶（自动步进不能把存档撑爆）', () => {
     const state = zigzag(endless(), MAX_HISTORY_ENTRIES + 40)
     expect(state.history.length).toBeLessThanOrEqual(MAX_HISTORY_ENTRIES)
     expect(state.trimmed).toBe(true)
-    expect(isAutoEntry(state.history[0]!) && state.history[0]!.kind !== 'turn').toBe(false)
+    expect(isSkippedByUndo(state.history[0]!)).toBe(false)
     expect(canUndo(state)).toBe(true)
   })
 
   it('裁剪之后仍然能一次撤销回上一条玩家操作（不是退回半格）', () => {
     const state = zigzag(endless(), MAX_HISTORY_ENTRIES + 5)
-    // 最后一条是自动前进，它前面才是玩家操作（转向）
+    // 最后一条是自动前进，它前面才是玩家操作（按键走的那一格）
     expect(state.history[state.history.length - 1]!.kind).toBe('step')
     expect(isAutoEntry(state.history[state.history.length - 1]!)).toBe(true)
     const back = reduceState(state, { type: 'undo' })
-    // 一次撤销至少退掉「最后一段自动前进 + 那条转向」，因此步数与栈长都明显回退
+    // 一次撤销至少退掉「最后一段自动前进 + 那条玩家操作」，因此步数与栈长都明显回退
     expect(back.moves).toBeLessThan(state.moves)
     expect(back.history.length).toBeLessThanOrEqual(state.history.length - 2)
-    expect(back.pendingDir).toBeNull()
     expect(canUndo(back)).toBe(true)
     // 撤销后的局面照样能存档往返
     expect(decodeState(JSON.parse(JSON.stringify(encodeState(back))))).toEqual(back)
@@ -507,9 +571,39 @@ describe('自动步进的声明：规则层零时间引用', () => {
     })
     expect(gameStatus(won)).toBe('won')
     expect(snakeGame.tickMs!(won, 'skilled')).toBeNull()
-    // 速度随难度递增（越难越快），但都快不过刷新下限
+  })
+
+  it('三档间隔**完全相同**：统一 500ms，且不低于 400ms 硬下限', () => {
+    /*
+     * 用户要求"不同难度的延迟应该统一"：难度差异一律由**规则**承担
+     * （穿墙 / 障碍 / 每食长两节），不由手速承担。这条用例钉住三件事，
+     * 任何一件被破坏都要红 —— 而不是只检查"大于 0"那种放水判据。
+     */
     const declared = DIFFICULTY_IDS.map((id) => difficultySpec(id).tickMs)
-    expect(declared).toEqual([...declared].sort((a, b) => b - a))
+    // 1) 三档一模一样（差 1ms 都算没统一，不是"三个相近的值"）
+    expect(new Set(declared).size).toBe(1)
+    expect(declared).toEqual([500, 500, 500])
+    // 2) 统一值就是选定的 500ms：BOOX 整屏刷新实测约 2 次/秒，500ms 正好卡在
+    //    "不产生残影"的边界上。这里写死字面量：改 meta.ts 必须同时改这里，
+    //    不允许节奏悄悄漂移（"我们选定的值"是需求的一部分）。
+    expect(declared[0]).toBe(500)
+    // 3) 不低于 core 的硬下限 —— 且统一值**不靠壳层钳位兜底**：
+    //    声明 300ms 会被钳回 400ms，但那是"不诚实的声明"，这条就是拦住它的。
+    expect(MIN_TICK_MS).toBe(400)
+    expect(declared[0]).toBeGreaterThanOrEqual(MIN_TICK_MS)
+    for (const id of DIFFICULTY_IDS) {
+      // 每个难度**自己声明的**值都达标，并且与壳层实际拿到的值一致
+      expect(difficultySpec(id).tickMs).toBeGreaterThanOrEqual(MIN_TICK_MS)
+      expect(snakeGame.tickMs!(createState(SEED, id), id)).toBe(declared[0])
+    }
+    /*
+     * 4) "统一"在源码层面也成立：三档引用的是**同一个具名常量**，
+     *    而不是三处各写一个恰好相等的字面量（那样任何一个档位被单独改掉时，
+     *    值相等断言仍可能因为"改回同一个数"而看不出结构被破坏）。
+     */
+    const meta = readFileSync(new URL('../src/meta.ts', import.meta.url), 'utf8')
+    expect(meta).toMatch(/const SNAKE_TICK_MS\s*=\s*500\b/)
+    expect(meta.match(/tickMs:\s*SNAKE_TICK_MS\b/g) ?? []).toHaveLength(DIFFICULTY_IDS.length)
   })
 })
 
@@ -538,7 +632,7 @@ describe('胜利：填满棋盘', () => {
     })
     expect(before.body).toHaveLength(SIZE * SIZE - 1)
     expect(gameStatus(before)).toBe('playing')
-    const after = tick(turn(before, 'up'))
+    const after = turn(before, 'up')
     expect(after.body).toHaveLength(SIZE * SIZE)
     expect(after.score).toBe(142)
     expect(after.food).toBe(NO_FOOD)

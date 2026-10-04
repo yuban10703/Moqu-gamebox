@@ -20,14 +20,13 @@ export function tick(state: SnakeState): SnakeState {
   return reduceState(state, { type: 'tick' })
 }
 
-/** 转向（写入下一个 tick 生效的缓冲方向） */
+/**
+ * 玩家输入：转向并**立即**走一格（当前语义 —— 按下方向键当帧就换向、当帧就前进）。
+ *
+ * 于是「一次玩家操作」= 一步，而不是旧语义下的「记一个方向 + 等下一个 tick」。
+ */
 export function turn(state: SnakeState, dir: MoveDir): SnakeState {
   return reduceState(state, { type: 'turn', dir })
-}
-
-/** 转向之后自动前进一格：玩家「想往这边走」在自动步进下的完整表达 */
-export function turnAndTick(state: SnakeState, dir: MoveDir): SnakeState {
-  return tick(turn(state, dir))
 }
 
 /** 连续自动前进 n 格（不转向） */
