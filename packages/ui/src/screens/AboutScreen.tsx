@@ -6,7 +6,11 @@
  * 不再有用户输入与本机存储读写，这一页现在是纯只读的。
  *
  * 作者信息的值集中在 `./authorInfo.ts` 里改（含打赏码图片放哪里、推荐尺寸与格式），
- * 本文件只负责「填了才显示、没填就不渲染」。
+ * 项目地址（开源仓库）在 `./projectInfo.ts` 里改；本文件只负责「填了才显示、没填就不渲染」。
+ *
+ * 邮箱与开源地址都是**既能点开、又能复制**：左边地址是 `<a>`（点开时由 Android 壳层的
+ * `shouldOverrideUrlLoading` 交给系统浏览器 / 邮件应用），右边是「复制」按钮（任何环境下都成立）。
+ * 墨水屏没有 hover，所以按钮上直接写「复制」，点完就地变成「已复制 / 复制失败」。
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { APP_VERSION } from '@eink/core'
@@ -14,6 +18,7 @@ import { TopBar } from '../components.js'
 import { copyText } from '../clipboard.js'
 import { useUi } from '../contexts.js'
 import { AUTHOR_INFO } from './authorInfo.js'
+import { PROJECT_INFO } from './projectInfo.js'
 
 export interface AboutScreenProps {
   onBack: () => void
@@ -57,6 +62,8 @@ export function AboutScreen({ onBack }: AboutScreenProps): ReactNode {
    * 而且失败提示留在屏幕上才看得见（复制失败时用户需要知道要手抄）。
    */
   const [copied, setCopied] = useState<boolean | null>(null)
+  /** 开源地址的复制状态（与邮箱那一个相互独立） */
+  const [sourceCopied, setSourceCopied] = useState<boolean | null>(null)
   /*
    * 构建时注入的版本信息（首页页脚那个版本号按用户要求去掉后，这里是**唯一**能看到
    * 构建时间的地方 —— 用户据此判断设备上是不是最新版）；单测 / 非 vite 环境下不存在，
@@ -87,6 +94,38 @@ export function AboutScreen({ onBack }: AboutScreenProps): ReactNode {
           <p className="eink-text">{i18n.t('shell.about.tagline')}</p>
         </section>
 
+        {PROJECT_INFO.repoUrl ? (
+          <section className="eink-section">
+            <h2>{i18n.t('shell.about.source.title')}</h2>
+            {/*
+              与邮箱同样的处理：整块可点、点完就地变成「已复制 / 复制失败」，
+              aria-label 带上完整地址，读屏时不会漏掉「复制的是什么」。
+            */}
+            <div className="eink-about__source">
+              {/* 地址本身可点：交给系统浏览器 */}
+              <a className="eink-about__link" href={PROJECT_INFO.repoUrl}>
+                {PROJECT_INFO.repoUrl}
+              </a>
+              <button
+                type="button"
+                className="eink-about__copy"
+                aria-label={`${i18n.t('shell.about.author.copy')} ${PROJECT_INFO.repoUrl}`}
+                onClick={() => {
+                  void copyText(PROJECT_INFO.repoUrl).then(setSourceCopied)
+                }}
+              >
+                <span role="status">
+                  {sourceCopied === null
+                    ? i18n.t('shell.about.author.copy')
+                    : sourceCopied
+                      ? i18n.t('shell.about.author.copied')
+                      : i18n.t('shell.about.author.copyFailed')}
+                </span>
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {hasAuthor ? (
           <section className="eink-section">
             <h2>{i18n.t('shell.about.author.title')}</h2>
@@ -107,23 +146,28 @@ export function AboutScreen({ onBack }: AboutScreenProps): ReactNode {
                       点完就地变成「已复制 / 复制失败」（同一个按钮，不额外占一行）。
                       aria-label 补上完整地址：读屏读按钮时不会漏掉「复制的是什么」。
                     */}
-                    <button
-                      type="button"
-                      className="eink-about__email"
-                      aria-label={`${i18n.t('shell.about.author.copy')} ${AUTHOR_INFO.email}`}
-                      onClick={() => {
-                        void copyText(AUTHOR_INFO.email).then(setCopied)
-                      }}
-                    >
-                      <span className="eink-about__email-value">{AUTHOR_INFO.email}</span>
-                      <span className="eink-about__email-action" role="status">
-                        {copied === null
-                          ? i18n.t('shell.about.author.copy')
-                          : copied
-                            ? i18n.t('shell.about.author.copied')
-                            : i18n.t('shell.about.author.copyFailed')}
-                      </span>
-                    </button>
+                    <div className="eink-about__email">
+                      {/* 地址本身可点：交给系统邮件应用（壳层把非本站地址转给系统） */}
+                      <a className="eink-about__link" href={`mailto:${AUTHOR_INFO.email}`}>
+                        {AUTHOR_INFO.email}
+                      </a>
+                      <button
+                        type="button"
+                        className="eink-about__copy"
+                        aria-label={`${i18n.t('shell.about.author.copy')} ${AUTHOR_INFO.email}`}
+                        onClick={() => {
+                          void copyText(AUTHOR_INFO.email).then(setCopied)
+                        }}
+                      >
+                        <span role="status">
+                          {copied === null
+                            ? i18n.t('shell.about.author.copy')
+                            : copied
+                              ? i18n.t('shell.about.author.copied')
+                              : i18n.t('shell.about.author.copyFailed')}
+                        </span>
+                      </button>
+                    </div>
                   </dd>
                 </>
               ) : null}

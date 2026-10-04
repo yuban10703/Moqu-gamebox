@@ -155,6 +155,7 @@ export const zhCN: Dict = {
   'shell.about.product': '墨趣',
   'shell.about.tagline': '墨水屏上的离线游戏盒子：装上就能玩，不需要网络。',
   // 作者信息（关于页）：值本身在 packages/ui/src/screens/authorInfo.ts 里填，这里只是标签
+  'shell.about.source.title': '开源地址',
   'shell.about.author.title': '作者信息',
   'shell.about.author.name': '作者',
   'shell.about.author.email': '邮箱',

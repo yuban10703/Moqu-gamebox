@@ -153,6 +153,7 @@ export const enUS: Dict = {
   'shell.about.product': 'Moqu',
   'shell.about.tagline': 'An offline game box for e-ink devices: install it and play, no network needed.',
   // Author info block on the About screen; the values live in packages/ui/src/screens/authorInfo.ts
+  'shell.about.source.title': 'Source code',
   'shell.about.author.title': 'Author',
   'shell.about.author.name': 'Author',
   'shell.about.author.email': 'Email',
