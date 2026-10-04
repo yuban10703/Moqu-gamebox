@@ -3,7 +3,7 @@
  *
  * 1-bit 可读性（没有灰阶、没有动画，只能靠形状与反白）：
  *   蛇头 = 黑色子弹形剪影 + 两只白眼睛，**朝向前进方向**（kind 'head' + facing）
- *   蛇身 = 占满格子的空心板条箱（kind 'box'，白底 + 外框 + 对角线）
+ *   蛇身 = 与头尾同宽的黑色实心管，每节朝前后两节伸出、拐弯外角是圆的（kind 'segment' + links）
  *   蛇尾 = 黑色收尖的楔形，**尖端指向远离身体的方向**（kind 'tail' + facing）
  *   食物 = 空心圆环（kind 'goal'）
  *   障碍 = 斜纹底（kind 'wall'，壳层用纹理而不是灰度）
@@ -11,8 +11,9 @@
  *   撞死后的蛇头 = 白底 + 加粗「×」（kind 'flag'），与活着的黑格蛇头一眼可分
  * 这六种形状两两不同，且都不依赖深浅，因此单色墨水屏上也分得清。
  *
- * 头与尾原先是「整格涂黑」与「格中一个 ■」：看不出朝向，也不像蛇（用户要求改得美观）。
- * 现在按朝向画剪影：头的平直后端、尾的宽底都贴着身体那一侧，整条蛇首尾相接。
+ * 头与尾原先是「整格涂黑」与「格中一个 ■」、身体是推箱子的空心板条箱：看不出朝向，也不像蛇
+ * （用户要求改得美观、身体风格统一）。现在头 / 身 / 尾是同一根宽 18/24 的黑管：
+ * 头的平直后端、尾的宽底、身体伸向相邻节的那一段在格边对齐，整条蛇连成一根。
  */
 import type { BoardView, CellKind, CellView, ControlSpec, GameView, StatView } from '@eink/core'
 import type { MoveDir } from '@eink/core'
@@ -31,7 +32,7 @@ import { DIFFICULTIES, DIFFICULTY_IDS, difficultySpec } from './meta.js'
 export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
   wall: '',
   empty: '',
-  box: '',
+  segment: '',
   head: '',
   tail: '',
   goal: '',
@@ -41,15 +42,15 @@ export const CELL_GLYPHS: Partial<Record<CellKind, string>> = {
 /**
  * 壳层无障碍标签用的 key。约定固定为 `<namespace>.cell.<kind>`，
  * 因此注册表里直接写 `(kind) => `snake.cell.${kind}`` 即可，不需要额外映射表。
- * 本作借用的通用 kind：box = 蛇身、goal = 食物、flag = 撞死后的蛇头，
- * 因此这几条标签说的是本作语义而不是 kind 的字面意思（head / tail 则正好同义）。
+ * 本作借用的通用 kind：goal = 食物、flag = 撞死后的蛇头，
+ * 因此这两条标签说的是本作语义而不是 kind 的字面意思（head / segment / tail 则正好同义）。
  */
 export const CELL_LABEL_KEYS: Partial<Record<CellKind, string>> = {
   wall: 'snake.cell.wall',
   empty: 'snake.cell.empty',
   head: 'snake.cell.head',
   tail: 'snake.cell.tail',
-  box: 'snake.cell.box',
+  segment: 'snake.cell.segment',
   goal: 'snake.cell.goal',
   flag: 'snake.cell.flag',
 }
@@ -60,7 +61,7 @@ export function cellKindAt(state: SnakeState, index: number): CellKind {
   if (index === state.body[0]) return state.dead ? 'flag' : 'head'
   // 尾巴单独一种形状（用户要求）：初始长度 3，所以尾巴与蛇头不会重合
   if (state.body.length > 1 && index === state.body[state.body.length - 1]) return 'tail'
-  if (state.body.includes(index)) return 'box'
+  if (state.body.includes(index)) return 'segment'
   if (index === state.food) return 'goal'
   return 'empty'
 }
@@ -83,17 +84,33 @@ export function facingAt(state: SnakeState, kind: CellKind): MoveDir | undefined
   return undefined
 }
 
+/**
+ * 身体第 position 节（不含头尾）连向哪两个方向：朝前一节、朝后一节。
+ * 同样按环绕计算 —— 入门档穿墙的那一节会伸向棋盘边缘，在另一侧接上。
+ */
+export function linksAt(state: SnakeState, position: number): MoveDir[] {
+  const size = difficultySpec(state.difficulty).size
+  const cell = state.body[position]!
+  return [
+    directionBetween(size, cell, state.body[position - 1]!),
+    directionBetween(size, cell, state.body[position + 1]!),
+  ]
+}
+
 export function buildBoard(state: SnakeState): BoardView {
   const spec = difficultySpec(state.difficulty)
+  const positionOf = new Map(state.body.map((cell, position) => [cell, position]))
   const cells: CellView[] = []
   for (let index = 0; index < spec.size * spec.size; index++) {
     const kind = cellKindAt(state, index)
     const facing = facingAt(state, kind)
+    const links = kind === 'segment' ? linksAt(state, positionOf.get(index)!) : undefined
     cells.push({
       index,
       kind,
       glyph: CELL_GLYPHS[kind] ?? '',
       ...(facing ? { facing } : {}),
+      ...(links ? { links } : {}),
     })
   }
   return { kind: 'grid', cols: spec.size, rows: spec.size, cells }

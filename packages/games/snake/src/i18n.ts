@@ -54,11 +54,11 @@ export const snakeZh: Dict = {
   'snake.difficulty.skilled': '熟练（实心墙）',
   'snake.difficulty.challenging': '挑战（障碍 + 长两节）',
   // 格子标签的 key 一律是 `<命名空间>.cell.<壳层的 CellKind>`（与推箱子、扫雷同约定）：
-  // 这里的 mine / box / goal / flag 分别被本作用作 蛇头 / 蛇身 / 食物 / 撞上的蛇头
+  // 这里的 goal / flag 分别被本作用作 食物 / 撞上的蛇头（head / segment / tail 与字面同义）
   'snake.cell.wall': '障碍',
   'snake.cell.empty': '空格',
   'snake.cell.head': '蛇头',
-  'snake.cell.box': '蛇身',
+  'snake.cell.segment': '蛇身',
   'snake.cell.goal': '食物',
   'snake.cell.flag': '撞上的蛇头',
   'snake.cell.tail': '蛇尾',
@@ -98,12 +98,12 @@ export const snakeEn: Dict = {
   'snake.difficulty.skilled': 'Skilled (solid walls)',
   'snake.difficulty.challenging': 'Challenging (obstacles + 2 per meal)',
   // Cell label keys are always `<namespace>.cell.<CellKind>` (same convention as
-  // sokoban and minesweeper); mine / box / goal / flag are drawn here as
-  // snake head / body / food / crashed head.
+  // sokoban and minesweeper); goal / flag are drawn here as food / crashed head
+  // (head / segment / tail mean what they say).
   'snake.cell.wall': 'Obstacle',
   'snake.cell.empty': 'Empty cell',
   'snake.cell.head': 'Snake head',
-  'snake.cell.box': 'Snake body',
+  'snake.cell.segment': 'Snake body',
   'snake.cell.goal': 'Food',
   'snake.cell.flag': 'Crashed snake head',
   'snake.cell.tail': 'Snake tail',

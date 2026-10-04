@@ -154,3 +154,37 @@ describe('有朝向的格子（head / tail + facing，贪吃蛇用）', () => {
     expect(tail!.querySelectorAll('circle')).toHaveLength(0)
   })
 })
+
+describe('连续的管（segment + links，贪吃蛇的身体）', () => {
+  const ARM: Record<string, string> = { up: '3,0,18,12', down: '3,12,18,12', left: '0,3,12,18', right: '12,3,12,18' }
+
+  it('中心一个圆 + 朝每个相连方向伸到格边的一段；与头尾同宽（18/24），只用纯黑', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 1,
+      rows: 1,
+      cells: [{ index: 0, kind: 'segment', glyph: '', links: ['up', 'right'] }],
+    }
+    const { container } = render(<Board board={board} />)
+    const cell = container.querySelector('.eink-board__cell') as HTMLElement
+    expect(cell.dataset.links).toBe('up right')
+    const svg = cell.querySelector('svg')!
+    expect(svg.querySelector('circle')?.getAttribute('r')).toBe('9')
+    const arms = [...svg.querySelectorAll('rect')].map((rect) =>
+      ['x', 'y', 'width', 'height'].map((name) => rect.getAttribute(name)).join(','),
+    )
+    expect(arms).toEqual([ARM.up, ARM.right])
+    for (const node of svg.querySelectorAll('[fill]')) expect(node.getAttribute('fill')).toBe('#000')
+  })
+
+  it('头的后端与管同宽：头的轮廓横跨 3 → 21（与管的两侧白边一致）', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 1,
+      rows: 1,
+      cells: [{ index: 0, kind: 'head', glyph: '', facing: 'up' }],
+    }
+    const { container } = render(<Board board={board} />)
+    expect(container.querySelector('path')?.getAttribute('d')).toMatch(/^M3 24V12a9 9 0 0 1 18 0v12z$/)
+  })
+})

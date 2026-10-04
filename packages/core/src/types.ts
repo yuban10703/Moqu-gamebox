@@ -19,7 +19,8 @@ export type MoveDir = 'up' | 'down' | 'left' | 'right'
  * 推箱子：floor / wall / goal / box / boxOnGoal / player / playerOnGoal
  * 通用：empty（空格）、hidden（未翻开）、flag（标记）、mine（雷）、
  *       number（已翻开且带数字）、tile（承载数字/文字的方块）、given（题目给定，描边更重）、
- *       head / tail（有朝向的头部 / 尾端，配合 CellView.facing 画成朝向一侧的图形；贪吃蛇用）
+ *       head / tail（有朝向的头部 / 尾端，配合 CellView.facing 画成朝向一侧的图形；贪吃蛇用）、
+ *       segment（连向相邻格的一节，配合 CellView.links 画成连续的管；贪吃蛇的身体）
  */
 export type CellKind =
   | 'floor'
@@ -38,6 +39,7 @@ export type CellKind =
   | 'given'
   | 'head'
   | 'tail'
+  | 'segment'
 
 export interface CellView {
   /** 行优先索引 */
@@ -61,6 +63,11 @@ export interface CellView {
    * 图形按 up 画好，壳层按朝向整体旋转 —— 不靠灰度，单靠形状就能看出往哪走。
    */
   facing?: MoveDir
+  /**
+   * 这一格连向哪些相邻格（目前只对 segment 有意义）：壳层从格子中心朝这些方向各伸出一段，
+   * 相邻格互相连上，整条就成了一根连续的管；拐弯处外角是圆的。
+   */
+  links?: readonly MoveDir[]
   /** 右/下邻格属于同一块棋子：该边不画格线（华容道用） */
   mergeRight?: boolean
   mergeBottom?: boolean

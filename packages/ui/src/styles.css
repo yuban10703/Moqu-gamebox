@@ -1079,7 +1079,8 @@ html[data-font-scale='1.5'] .eink-tile__title {
 .eink-board__cell[data-kind='box'] > svg,
 .eink-board__cell[data-kind='boxOnGoal'] > svg,
 .eink-board__cell[data-kind='head'] > svg,
-.eink-board__cell[data-kind='tail'] > svg {
+.eink-board__cell[data-kind='tail'] > svg,
+.eink-board__cell[data-kind='segment'] > svg {
   width: 100%;
 }
 
@@ -1182,6 +1183,7 @@ html[data-font-scale='1.5'] .eink-tile__title {
 .eink-board__cell[data-kind='playerOnGoal'],
 .eink-board__cell[data-kind='head'],
 .eink-board__cell[data-kind='tail'],
+.eink-board__cell[data-kind='segment'],
 .eink-board__cell[data-kind='number'],
 .eink-board__cell[data-kind='tile'],
 .eink-board__cell[data-kind='given'],

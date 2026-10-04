@@ -171,6 +171,14 @@ export function Timer({
 // floor 也纳入：迷宫用 `floor` + `·` 标记已走过的路径（推箱子的 floor glyph 为空，不受影响）
 const TEXT_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(['tile', 'given', 'number', 'flag', 'mine', 'floor'])
 
+/** 身体一节朝各方向伸出的那一段（管宽 18/24，从格子中心伸到格边） */
+const SEGMENT_ARMS: Record<MoveDir, { x: number; y: number; width: number; height: number }> = {
+  up: { x: 3, y: 0, width: 18, height: 12 },
+  down: { x: 3, y: 12, width: 18, height: 12 },
+  left: { x: 0, y: 3, width: 12, height: 18 },
+  right: { x: 12, y: 3, width: 12, height: 18 },
+}
+
 /** 有朝向的图形都按「朝上」画好，再整体旋转（SVG 坐标系 y 向下，顺时针为正） */
 const FACING_DEGREES: Record<MoveDir, number> = { up: 0, right: 90, down: 180, left: 270 }
 
@@ -178,10 +186,12 @@ function BoardGlyph({
   kind,
   bold,
   facing,
+  links,
 }: {
   kind: CellKind
   bold: boolean
   facing?: MoveDir | undefined
+  links?: readonly MoveDir[] | undefined
 }): ReactNode {
   if (kind === 'floor' || kind === 'wall' || TEXT_KINDS.has(kind)) return null
   const stroke = bold ? 2.6 : 1.6
@@ -194,11 +204,22 @@ function BoardGlyph({
   } as const
 
   /*
-   * 蛇头 / 蛇尾（head / tail + facing）：纯黑实心剪影，1-bit 下最稳。
-   * - 头：后端平直、贴住身体，前端半圆；两只白色圆眼睛靠前 —— 一眼看出往哪走；
-   * - 尾：从贴身一侧的宽底收成尖，尖端指向远离身体的方向。
-   * 两者都画满整格的宽度方向（见 styles.css），与相邻的身体格首尾相接。
+   * 贪吃蛇的三段（纯黑实心，1-bit 下最稳），都是同一根宽 18/24 的「管」：
+   * - 身体（segment + links）：中心一个圆，朝每个相连的方向伸到格边 —— 相邻格接成连续的管，
+   *   拐弯处外角是圆的、内角是直的；两侧各留 3/24 白边，蛇身贴着自己走时两段仍分得开；
+   * - 头（head + facing）：后端平直、接住身体，前端半圆；两只白色圆眼睛靠前 —— 一眼看出往哪走；
+   * - 尾（tail + facing）：从接身体的宽底收成尖，尖端指向远离身体的方向。
    */
+  if (kind === 'segment') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9" fill="#000" />
+        {(links ?? []).map((dir) => (
+          <rect key={dir} {...SEGMENT_ARMS[dir]} fill="#000" />
+        ))}
+      </svg>
+    )
+  }
   if (kind === 'head' || kind === 'tail') {
     const rotate = `rotate(${FACING_DEGREES[facing ?? 'up']} 12 12)`
     return (
@@ -206,9 +227,9 @@ function BoardGlyph({
         <g transform={rotate}>
           {kind === 'head' ? (
             <>
-              <path d="M2 24V12a10 10 0 0 1 20 0v12z" fill="#000" />
-              <circle cx="7.8" cy="10.6" r="2.5" fill="#fff" />
-              <circle cx="16.2" cy="10.6" r="2.5" fill="#fff" />
+              <path d="M3 24V12a9 9 0 0 1 18 0v12z" fill="#000" />
+              <circle cx="8.3" cy="10.8" r="2.3" fill="#fff" />
+              <circle cx="15.7" cy="10.8" r="2.3" fill="#fff" />
             </>
           ) : (
             <path d="M3 24C4.5 15.5 8.5 8 12 2.5 15.5 8 19.5 15.5 21 24z" fill="#000" />
@@ -348,6 +369,7 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
           {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
           {...(cellView.wrong ? { 'data-wrong': 'yes' } : {})}
           {...(cellView.facing ? { 'data-facing': cellView.facing } : {})}
+          {...(cellView.links?.length ? { 'data-links': cellView.links.join(' ') } : {})}
           {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
           {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
           {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}
@@ -366,7 +388,7 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
               {cellView.glyph}
             </span>
           ) : null}
-          <BoardGlyph kind={cellView.kind} bold={bold} facing={cellView.facing} />
+          <BoardGlyph kind={cellView.kind} bold={bold} facing={cellView.facing} links={cellView.links} />
         </div>
       ))}
 

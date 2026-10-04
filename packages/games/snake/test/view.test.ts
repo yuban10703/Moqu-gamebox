@@ -67,9 +67,9 @@ describe('棋盘展示模型', () => {
     // 开局横放、朝右：头朝右，尾尖朝左（远离身体）
     expect(cells[head]!.facing).toBe('right')
     expect(cells[tail]!.facing).toBe('left')
-    // 只有头尾带朝向；蛇身仍是板条箱
+    // 只有头尾带朝向；蛇身是连向前后两节的管（links），不带朝向
     for (const cell of state.body.slice(1, -1)) {
-      expect(cellKindAt(state, cell)).toBe('box')
+      expect(cellKindAt(state, cell)).toBe('segment')
       expect(cells[cell]!.facing).toBeUndefined()
     }
     expect(cells.filter((cell) => cell.facing !== undefined)).toHaveLength(2)
@@ -89,12 +89,34 @@ describe('棋盘展示模型', () => {
     expect(laterCells[later.body[later.body.length - 1]!]!.facing).toBe('down')
   })
 
+  it('蛇身每节连向前后两节：直行是一对相反方向，拐弯是一对相邻方向（头 → 身 → 尾连成一根）', () => {
+    // 开局横放朝右：中间那节连向右边的头、左边的尾
+    const start = stateWith('skilled', { body: [78, 77, 76], food: 0 })
+    expect(buildBoard(start).cells[77]!.links).toEqual(['right', 'left'])
+    // 向上拐：原来的头 (6,6) 变成拐角，连向上方的新头与左边的下一节
+    const up = turn(start, 'up')
+    expect(buildBoard(up).cells[78]!.links).toEqual(['up', 'left'])
+    // 每一节的两个方向都指向真实存在的相邻节（对方也连回来）—— 整条蛇没有断口
+    const later = tick(tick(turn(up, 'left')))
+    const cells = buildBoard(later).cells
+    for (let position = 1; position < later.body.length - 1; position++) {
+      const links = cells[later.body[position]!]!.links!
+      expect(links).toHaveLength(2)
+      expect(links[0]).not.toBe(links[1])
+    }
+    // 头尾不带 links（它们靠 facing 画）
+    expect(cells[later.body[0]!]!.links).toBeUndefined()
+    expect(cells[later.body[later.body.length - 1]!]!.links).toBeUndefined()
+  })
+
   it('入门档穿墙：跨过边界的那一节，头尾朝向仍按环绕计算', () => {
     // 头在第 0 列、脖子在第 11 列（刚从右边界穿过来）→ 头朝右；尾巴在第 10 列、前一节第 11 列 → 尾尖朝左
     const state = stateWith('starter', { body: [0, 11, 10], food: 100 })
     const cells = buildBoard(state).cells
     expect(cells[0]!.facing).toBe('right')
     expect(cells[10]!.facing).toBe('left')
+    // 跨边的那一节身体：一端伸向右边缘（穿墙接到第 0 列的头），一端连向左边的尾
+    expect(cells[11]!.links).toEqual(['right', 'left'])
   })
 
   it('撞死之后蛇头换成叉号（不带朝向），蛇尾照样是尖尾', () => {
@@ -112,7 +134,7 @@ describe('棋盘展示模型', () => {
     expect(cellKindAt(dead, dead.body[0]!)).toBe('flag')
     expect(cellGlyphAt(dead, dead.body[0]!)).toBe('×')
     // 蛇身与食物不受影响
-    expect(cellKindAt(dead, dead.body[1]!)).toBe('box')
+    expect(cellKindAt(dead, dead.body[1]!)).toBe('segment')
   })
 
   it('每个用到的 kind 都有无障碍标签 key（壳层不硬编码玩法文案）', () => {
