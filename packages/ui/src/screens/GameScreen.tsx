@@ -17,6 +17,7 @@ import {
 import {
   ActionButton,
   Board,
+  CapturedTray,
   Dialog,
   Dpad,
   NoticeLine,
@@ -394,12 +395,17 @@ export function GameScreen({
                 {...(session.selectCell ? { onCardSelect: session.selectCell } : {})}
               />
             ) : session.view.board ? (
-              <Board
-                board={session.view.board}
-                labelFor={cellLabel}
-                bold={settings.boldLines}
-                {...(session.selectCell ? { onCellSelect: session.selectCell } : {})}
-              />
+              <>
+                {/* 吃子盘：游戏声明了 captured 才渲染（高度固定，避免第一次吃子时棋盘缩一下） */}
+                {session.view.captured ? <CapturedTray glyphs={session.view.captured.top} position="top" /> : null}
+                <Board
+                  board={session.view.board}
+                  labelFor={cellLabel}
+                  bold={settings.boldLines}
+                  {...(session.selectCell ? { onCellSelect: session.selectCell } : {})}
+                />
+                {session.view.captured ? <CapturedTray glyphs={session.view.captured.bottom} position="bottom" /> : null}
+              </>
             ) : null}
           </div>
 

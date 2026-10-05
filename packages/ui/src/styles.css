@@ -1032,9 +1032,84 @@ html[data-font-scale='1.5'] .eink-tile__title {
  */
 .eink-board-area {
   display: flex;
+  /*
+   * 纵向排列：棋盘 + 上下两行吃子盘（象棋）。只有一个孩子时纵向/横向没区别，
+   * 所以这条改动对其它玩法无影响。
+   */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   container-type: size;
+}
+
+/*
+ * 吃子盘：棋盘外侧的一行"已经吃掉的棋子"。
+ * 高度固定（空着也占位）—— 否则第一次吃子时棋盘会缩一下。
+ * 字号按容器宽度算（`--cell` 只定义在 .eink-board 上，这里拿不到）：
+ * 一格约占 1/9 宽度，吃子用小一号 ≈ 0.42 格，再夹一个下限保证可读。
+ */
+/*
+ * 吃子盘：棋盘外侧的一行"被吃掉的棋子"。
+ *
+ * 用户要求：不要只是一行字，要**缩小版的棋子**、并且**从左边开始排**。
+ * 所以这里的每一枚都照棋盘上的圆片规则画（缩小到约 4.6cqw ≈ 一格的一半），
+ * 靠 `--tray-piece` 统一算尺寸；架子本身左对齐、不换行溢出就裁掉
+ * （一方最多 15 枚，按最窄的 415px 棋盘算也放得下）。
+ * 高度用固定值（空着也占位）：否则第一次吃子时棋盘会缩一下 —— 布局跳动比留白更糟。
+ * 上下两架的底色由位置决定，与棋盘的约定一致：上方=红方战果（红子，白底），
+ * 下方=黑方战果（黑子，黑底）。
+ */
+.eink-board__tray {
+  --tray-piece: clamp(14px, 4.6cqw, 30px);
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(var(--tray-piece) * 0.16);
+  width: 100%;
+  min-height: calc(var(--tray-piece) * 1.4);
+  max-height: calc(var(--tray-piece) * 1.4);
+  overflow: hidden;
+  line-height: 1;
+}
+
+/* 每一枚：圆片 + 边框（尺寸与棋盘上的规则同源，只是整体缩小） */
+.eink-board__tray-piece {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--tray-piece);
+  height: var(--tray-piece);
+  border-radius: 50%;
+  font-size: calc(var(--tray-piece) * 0.74);
+  font-weight: 700;
+}
+
+/* 上方：红方吃到的黑子 —— 黑底白字 + 粗边框（与棋盘上的黑子同款） */
+.eink-board__tray[data-pos='bottom'] .eink-board__tray-piece {
+  background: var(--ink-black);
+  color: var(--ink-white);
+  box-shadow:
+    0 0 0 1px var(--ink-white),
+    0 0 0 2px var(--ink-black);
+}
+
+/* 下方：黑方吃到的红子 —— 白底黑字 + 双边框 */
+.eink-board__tray[data-pos='top'] .eink-board__tray-piece {
+  background: var(--ink-white);
+  color: var(--ink-black);
+  box-shadow:
+    0 0 0 1px var(--ink-black),
+    0 0 0 1.8px var(--ink-white),
+    0 0 0 2.6px var(--ink-black);
+}
+
+/* 架子左起第一枚与棋盘左边线对齐：留一点点内缩，避免圆片的边框贴到棋盘边 */
+.eink-board__tray[data-pos='top'],
+.eink-board__tray[data-pos='bottom'] {
+  padding-left: calc(var(--tray-piece) * 0.06);
 }
 
 /*
@@ -1186,6 +1261,166 @@ html[data-font-scale='1.5'] .eink-tile__title {
   background: var(--ink-black);
   color: var(--ink-white);
   outline: none;
+}
+
+/*
+ * 棋子圆片（象棋）：`data-disc` 让字形变成一个实心圆片 —— 红=白底黑字 + 双边框，
+ * 黑=黑底白字 + 粗边框。两方的马/车/炮是同一个字，1-bit 屏上只能靠底色区分。
+ *
+ * 尺寸都按 `--cell` 算，不写死像素：同一套规则要同时适配 45px（P6Plus）与 61px（NoteX2）。
+ * 圆片取 66%、字取 0.5 格：字几乎占满圆片（真棋子就是这样），而圆片外加边框后
+ * 仍与格子边线留出约 4px，好让"上一手"的细方框画得下（两套标记会出现在同一格）。
+ */
+.eink-board .eink-board__cell[data-disc] .eink-board__text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--cell, 40px) * 0.66);
+  height: calc(var(--cell, 40px) * 0.66);
+  border-radius: 50%;
+  font-size: calc(var(--cell, 40px) * 0.5);
+  font-weight: 700;
+}
+
+/*
+ * 底色与字色必须在这里按"圆片 + 选中"的组合再写一遍，而且选择器要**多带一个
+ * [data-selected] 分支**：文件后面那条通用的
+ * `.eink-board__cell[data-selected='yes'] .eink-board__text { color: white }`
+ * 与本段权重相同、位置在后，会赢 —— 实测后果是"选中的红子变成白字画在白底上，
+ * 字整个消失"（3× 放大截图里一眼可见）。这里的 (0,5,0) 稳压它。
+ */
+.eink-board .eink-board__cell[data-disc='light'] .eink-board__text,
+.eink-board .eink-board__cell[data-disc='light'][data-selected='yes'] .eink-board__text {
+  background: var(--ink-white);
+  color: var(--ink-black);
+}
+
+.eink-board .eink-board__cell[data-disc='dark'] .eink-board__text,
+.eink-board .eink-board__cell[data-disc='dark'][data-selected='yes'] .eink-board__text {
+  background: var(--ink-black);
+  color: var(--ink-white);
+}
+
+.eink-board .eink-board__cell[data-disc='light'] .eink-board__text {
+  box-shadow:
+    0 0 0 1.2px var(--ink-black),
+    0 0 0 2.2px var(--ink-white),
+    0 0 0 3.2px var(--ink-black);
+}
+
+.eink-board .eink-board__cell[data-disc='dark'] .eink-board__text {
+  /* 粗边框必须先留一道白缝：黑圈直接贴在黑底上等于看不见 */
+  box-shadow:
+    0 0 0 1.2px var(--ink-white),
+    0 0 0 3px var(--ink-black);
+}
+
+/*
+ * 有圆片的格子不靠"整格反白"表示选中：反白后黑子与红子长得一模一样（两套都是
+ * 黑底白字 + 一圈），那就分不出"我选的子"和"对面的子"了。改成本形状：
+ *   light（己方）＝ 圆片外再加一圈；dark（可吃的敌子）＝ 格子四角画角标。
+ * 角标用背景渐变画（不用伪元素）：::before/::after 被"填错叉"与"起点圆点"占着。
+ */
+.eink-board .eink-board__cell[data-disc][data-selected='yes'] {
+  background: none;
+  color: var(--ink-black);
+}
+
+.eink-board .eink-board__cell[data-disc='light'][data-selected='yes'] .eink-board__text {
+  box-shadow:
+    0 0 0 1.2px var(--ink-black),
+    0 0 0 2.2px var(--ink-white),
+    0 0 0 3.2px var(--ink-black),
+    0 0 0 4.4px var(--ink-white),
+    0 0 0 5.4px var(--ink-black);
+}
+
+.eink-board .eink-board__cell[data-disc='dark'][data-selected='yes'] {
+  --cap-arm: calc(var(--cell, 40px) * 0.2);
+  --cap-thick: calc(var(--cell, 40px) * 0.045);
+  background-image:
+    linear-gradient(var(--ink-black), var(--ink-black)), linear-gradient(var(--ink-black), var(--ink-black)),
+    linear-gradient(var(--ink-black), var(--ink-black)), linear-gradient(var(--ink-black), var(--ink-black)),
+    linear-gradient(var(--ink-black), var(--ink-black)), linear-gradient(var(--ink-black), var(--ink-black)),
+    linear-gradient(var(--ink-black), var(--ink-black)), linear-gradient(var(--ink-black), var(--ink-black));
+  background-size:
+    var(--cap-arm) var(--cap-thick), var(--cap-thick) var(--cap-arm),
+    var(--cap-arm) var(--cap-thick), var(--cap-thick) var(--cap-arm),
+    var(--cap-arm) var(--cap-thick), var(--cap-thick) var(--cap-arm),
+    var(--cap-arm) var(--cap-thick), var(--cap-thick) var(--cap-arm);
+  background-position:
+    left 1px top 1px, left 1px top 1px, right 1px top 1px, right 1px top 1px,
+    left 1px bottom 1px, left 1px bottom 1px, right 1px bottom 1px, right 1px bottom 1px;
+  background-repeat: no-repeat;
+}
+
+/*
+ * 上一手：起点留一个圆点（棋子已经走了，点在这里当"痕迹"），终点加一圈内描边。
+ * 为什么不用"放大/加粗字形"标最后一手（象棋与五子棋原来都这么做）：
+ * 1-bit 屏上字号一放大，笔画密的字（「马」「車」）就糊成一团，反而看不出走了哪；
+ * 位置痕迹（点 + 框）不依赖字形清晰度，永远有效。
+ *
+ * 双方各自的最后一手都要标，而且**不能用颜色区分红黑**，所以全部靠形状：
+ *   起点：方号 0（红/白棋）= **空心**圆点（○），方号 1（黑棋）= **实心**圆点（●）
+ *        —— 与棋子底色同调：白子挖空、黑子填实，用户指定
+ *   终点：方号 0 = 单线方框，方号 1 = 双方框（中间一道白缝）
+ * 线宽取细（1px 级）：格子里可能同时有棋子圆片，粗框会和圆片的圆环糊成一片；
+ * 圆环 vs 方框本身已是强区分（形状不同，不靠粗细）。
+ * 一格同时是"红方起点 + 黑方终点"是合法组合（红子从这里走掉、黑子又落到这里），
+ * 点与框是不同属性，能同时显示；同格出现两个终点框时由规则层决定留哪一个。
+ *
+ * 关于内描边：这里最多两格，所以描边叠在格子边线上没问题 —— 与数独那次
+ * 45 个给定格全部加 inset 2px、被用户否掉「已有数字的方块还是太粗了」是两回事。
+ * 用 `box-shadow: inset` 而不是 `border`：不动盒子尺寸，网格线不会被挤歪。
+ */
+.eink-board .eink-board__cell[data-last-to='0'] {
+  box-shadow: inset 0 0 0 1.5px var(--ink-black);
+}
+
+.eink-board .eink-board__cell[data-last-to='1'] {
+  box-shadow:
+    inset 0 0 0 1px var(--ink-black),
+    inset 0 0 0 2.5px var(--ink-white),
+    inset 0 0 0 3.5px var(--ink-black);
+}
+
+/* 描到反白格（其他玩法的选中态）上时黑白对调，仍是纯 1-bit */
+.eink-board .eink-board__cell[data-last-to='0'][data-selected='yes']:not([data-disc]) {
+  box-shadow: inset 0 0 0 1.5px var(--ink-white);
+}
+
+.eink-board .eink-board__cell[data-last-to='1'][data-selected='yes']:not([data-disc]) {
+  box-shadow:
+    inset 0 0 0 1px var(--ink-white),
+    inset 0 0 0 2.5px var(--ink-black),
+    inset 0 0 0 3.5px var(--ink-white);
+}
+
+/*
+ * 起点圆点用 ::after；"填错"的叉用的是 ::before + ::after，所以这里显式排除它，
+ * 免得两种标记抢同一个伪元素（象棋没有填错态，但壳层规则要自洽）。
+ */
+.eink-board .eink-board__cell[data-last-from='0']:not([data-wrong='yes']),
+.eink-board .eink-board__cell[data-last-from='1']:not([data-wrong='yes']) {
+  position: relative;
+}
+
+.eink-board .eink-board__cell[data-last-from='0']:not([data-wrong='yes'])::after {
+  content: '';
+  position: absolute;
+  inset: 38%;
+  border-radius: 50%;
+  border: 2px solid var(--ink-black);
+  background: var(--ink-white);
+}
+
+/* 方号 1（黑棋）：实心圆点 —— 与黑子底色同调，和白棋的空心点在 1-bit 下区分最大 */
+.eink-board .eink-board__cell[data-last-from='1']:not([data-wrong='yes'])::after {
+  content: '';
+  position: absolute;
+  inset: 40%;
+  border-radius: 50%;
+  background: var(--ink-black);
 }
 
 /*

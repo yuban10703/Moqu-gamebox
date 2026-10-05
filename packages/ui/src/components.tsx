@@ -288,6 +288,24 @@ function BoardGlyph({
   return null
 }
 
+/**
+ * 吃子盘：棋盘外侧的一行「已经吃掉的棋子」（象棋用）。
+ *
+ * 高度是**固定**的（空着也占位）：否则第一次吃子时多出一行，棋盘会突然缩小 ——
+ * 布局跳动比留白更糟。只在游戏真的声明了 `captured` 时才渲染，别的玩法完全不受影响。
+ */
+export function CapturedTray({ glyphs, position }: { glyphs: string; position: 'top' | 'bottom' }): ReactNode {
+  return (
+    <div className="eink-board__tray" data-pos={position} data-empty={glyphs.length === 0 ? 'yes' : 'no'} aria-hidden="true">
+      {[...glyphs].map((glyph, index) => (
+        <span key={`${glyph}-${index}`} className="eink-board__tray-piece">
+          {glyph}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export interface BoardProps {
   /** 「加粗线条」设置：加粗 SVG 线宽，方便墨水屏上辨认 */
   bold?: boolean
@@ -367,6 +385,9 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
           {...(isGroupRight(cellView.index) ? { 'data-sep-right': 'yes' } : {})}
           {...(isGroupBottom(cellView.index) ? { 'data-sep-bottom': 'yes' } : {})}
           {...(cellView.selected ? { 'data-selected': 'yes' } : {})}
+          {...(cellView.disc ? { 'data-disc': cellView.disc } : {})}
+          {...(cellView.lastFrom !== undefined ? { 'data-last-from': String(cellView.lastFrom) } : {})}
+          {...(cellView.lastTo !== undefined ? { 'data-last-to': String(cellView.lastTo) } : {})}
           {...(cellView.wrong ? { 'data-wrong': 'yes' } : {})}
           {...(cellView.facing ? { 'data-facing': cellView.facing } : {})}
           {...(cellView.links?.length ? { 'data-links': cellView.links.join(' ') } : {})}
