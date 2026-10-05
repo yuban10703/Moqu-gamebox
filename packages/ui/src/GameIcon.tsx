@@ -119,6 +119,33 @@ const SHAPES: Record<string, ReactNode> = {
       <circle cx="18" cy="12" r="3" fill="currentColor" />
     </>
   ),
+  /*
+   * 象棋：双圈细环 + 棋子上的「象」字（用户指定：圆环内有个象子）。
+   *
+   * 这是本文件唯一的例外 —— 其它图标都是纯线条、不用字形。破例的理由：象棋棋子
+   * 本身就是「圆圈 + 汉字」，只画线条反而认不出是什么棋。取舍写在这里备查：
+   *   - 字撑满内圈（15/24、加粗），首页方块的 26px 下能看出是个棋子；
+   *   - 继续条只有 22px，字会偏糊 —— 但那一行旁边就写着游戏名，不影响认游戏；
+   *   - 依赖设备有中文字形，与"符号字体可能缺字形"的既有教训相冲突，属明知而为。
+   */
+  xiangqi: (
+    <>
+      <circle cx="12" cy="12" r="10.4" strokeWidth="1.3" />
+      <circle cx="12" cy="12" r="8.8" strokeWidth="0.8" />
+      <text
+        x="12"
+        y="12.2"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={15}
+        fontWeight={700}
+        fill="currentColor"
+        stroke="none"
+      >
+        象{/* i18n-exempt：棋子字形，中英界面同样显示汉字（与棋盘棋子一致） */}
+      </text>
+    </>
+  ),
 }
 
 /** 未知命名空间回退到一个中性方块，绝不返回空（空图标比通用图标更糟） */
