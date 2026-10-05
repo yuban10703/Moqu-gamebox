@@ -9,7 +9,7 @@
 *An offline game collection designed for e-ink screens*
 
 <p>
-  <img alt="games" src="https://img.shields.io/badge/games-14-111111?style=flat-square">
+  <img alt="games" src="https://img.shields.io/badge/games-15-111111?style=flat-square">
   <img alt="platform" src="https://img.shields.io/badge/platform-Web%20PWA%20%7C%20Android%206.0%2B-111111?style=flat-square">
   <img alt="offline" src="https://img.shields.io/badge/offline-100%25-111111?style=flat-square">
   <img alt="permissions" src="https://img.shields.io/badge/Android%20permissions-0-111111?style=flat-square">
@@ -25,7 +25,7 @@
 
 ---
 
-14 款游戏，中文 / 英文，**完全离线、不要任何权限**。
+15 款游戏，中文 / 英文，**完全离线、不要任何权限**。
 
 不是把手机游戏搬到墨水屏上，而是围绕墨水屏从头设计：纯黑白、没有动画、点按优先、分页代替滚动、断电不丢进度。
 
