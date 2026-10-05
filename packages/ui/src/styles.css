@@ -1267,6 +1267,32 @@ html[data-font-scale='1.5'] .eink-tile__title {
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  /*
+   * 不换行：格内文字要么是数字/符号，要么是一个完整的词
+   * （俄罗斯方块消行定格那一拍要在整条黑带上写「消行 +800」）。
+   * 那个词比一个格子宽 —— 怎么让它不被相邻格盖住，见下面的 [data-banner] 规则。
+   */
+  white-space: nowrap;
+}
+
+/*
+ * 横幅文字（CellView.banner）：文字比格子宽时，**相邻格的背景会把溢出的部分盖掉**
+ * （浏览器实测：`Line clear` 只剩 `Line cl`、`+100` 只剩 `+10`）——
+ * 因为后面的兄弟格是后画的，它们的背景正好压在溢出部分上。
+ *
+ * 修法：把文字绝对定位锚在**自己这一格**上（left/top 50% + translate(-50%,-50%) 居中）。
+ * 定位元素在绘制顺序里晚于普通流兄弟，于是它压过相邻格；而它仍然跟着格子走
+ * —— 这不是"覆盖层自成一坐标系"那套（那套在真机上整体错过位，已被删除）。
+ */
+.eink-board__cell[data-banner='yes'] {
+  position: relative;
+}
+
+.eink-board__cell[data-banner='yes'] .eink-board__text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /*
@@ -1294,6 +1320,21 @@ html[data-font-scale='1.5'] .eink-tile__title {
 .eink-board__cell[data-kind='mine'] {
   background: var(--ink-black);
   color: var(--ink-white);
+}
+
+/*
+ * 反色格（CellView.flash）：俄罗斯方块消行定格的前两拍 —— 要被消掉的那几行翻成白格。
+ *
+ * 只有黑白两态，"整行变白"就是最醒目的标记：压在黑压压的堆上，一条白带一眼可见；
+ * 白格上的字自动变成黑字（`color` 一起翻），第二拍「消行 +100」正好写在白带上。
+ *
+ * 刻意**不加描边**：加内框虽然让白带在白底区域也看得见边界，但第二拍的黑字一横跨过去
+ * 就会被内框吃掉半截（实测 `Line clear` 被切成 `L ne c ea `）——用户要的是"白底黑字"。
+ * 顺序要求：必须排在 `[data-kind='mine']` 之后（同优先级，靠文件里靠后的胜出）。
+ */
+.eink-board__cell[data-flash='yes'] {
+  background: var(--ink-white);
+  color: var(--ink-black);
 }
 
 /* 旗标格：白底 + 加粗字形（不放进下面那组白底列表，免得同一选择器出现两次） */

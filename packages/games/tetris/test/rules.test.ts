@@ -13,7 +13,9 @@ import { describe, expect, it } from 'vitest'
 import { IllegalActionError, MIN_TICK_MS, createRng, type MoveDir, type Rng } from '@eink/core'
 import { ALL_PIECES, cellsOf, type PieceId } from '../src/pieces.js'
 import {
+  ALL_DIRS,
   CELL_FILLED,
+  CLEAR_HOLD_MS,
   DIFFICULTIES,
   LINE_SCORES,
   LINES_PER_LEVEL,
@@ -63,6 +65,7 @@ function manual(board: readonly number[], piece: ActivePiece, overrides: Partial
     score: 0,
     lines: 0,
     pieces,
+    clearing: null,
     history: [],
     ...overrides,
   }
@@ -76,15 +79,34 @@ function seedWithPiece(index: number, id: PieceId): number {
   throw new Error(`no seed gives ${id} at ${index}`)
 }
 
-/** 让方块一路下落直到固化（0 次或多次下落；最多 rows 次以内必然固化） */
+/**
+ * 让方块一路下落直到固化（0 次或多次下落；最多 rows 次以内必然固化），
+ * 并**走完消行定格那一拍**（见 settleClear）—— 断言"消行之后"的局面用它。
+ */
 function dropUntilLocked(state: TetrisState): TetrisState {
+  return settleClear(dropUntilBeat(state))
+}
+
+/** 落到"固化那一瞬间"：消行定格还没结清（满行还在棋盘上、分数还没加） */
+function dropUntilBeat(state: TetrisState): TetrisState {
   let current = state
   for (let step = 0; step <= ROWS; step++) {
     const before = current
     current = reduceState(current, { type: 'move', dir: 'down' })
-    if (current.pieces > before.pieces) return current
+    // 固化有两种样子：没满行（pieces 立刻 +1）与满行（进入消行定格，pieces 还没加）
+    if (current.pieces > before.pieces || current.clearing) return current
   }
   throw new Error('piece never locked')
+}
+
+/**
+ * 结清消行定格：定格分两拍（反色 → 出文字），第二拍结束的那个 tick 才真正消掉、加分、出下一块。
+ * 断言「消行之后」的局面都要先走完这两拍。
+ */
+function settleClear(state: TetrisState): TetrisState {
+  let current = state
+  for (let step = 0; step < 4 && current.clearing; step++) current = reduceState(current, { type: 'tick' })
+  return current
 }
 
 /**
@@ -413,6 +435,153 @@ describe('消行与计分', () => {
 })
 
 /**
+ * 消行定格（打击感）：满行先留一拍、整盘反色，下一拍才真正消掉。
+ *
+ * 这一拍在规则层里就是**一个 tick**，没有任何时间引用 ——
+ * 面板约 2 次全屏刷新/秒，做不出消行动画，能做的只有「离散状态的对比度 + 停留时间」。
+ */
+describe('消行定格（满行先留一拍，再消）', () => {
+  /** 底行只缺 4、5 两列，O 块正好补上 → 一落就满一行 */
+  function oneRowFromClear(): TetrisState {
+    const board = emptyBoard(COLS, ROWS)
+    for (let col = 0; col < COLS; col++) {
+      if (col !== 4 && col !== 5) board[cellIndex(COLS, ROWS - 1, col)] = CELL_FILLED
+    }
+    return manual(board, { id: 'O', row: ROWS - 2, col: 4, rot: 0 }, { score: 500, lines: 3, seed: seedWithPiece(0, 'O') })
+  }
+
+  it('固化那一刻：满行还在棋盘上，分数 / 消行 / 已固化块数都还没动', () => {
+    const before = oneRowFromClear()
+    const hold = dropUntilBeat(before)
+    expect(hold.clearing).toEqual({ rows: [ROWS - 1], points: 100, phase: 'flash' })
+    // 满行还在（这正是"看得见的那一拍"）
+    for (let col = 0; col < COLS; col++) {
+      expect(hold.board[cellIndex(COLS, ROWS - 1, col)]).toBe(CELL_FILLED)
+    }
+    // 计数与分数都没动 —— 它们和满行一起在定格结束的那一刻跳
+    expect(hold.lines).toBe(3)
+    expect(hold.score).toBe(500)
+    expect(hold.pieces).toBe(before.pieces)
+    // 存档不变式（decode 校验依赖它们）在定格中也成立
+    expect(hold.cursor).toBe(hold.pieces + 1)
+    expect(hold.piece.id).toBe(pieceAt(hold.seed, hold.cursor - 1))
+    // 当前块就是刚固化那一块：它的 4 个格子全都在棋盘里
+    expect(pieceCells(hold.piece).every((cell) => hold.board[cellIndex(COLS, cell.row, cell.col)] === CELL_FILLED)).toBe(true)
+  })
+
+  it('第一拍反色、第二拍出文字、第三拍才真正消行', () => {
+    const hold = dropUntilBeat(oneRowFromClear())
+    expect(hold.clearing?.phase).toBe('flash')
+    // 第一拍：还是那几行，只是相位翻到 label（视图据此先反色、再写字）
+    const labelled = reduceState(hold, { type: 'tick' })
+    expect(labelled.clearing?.phase).toBe('label')
+    expect(labelled.lines).toBe(3)
+    expect(labelled.score).toBe(500)
+    expect(labelled.board).toEqual(hold.board)
+    // 第二拍：才真正消行
+    const after = reduceState(labelled, { type: 'tick' })
+    expect(after.clearing).toBeNull()
+    expect(after.lines).toBe(4)
+    expect(after.score).toBe(600)
+    expect(after.pieces).toBe(hold.pieces + 1)
+    expect(after.cursor).toBe(hold.cursor + 1)
+    // 底行只剩这一块的上半部分（第 4、5 列），其余行清空
+    expect(after.board[cellIndex(COLS, ROWS - 1, 4)]).toBe(CELL_FILLED)
+    expect(after.board[cellIndex(COLS, ROWS - 1, 5)]).toBe(CELL_FILLED)
+    expect(after.board.reduce((sum, cell) => sum + cell, 0)).toBe(2)
+    // 新块就是出块序列里的下一块
+    expect(after.piece.id).toBe(pieceAt(after.seed, after.cursor - 1))
+  })
+
+  it('定格期间不接受移动 / 旋转 / 落（两拍都拒绝，不静默吞输入）', () => {
+    const hold = dropUntilBeat(oneRowFromClear())
+    const labelled = reduceState(hold, { type: 'tick' })
+    for (const phaseState of [hold, labelled]) {
+      for (const dir of ALL_DIRS) {
+        expect(() => reduceState(phaseState, { type: 'move', dir })).toThrow(IllegalActionError)
+        expect(isLegal(phaseState, { type: 'move', dir })).toBe(false)
+      }
+      // 定格中局面仍是"进行中"（不能因为方块已并盘就误报失败）
+      expect(statusOf(phaseState)).toBe('playing')
+      // 定格中只允许 tick / 撤销 / 重开
+      expect(legalActions(phaseState).map((action) => action.type).sort()).toEqual(['restart', 'tick', 'undo'])
+    }
+  })
+
+  it('定格长度：tickMs 给固定的一拍（面板一帧），与难度无关', () => {
+    const hold = dropUntilBeat(oneRowFromClear())
+    expect(tetrisGame.tickMs?.(hold, 'starter')).toBe(CLEAR_HOLD_MS)
+    expect(CLEAR_HOLD_MS).toBeGreaterThanOrEqual(MIN_TICK_MS)
+    // 出文字那一拍同样是固定值（两拍加起来才是完整的一下）
+    expect(tetrisGame.tickMs?.(reduceState(hold, { type: 'tick' }), 'starter')).toBe(CLEAR_HOLD_MS)
+    // 结清之后立刻回到难度自己的间隔
+    const after = settleClear(hold)
+    expect(tetrisGame.tickMs?.(after, 'starter')).toBe(difficultyOf('starter').tickMs)
+  })
+
+  it('定格期间撤销：直接回到"方块还没落下来"之前（满行与方块一起退回）', () => {
+    const before = oneRowFromClear()
+    const hold = dropUntilBeat(before)
+    const back = reduceState(hold, { type: 'undo' })
+    expect(back.board).toEqual(before.board)
+    expect(back.piece).toEqual(before.piece)
+    expect(back.clearing).toBeNull()
+    expect(back.score).toBe(500)
+    expect(back.lines).toBe(3)
+    expect(back.history).toEqual([])
+    // 走完两拍之后再撤销，结果必须完全一致（同一个撤销层级，不会"退一半"）
+    const settled = settleClear(hold)
+    expect(reduceState(settled, { type: 'undo' })).toEqual(back)
+    // 第二拍（已出文字）里撤销同样干净
+    expect(reduceState(reduceState(hold, { type: 'tick' }), { type: 'undo' })).toEqual(back)
+  })
+
+  it('定格中的状态能原样存档（encode → JSON → decode）', () => {
+    const hold = dropUntilBeat(oneRowFromClear())
+    for (const phaseState of [hold, reduceState(hold, { type: 'tick' })]) {
+      const raw = encodeState(phaseState)
+      expect(raw.clearing?.phase).toBe(phaseState.clearing?.phase)
+      const decoded = decodeState(JSON.parse(JSON.stringify(raw)))
+      expect(decoded).toEqual(phaseState)
+      expect(decoded.clearing).toEqual(phaseState.clearing)
+    }
+    // 上一版（还没分两拍）写下的存档没有 phase 字段：按 flash 读，不判损坏
+    const legacy = encodeState(hold) as unknown as Record<string, unknown>
+    delete (legacy.clearing as Record<string, unknown>).phase
+    expect(decodeState(legacy).clearing?.phase).toBe('flash')
+  })
+
+  it('坏掉的定格字段一律拒绝（行不满 / 越界 / 方块没并盘 / 上限）', () => {
+    const hold = dropUntilBeat(oneRowFromClear())
+    const good = encodeState(hold) as unknown as Record<string, unknown>
+    const boardFilled = hold.board.slice()
+    const holeIndex = cellIndex(COLS, ROWS - 1, 0)
+    const boardWithHole = hold.board.slice()
+    boardWithHole[holeIndex] = 0
+    const cases: Array<[string, unknown]> = [
+      ['clearing 不是对象', { ...good, clearing: 7 }],
+      ['行号列表为空', { ...good, clearing: { rows: [], points: 100 } }],
+      ['行号越界', { ...good, clearing: { rows: [ROWS], points: 100 } }],
+      ['行号重复', { ...good, clearing: { rows: [ROWS - 1, ROWS - 1], points: 100 } }],
+      ['超过一次能消的上限', { ...good, clearing: { rows: [0, 1, 2, 3, 4], points: 100 } }],
+      ['这一行并不是满的', { ...good, board: boardWithHole, clearing: { rows: [ROWS - 1], points: 100 } }],
+      ['分数不是自然数', { ...good, clearing: { rows: [ROWS - 1], points: -1 } }],
+      ['相位未知', { ...good, clearing: { rows: [ROWS - 1], points: 100, phase: 'nope' } }],
+      ['棋盘与满行对不上（整盘清空）', { ...good, board: emptyBoard(COLS, ROWS), clearing: { rows: [ROWS - 1], points: 100 } }],
+    ]
+    for (const [name, payload] of cases) {
+      expect(() => decodeState(payload), name).toThrow(IllegalActionError)
+    }
+    // 方块没并进棋盘的"定格"也是坏的：把那一块从棋盘上抹掉
+    const boardWithoutPiece = boardFilled.slice()
+    for (const cell of pieceCells(hold.piece)) boardWithoutPiece[cellIndex(COLS, cell.row, cell.col)] = 0
+    expect(() =>
+      decodeState({ ...good, board: boardWithoutPiece, clearing: { rows: [ROWS - 1], points: 100 } } as unknown),
+    ).toThrow(IllegalActionError)
+  })
+})
+
+/**
  * 「堆到顶」前一手：井口已经被下一块的出生格占住（= 堆到顶），当前块竖直贴在左下角，
  * 再落一次就会固化并让新块放不下。
  */
@@ -626,7 +795,11 @@ describe('撤销（逆操作，不存整盘快照）', () => {
     const snapshots: TetrisState[] = [state]
     for (let step = 0; step < 60; step++) {
       const actions = legalActions(state).filter((action) => action.type === 'move')
-      if (actions.length === 0) break
+      // 消行定格那一拍没有任何可走的棋步（只有 tick 能结清它）——先结清再继续走
+      if (actions.length === 0) {
+        state = settleClear(state)
+        continue
+      }
       state = reduceState(state, actions[rng.int(actions.length)]!)
       snapshots.push(state)
     }
@@ -731,9 +904,12 @@ describe('确定性重放', () => {
       expect(state.board).toHaveLength(spec.cols * spec.rows)
       expect(state.board.every((cell) => cell === 0 || cell === 1)).toBe(true)
       expect(state.cursor).toBe(state.pieces + 1)
-      expect(fits(state.board, spec, state.piece) || statusOf(state) === 'lost').toBe(true)
+      // 定格那一拍里当前块已经并进棋盘（fits 必然为 false），此时状态固定是 playing
+      const inHold = state.clearing !== null
+      expect(fits(state.board, spec, state.piece) || statusOf(state) === 'lost' || inHold).toBe(true)
       const clearedRows = state.history.reduce((sum, entry) => sum + (entry.kind === 'lock' ? entry.cleared.length : 0), 0)
-      expect(clearedRows).toBe(state.lines)
+      // 撤销栈里记的"已填满行数" = 已经消掉的 + 正定格等着消的
+      expect(clearedRows).toBe(state.lines + (state.clearing?.rows.length ?? 0))
       if (state.pieces > lockedSeen) lockedSeen = state.pieces
 
       const raw = encodeState(state)

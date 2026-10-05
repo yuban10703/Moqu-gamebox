@@ -28,6 +28,7 @@ function lostState(): TetrisState {
     score: 900,
     lines: 6,
     pieces: 4,
+    clearing: null,
     history: [],
   }
 }

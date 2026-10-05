@@ -37,6 +37,12 @@ export const tetrisZh: Dict = {
   'tetris.dir.right': '右',
   'tetris.dpad.label': '方向控制：左右平移，上旋转，下落一格',
   'tetris.blocked': '这一步走不通',
+  /*
+   * 消行定格那一拍写在黑带左侧的字（右侧是这一下拿到的分，直接是数字）。
+   * 放在字典里而不是写死在 view.ts：中文文案写进源码会绕过 i18n（tools/scripts/check-i18n.mjs 会拦），
+   * view 只给 key，翻译由壳层做（见 core 的 CellView.glyphKey）。
+   */
+  'tetris.fx.clear': '消行',
   'tetris.lost.title': '堆到顶了',
   'tetris.result.score__other': '得分 {count}',
   'tetris.result.lines__other': '消行 {count}',
@@ -69,6 +75,7 @@ export const tetrisEn: Dict = {
   'tetris.dir.right': 'Right',
   'tetris.dpad.label': 'Direction pad: sideways to shift, up to rotate, down to drop one row',
   'tetris.blocked': 'That move is blocked',
+  'tetris.fx.clear': 'Line clear',
   'tetris.lost.title': 'Top out',
   'tetris.result.score__other': 'Score {count}',
   'tetris.result.lines__one': '{count} line cleared',

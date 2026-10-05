@@ -20,6 +20,7 @@ import {
   CapturedTray,
   Dialog,
   Dpad,
+  localizeBoard,
   NoticeLine,
   SaveBadge,
   StatBar,
@@ -222,8 +223,20 @@ export function GameScreen({
     enabled: session.ready && !session.corrupt,
   })
 
+  /**
+   * 格子里的文案 key 先翻成最终文字再交给 Board（Board 是纯展示组件，自己不碰 i18n）。
+   * 没有 key 的棋盘原样返回，不影响其它 16 款玩法。
+   */
+  const board = useMemo(
+    () => (session.view.board ? localizeBoard(session.view.board, (key) => i18n.t(key)) : null),
+    [session.view.board, i18n],
+  )
+
   // 无障碍标签：优先用游戏包声明的 key，缺省回退到格子自身的符号
   const cellLabel = (kind: CellKind, index: number, glyph: string): string => {
+    // 横幅格（消行定格那一拍的黑带）读它自己的文字：「消行 +800」比「已固定的方块」有用得多
+    const cell = board?.cells[index]
+    if (cell?.banner && cell.glyph) return cell.glyph
     const row = cellLabelRow(session.view.board, index)
     const key = entry.cellLabelKey?.(kind)
     return `${key ? i18n.t(key) : glyph}${row}`
@@ -422,7 +435,7 @@ export function GameScreen({
                 {/* 吃子盘：游戏声明了 captured 才渲染（高度固定，避免第一次吃子时棋盘缩一下） */}
                 {session.view.captured ? <CapturedTray glyphs={session.view.captured.top} position="top" /> : null}
                 <Board
-                  board={session.view.board}
+                  board={board ?? session.view.board}
                   labelFor={cellLabel}
                   bold={settings.boldLines}
                   {...(session.selectCell ? { onCellSelect: session.selectCell } : {})}

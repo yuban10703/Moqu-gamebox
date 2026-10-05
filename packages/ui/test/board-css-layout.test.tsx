@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import type { BoardView, CellView } from '@eink/core'
-import { Board } from '../src/components.js'
+import { Board, localizeBoard } from '../src/components.js'
 
 function grid(cols: number, rows: number, patch: (index: number) => Partial<CellView> = () => ({})): BoardView {
   const cells: CellView[] = []
@@ -68,6 +68,75 @@ describe('棋盘：几何由 CSS 决定，JS 只给形状', () => {
     const span = container.querySelector('.eink-board__text') as HTMLElement
     expect(span.style.fontSize).toContain('var(--cell')
     expect(span.style.fontSize).toContain('0.74')
+  })
+})
+
+describe('格子里的文案 key 由壳层翻译（CellView.glyphKey）', () => {
+  it('localizeBoard 把 key 翻成文字，其余字段原样保留', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 2,
+      rows: 1,
+      cells: [
+        { index: 0, kind: 'mine', glyph: '消行', glyphKey: 'tetris.fx.clear' },
+        { index: 1, kind: 'mine', glyph: '+800' },
+      ],
+    }
+    const out = localizeBoard(board, (key) => (key === 'tetris.fx.clear' ? 'Line clear' : `⟦${key}⟧`))
+    expect(out.cells[0]!.glyph).toBe('Line clear')
+    expect(out.cells[0]!.glyphKey).toBe('tetris.fx.clear')
+    // 本来就是字面量的格子不受影响（分数是数字，语言无关）
+    expect(out.cells[1]!.glyph).toBe('+800')
+  })
+
+  it('没有 glyphKey 的棋盘原样返回（同一个对象）——其余 16 款玩法零开销', () => {
+    const board = grid(2, 2)
+    expect(localizeBoard(board, (key) => key)).toBe(board)
+  })
+
+  it('反色格（flash）带 data-flash：样式靠它把黑格翻成白条并加粗描边', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 2,
+      rows: 1,
+      cells: [
+        { index: 0, kind: 'mine', glyph: '', flash: true },
+        { index: 1, kind: 'mine', glyph: '', flash: true },
+      ],
+    }
+    const { container } = render(<Board board={board} />)
+    expect(container.querySelectorAll(".eink-board__cell[data-flash='yes']")).toHaveLength(2)
+    // 普通格不该被标（否则其它玩法的格子会被翻白）
+    const plain = render(<Board board={grid(1, 1)} />)
+    expect(plain.container.querySelector(".eink-board__cell[data-flash='yes']")).toBeNull()
+  })
+
+  it('横幅格（banner）带 data-banner：样式靠它把文字锚在格子上、压过相邻格', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 2,
+      rows: 1,
+      cells: [
+        { index: 0, kind: 'mine', glyph: '消行', banner: true },
+        { index: 1, kind: 'mine', glyph: '+800', banner: true },
+      ],
+    }
+    const { container } = render(<Board board={board} />)
+    expect(container.querySelectorAll(".eink-board__cell[data-banner='yes']")).toHaveLength(2)
+    // 普通文字格不该被标（否则其它玩法的字号排布会被绝对定位打乱）
+    const plain = render(<Board board={grid(1, 1, () => ({ kind: 'number', glyph: '7' }))} />)
+    expect(plain.container.querySelector(".eink-board__cell[data-banner='yes']")).toBeNull()
+  })
+
+  it('翻译后的文字照常渲染进格子', () => {
+    const board: BoardView = {
+      kind: 'grid',
+      cols: 1,
+      rows: 1,
+      cells: [{ index: 0, kind: 'mine', glyph: '消行', glyphKey: 'tetris.fx.clear' }],
+    }
+    const { container } = render(<Board board={localizeBoard(board, () => 'Line clear')} />)
+    expect(container.querySelector('.eink-board__text')!.textContent).toBe('Line clear')
   })
 })
 
