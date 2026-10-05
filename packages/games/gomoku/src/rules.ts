@@ -2,9 +2,9 @@
  * 对局状态与动作执行（纯函数，无副作用）。
  *
  * 三件事让壳层不需要认识任何玩法：
- * 1. 玩家只派发 `place`：白方的应手在**同一次 reduce 内**算完，
- *    因此壳层不必驱动 AI，也不存在「等白方走棋」的中间态；
- * 2. `undo` 撤销**一整回合**（玩家 + 白方两手）：回合日志里存的是两手落点，
+ * 1. 玩家派发 `place` 只落黑子；白方的应手由壳层定时派发**两拍 tick** 完成
+ *    （第一拍只亮出 AI 选中的目标格、第二拍才落子 —— 用户要求「先亮一下再落子」），
+ *    因此存在「等白方走棋」的中间态，壳层用 `tickMs` 驱动；
  *    弹掉最后一回合再重放即可还原（不需要白方重算，因此撤销与 AI 强度无关）；
  * 3. `restart` 无条件接受（壳层的结果面板/暂停菜单会直接派发）。
  *
@@ -30,6 +30,8 @@ import { GOMOKU_ID, difficultyOrThrow, type DifficultyId } from './meta.js'
 export type GomokuAction =
   /** 在 index 落黑子（玩家）。非法落子抛 IllegalActionError，由壳层给出明确提示 */
   | { type: 'place'; index: number }
+  /** 自动步进（壳层按 tickMs 定时派发）：第一拍亮出白方选中的落点，第二拍才落子 */
+  | { type: 'tick' }
   /** 撤销一整回合：回到玩家上次落子之前（白方的应手一起退回） */
   | { type: 'undo' }
   /** 重开。壳层的结果面板/暂停菜单会无条件派发它，因此必须接受 */
@@ -54,6 +56,12 @@ export interface GomokuState {
   rngCursor: number
   /** 最后一手的落点（双方都算），用于棋盘上「加重描边」高亮 */
   lastMove: number | null
+  /**
+   * AI（白方）已经「选中」但还没落下的应手（棋盘格索引）；null = 还没选。
+   * 应手分两拍：第一拍 tick 只把这个点记下来（目标格在棋盘上亮出内框），
+   * 第二拍 tick 才真正落下白子。
+   */
+  readonly opponentPick: number | null
   /** 回合日志；`history.length` 恒等于 `moves` */
   history: readonly GomokuTurn[]
 }
@@ -79,6 +87,7 @@ export function createState(seed: number, difficulty: DifficultyId): GomokuState
     moves: 0,
     rngCursor: 0,
     lastMove: null,
+    opponentPick: null,
     history: [],
   }
 }
@@ -138,8 +147,8 @@ function replayTurns(turns: readonly GomokuTurn[]): ReplayResult {
     const isLast = position === turns.length - 1
 
     if (turn.white === null) {
-      // 白方不应手只有一种合法解释：黑方这一手已经把对局终结
-      if (!blackFive && !fullAfterBlack) throw illegal('gomoku.illegal.state:white-missing')
+      // 白方不应手只有两种合法解释：黑方这一手直接终局，或这是一局还没应手的
+      // 最后一回合（两拍式应手的中间态）。两种情况都只允许出现在最后一回合。
       if (!isLast) throw illegal('gomoku.illegal.state:turn-after-end')
       continue
     }
@@ -157,6 +166,12 @@ function replayTurns(turns: readonly GomokuTurn[]): ReplayResult {
   return { board, whiteCount, lastMove }
 }
 
+/** 是否有「白方待应手」的中间态：最后一回合黑方已落、白方还没落（对局未结束） */
+function pending(state: GomokuState): boolean {
+  const last = state.history[state.history.length - 1]
+  return last !== undefined && last.white === null
+}
+
 function assertPlayable(state: GomokuState): void {
   if (outcomeOf(state.board) !== null) throw illegal('gomoku.illegal.finished')
 }
@@ -165,37 +180,55 @@ export function reduceGomoku(state: GomokuState, action: GomokuAction): GomokuSt
   switch (action.type) {
     case 'place': {
       assertPlayable(state)
+      if (pending(state)) throw illegal('gomoku.illegal.not-your-turn')
       const index = action.index
       if (!isIndex(index)) throw illegal(`gomoku.illegal.index:${String(index)}`)
       if (state.board[index] !== EMPTY) throw illegal(`gomoku.illegal.occupied:${index}`)
-
+    
       const board = state.board.slice()
       board[index] = BLACK
-      const turn: GomokuTurn = { black: index, white: null }
-      let lastMove = index
-
-      // 黑方这一手没终结对局才轮到白方；白方应手必须在这同一次 reduce 内算完
-      if (!makesFive(board, index, BLACK) && !isFull(board)) {
-        const reply = chooseOpponentMove(state.difficulty, board, state.seed, state.rngCursor)
-        if (reply === null) throw illegal('gomoku.illegal.opponent-stuck')
-        if (!isIndex(reply) || board[reply] !== EMPTY) {
-          throw illegal(`gomoku.illegal.opponent-move:${String(reply)}`)
-        }
-        board[reply] = WHITE
-        turn.white = reply
-        lastMove = reply
-      }
-
+      // 只落黑方这一手：白方应手改由随后两拍 tick 完成（先亮目标格、再落子）
       return {
         ...state,
         board,
         moves: state.moves + 1,
-        rngCursor: state.rngCursor + (turn.white === null ? 0 : 1),
-        lastMove,
-        history: [...state.history, turn],
+        lastMove: index,
+        history: [...state.history, { black: index, white: null }],
       }
     }
-
+    
+    case 'tick': {
+      assertPlayable(state)
+      if (!pending(state)) throw illegal('gomoku.illegal.tick-no-turn')
+      if (state.opponentPick === null) {
+        // 第一拍：只「选中」—— 棋盘一格不动，玩家看到 AI 要在哪里落子
+        const reply = chooseOpponentMove(state.difficulty, state.board, state.seed, state.rngCursor)
+        if (reply === null) throw illegal('gomoku.illegal.opponent-stuck')
+        if (!isIndex(reply) || state.board[reply] !== EMPTY) {
+          throw illegal(`gomoku.illegal.opponent-move:${String(reply)}`)
+        }
+        return { ...state, opponentPick: reply }
+      }
+      // 第二拍：真正落子。着法在第一拍就算好了，这里只核对它仍然合法
+      const pick = state.opponentPick
+      if (!isIndex(pick) || state.board[pick] !== EMPTY) {
+        throw illegal(`gomoku.illegal.opponent-move:${String(pick)}`)
+      }
+      const board = state.board.slice()
+      board[pick] = WHITE
+      const history = state.history.slice()
+      const last = history[history.length - 1] as GomokuTurn
+      history[history.length - 1] = { black: last.black, white: pick }
+      return {
+        ...state,
+        board,
+        rngCursor: state.rngCursor + 1,
+        lastMove: pick,
+        opponentPick: null,
+        history,
+      }
+    }
+    
     case 'undo': {
       if (state.history.length === 0) throw illegal('gomoku.illegal.nothing-to-undo')
       // 连白方的应手一起退回：弹掉最后一回合并按剩余日志重放，玩家与白方两手同时消失
@@ -207,6 +240,7 @@ export function reduceGomoku(state: GomokuState, action: GomokuAction): GomokuSt
         moves: history.length,
         rngCursor: replay.whiteCount,
         lastMove: replay.lastMove,
+        opponentPick: null,
         history,
       }
     }
@@ -227,8 +261,13 @@ export function reduceGomoku(state: GomokuState, action: GomokuAction): GomokuSt
 export function legalActions(state: GomokuState): GomokuAction[] {
   const actions: GomokuAction[] = []
   if (outcomeOf(state.board) === null) {
-    for (let index = 0; index < CELLS; index++) {
-      if (state.board[index] === EMPTY) actions.push({ type: 'place', index })
+    if (pending(state)) {
+      // 白方待应手：只接受 tick（玩家这一手已经落在盘上了）
+      actions.push({ type: 'tick' })
+    } else {
+      for (let index = 0; index < CELLS; index++) {
+        if (state.board[index] === EMPTY) actions.push({ type: 'place', index })
+      }
     }
   }
   if (state.history.length > 0) actions.push({ type: 'undo' })
@@ -243,6 +282,7 @@ export function legalActions(state: GomokuState): GomokuAction[] {
 export function selectAction(state: GomokuState, index: number): GomokuAction | null {
   if (!isIndex(index)) return null
   if (outcomeOf(state.board) !== null) return null
+  if (pending(state)) return null
   if (state.board[index] !== EMPTY) return null
   return { type: 'place', index }
 }
@@ -255,6 +295,7 @@ export function encodeState(state: GomokuState): unknown {
     moves: state.moves,
     rngCursor: state.rngCursor,
     lastMove: state.lastMove,
+    opponentPick: state.opponentPick,
     history: state.history.map((turn) => ({ black: turn.black, white: turn.white })),
   }
 }
@@ -310,6 +351,7 @@ export function decodeState(raw: unknown): GomokuState {
     moves: unknown
     rngCursor: unknown
     lastMove: unknown
+    opponentPick: unknown
     history: unknown
   }>
   const difficulty = difficultyOrThrow(String(value.difficulty ?? ''))
@@ -333,6 +375,17 @@ export function decodeState(raw: unknown): GomokuState {
   const lastMove =
     storedLast === null || storedLast === undefined ? null : readIndex(storedLast, 'last-move')
   if (lastMove !== replay.lastMove) throw illegal('gomoku.illegal.state:last-move')
+  
+  // AI 已选中未落下：只允许出现在「最后一回合白方未应手」的中间态，且必须是空格的合法落点
+  const storedPick = value.opponentPick
+  const opponentPick =
+    storedPick === null || storedPick === undefined ? null : readIndex(storedPick, 'opponent-pick')
+  if (opponentPick !== null) {
+    if (history.length === 0 || history[history.length - 1]!.white !== null) {
+      throw illegal('gomoku.illegal.state:pick-side')
+    }
+    if (replay.board[opponentPick] !== EMPTY) throw illegal('gomoku.illegal.state:pick')
+  }
 
-  return { difficulty, seed, board: replay.board, moves, rngCursor, lastMove: replay.lastMove, history }
+  return { difficulty, seed, board: replay.board, moves, rngCursor, opponentPick, lastMove: replay.lastMove, history }
 }

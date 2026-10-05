@@ -25,12 +25,18 @@ import {
   encodeState,
   gameStatus,
   legalActions,
+  outcomeOf,
   reduceGomoku,
   selectAction,
   type GomokuAction,
   type GomokuState,
 } from './rules.js'
 import { buildControls, buildView } from './view.js'
+
+/** 「玩家落子 → AI 亮目标格」的间隔（第一拍） */
+const REPLY_DELAY_MS = 450
+/** 「AI 已亮目标格 → 真正落子」的间隔（第二拍，用户指定 500ms） */
+const PICK_TO_MOVE_MS = 500
 
 // 壳层需要的公开面（文案 + 视图构件 + 规则），壳层不感知内部拆分
 export { gomokuEn, gomokuZh } from './i18n.js'
@@ -140,6 +146,17 @@ export const gomokuGame: GameDef<GomokuState, GomokuAction> = {
 
   selectAction(state: GomokuState, index: number): GomokuAction | null {
     return selectAction(state, index)
+  },
+
+  /**
+   * 两拍式应手：玩家落黑后先等 450ms 才亮出 AI 选中的目标格，再隔 500ms 真正落白子。
+   * 只有「白方待应手」的中间态才返回值，其余情况壳层不起表。
+   */
+  tickMs(state: GomokuState): number | null {
+    const last = state.history[state.history.length - 1]
+    if (!last || last.white !== null) return null
+    if (outcomeOf(state.board) !== null) return null // 黑方这一手直接终局：没有应手
+    return state.opponentPick === null ? REPLY_DELAY_MS : PICK_TO_MOVE_MS
   },
 
   /**

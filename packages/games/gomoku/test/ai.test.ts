@@ -38,6 +38,7 @@ import {
   isFullBoard,
   playerMoves,
   winnerOf,
+  settle,
 } from './helpers.js'
 
 /** 白方应手必须满足的独立复核条件 */
@@ -85,7 +86,8 @@ describe('白方着法合法且可复现', () => {
           const index = moves[rng.int(moves.length)]!
           script.push(index)
           const before = state.board
-          const next = reduceGomoku(state, { type: 'place', index })
+          const placed = reduceGomoku(state, { type: 'place', index })
+          const next = settle(placed)
           const note = `${difficulty} seed=${seed} move=${index}`
 
           assertLegalReply(before, next.board, next, difficulty, note)
@@ -107,7 +109,7 @@ describe('白方着法合法且可复现', () => {
 
         // 同一玩家动作序列重放：逐步与存档都完全一致（白方完全由 seed + 游标决定）
         let replay = gomokuGame.create(seed, difficulty)
-        for (const index of script) replay = reduceGomoku(replay, { type: 'place', index })
+        for (const index of script) replay = settle(reduceGomoku(replay, { type: 'place', index }))
         expect(encodeState(replay)).toEqual(encodeState(state))
       }
     }
@@ -226,9 +228,11 @@ describe('性能与随机源', () => {
       let worst = 0
       for (let ply = 0; ply < 3 && gameStatus(state) === 'playing'; ply++) {
         const index = playerMoves(state)[0]!
+        const placed = reduceGomoku(state, { type: 'place', index })
         const start = performance.now()
-        state = reduceGomoku(state, { type: 'place', index })
+        state = reduceGomoku(placed, { type: 'tick' }) // 第一拍 tick 才是真正的选点决策
         worst = Math.max(worst, performance.now() - start)
+        state = settle(state)
       }
       expect(worst, `turns=${turns}`).toBeLessThan(500)
     }
@@ -239,7 +243,7 @@ describe('性能与随机源', () => {
     for (const difficulty of DIFFICULTY_IDS) {
       let state = gomokuGame.create(7, difficulty)
       for (let ply = 0; ply < 8 && gameStatus(state) === 'playing'; ply++) {
-        state = reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! })
+        state = settle(reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! }))
       }
     }
     expect(spy).not.toHaveBeenCalled()
@@ -257,7 +261,7 @@ describe('性能与随机源', () => {
     // 白方强度只影响选点，不影响状态结构：三档难度下计数不变量都成立
     for (const difficulty of DIFFICULTY_IDS) {
       let state = gomokuGame.create(2024, difficulty)
-      for (const index of [0, 1, 2]) state = reduceGomoku(state, { type: 'place', index })
+      for (const index of [0, 1, 2]) state = settle(reduceGomoku(state, { type: 'place', index }))
       expect(countOf(state.board, BLACK)).toBe(state.moves)
       expect(countOf(state.board, WHITE)).toBe(state.rngCursor)
     }

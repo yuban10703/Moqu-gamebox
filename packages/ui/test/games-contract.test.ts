@@ -158,7 +158,7 @@ describe('自动步进的声明（tickMs）', () => {
     const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
       .map((game) => game.id)
       .sort()
-    expect(withTick).toEqual(['buckshot', 'doudizhu', 'snake', 'tetris', 'xiangqi'])
+    expect(withTick).toEqual(['buckshot', 'doudizhu', 'gomoku', 'snake', 'tetris', 'xiangqi'])
   })
 
   it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {
