@@ -134,3 +134,39 @@ describe('扫雷：踩雷输掉之后仍可撤销（结果面板里的撤销按�
     )
   })
 })
+
+describe('结束时棋盘不缩放：结果面板占用原控制区那一格', () => {
+  it('结束面板那一格的高度 = 对局中控制区的实测高度（面板贴底叠放，不挤小棋盘区）', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW)
+    // jsdom 没有布局：让控制区量出 132px，其余元素照旧是 0
+    const original = Element.prototype.getBoundingClientRect
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.classList.contains('eink-controls-stack')) return { ...original.call(this), height: 132 } as DOMRect
+      return original.call(this)
+    })
+    const platform = await createPlatform({ kv: createMemoryKv(), now: () => NOW })
+    render(<App platform={platform} library={library} />)
+    await waitFor(() => expect(screen.getByText(/All games/)).toBeTruthy())
+    fireEvent.click(tileByTitle('Minesweeper'))
+    await waitFor(() => expect(screen.getByText(/How to play/)).toBeTruthy())
+    fireEvent.click(screen.getByText('New game'))
+    await waitFor(() => expect(screen.getByRole('grid')).toBeTruthy())
+
+    const probed = minesweeperGame.reduce(minesweeperGame.create(SEED, 'starter'), {
+      type: 'reveal',
+      index: 0,
+    } as MinesweeperAction)
+    const mine = probed.mines.find((index) => !probed.revealed.includes(index))!
+    fireEvent.click(cellAt(0))
+    fireEvent.click(cellAt(mine))
+    await waitFor(() => expect(document.querySelector('.eink-section--result')).not.toBeNull())
+
+    const slot = document.querySelector<HTMLElement>('.eink-endslot')!
+    expect(slot).not.toBeNull()
+    expect(slot.contains(document.querySelector('.eink-section--result'))).toBe(true)
+    expect(slot.dataset.reserved).toBe('yes')
+    expect(slot.style.getPropertyValue('--endslot-h')).toBe('132px')
+    // 控制区已经让位（不会和结果面板同时占高度）
+    expect(document.querySelector('.eink-controls-stack')).toBeNull()
+  })
+})

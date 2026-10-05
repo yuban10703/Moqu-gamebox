@@ -275,6 +275,16 @@ export function GameScreen({
    * 测量放在 useLayoutEffect：在浏览器绘制前完成，墨水屏上不会先画一次两行再改成一行。
    */
   const controlsRef = useRef<HTMLDivElement | null>(null)
+  /*
+   * 对局中控制区的实测高度（每次渲染后更新）。一局结束时控制区让位给结果面板，
+   * 结果面板改为叠在**同样高度**的一格里（见下方 .eink-endslot）——棋盘区的高度于是不变，
+   * 结束时棋盘不会被缩放（用户反馈：无论胜负，结束后棋盘都会缩一下）。
+   */
+  const playingControlsHeightRef = useRef(0)
+  useLayoutEffect(() => {
+    const el = controlsRef.current
+    if (el) playingControlsHeightRef.current = el.getBoundingClientRect().height
+  })
   const [pauseCompact, setPauseCompact] = useState(false)
   useLayoutEffect(() => {
     if (!pauseMenuOpen) return
@@ -430,7 +440,20 @@ export function GameScreen({
           </div>
 
           {session.finished && session.view.result ? (
+            /*
+             * 结束面板占的是**原控制区那一格**（高度 = 对局中控制区的实测高度），面板贴底叠放：
+             * 比那一格高时向上盖住状态条与棋盘下沿，而不是把棋盘挤小。
+             * 量不到（打开时就是已结束的存档、没有对局中的控制区）就照常排在文档流里。
+             * 极矮横屏下这一格是右侧控制列（styles.css），面板直接放进去。
+             */
+            <div
+              className="eink-endslot"
+              data-reserved={playingControlsHeightRef.current > 0 ? 'yes' : 'no'}
+              style={{ ['--endslot-h' as string]: `${Math.round(playingControlsHeightRef.current)}px` } as CSSProperties}
+            >
             <section className="eink-section eink-section--result" role="status">
+              {/* 标题与各项结果排成一段（「 · 」分隔），比逐行列表矮得多 —— 面板叠在棋盘下沿上，越矮盖得越少 */}
+              <div className="eink-result-summary">
               <h2>{i18n.t(session.view.result.titleKey)}</h2>
               <ul className="eink-result-details">
                 {session.view.result.details.map((detail) => (
@@ -455,6 +478,7 @@ export function GameScreen({
                   </li>
                 ) : null}
               </ul>
+              </div>
               <div className="eink-card__actions">
                 {/*
                   Undo stays reachable after a loss: losing the game (stepping on a mine,
@@ -495,6 +519,7 @@ export function GameScreen({
                 <ActionButton labelKey="shell.result.library" onSelect={onExit} />
               </div>
             </section>
+            </div>
           ) : null}
 
           {/* 过关后控制区让位给结果面板：此时没有用处，而结果面板必须与棋盘一起

@@ -150,6 +150,27 @@ body {
   padding: var(--gap);
 }
 
+/*
+ * 结束面板那一格：一局结束时控制区让位给结果面板，这一格保持**对局中控制区的实测高度**
+ * （--endslot-h，GameScreen 量好传进来），面板贴底叠放、比这一格高时向上盖住状态条与棋盘下沿。
+ * 于是棋盘区高度在结束前后完全一样 —— 不会因为面板与控制区高度不同而缩放（用户反馈）。
+ * 量不到时（data-reserved="no"：打开时就已结束）照常排在文档流里。
+ */
+.eink-endslot[data-reserved='yes'] {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--endslot-h);
+}
+
+.eink-endslot[data-reserved='yes'] > .eink-section--result {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  background: var(--ink-white);
+}
+
 .eink-text {
   margin: 0;
 }
@@ -398,9 +419,50 @@ html[data-font-scale='1.5'] .eink-screen--game .eink-stats__item dd {
   font-weight: 600;
 }
 
-.eink-result-details {
+/*
+ * 结果面板：标题与各项结果排成**一段**（标题加粗在前，各项之间用「 · 」分隔），按钮一行。
+ * 逐行列表在 1.5× 字号下有 300px 高，叠在棋盘下沿上会盖掉好几行；排成一段后约矮一半。
+ */
+.eink-section--result {
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.eink-result-summary {
   margin: 0;
-  padding-left: 1.2em;
+  line-height: 1.4;
+}
+
+.eink-result-summary > h2 {
+  display: inline;
+  margin-right: 0.6em;
+}
+
+.eink-result-details {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eink-result-details li {
+  display: inline;
+}
+
+.eink-result-details li + li::before {
+  content: '·';
+  margin: 0 0.4em;
+}
+
+/*
+ * 按钮尽量一行排开（最多三个：撤销 / 下一关、再来一次、返回游戏库）：收窄左右内边距，按文字宽度起步、
+ * 再均分剩余宽度；真放不下（极窄屏 + 大字号）才换行 —— 宁可多一行，也不截断文字。
+ */
+.eink-section--result .eink-card__actions .eink-button {
+  flex: 1 1 auto;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
 }
 
 /* 详情页「历史记录」上方的最高纪录（无尽类玩法） */
@@ -2407,9 +2469,25 @@ html[data-font-scale='1.5'] .eink-tile__title {
     min-height: 0;
   }
 
-  /* 过关面板排在状态条下方、横跨整行（隐式第 4 行：没有它时不产生多余行距） */
-  .eink-screen--game > .eink-section--result {
-    grid-area: 4 / 1 / 5 / -1;
+  /*
+   * 结束面板放进右侧控制列（原控制区那一格）：棋盘列的宽高在结束前后都不变。
+   * 这一格本来就有棋盘那么高，面板直接排在里面；放不下才在格内滚动（不会挤出屏幕）。
+   */
+  .eink-screen--game > .eink-endslot,
+  .eink-screen--game > .eink-endslot[data-reserved] {
+    grid-area: 2 / 2 / 3 / 3;
+    position: static;
+    height: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .eink-screen--game > .eink-endslot > .eink-section--result {
+    position: static;
+    max-height: 100%;
+    overflow-y: auto;
   }
 
   /*
