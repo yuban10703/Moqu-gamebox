@@ -228,7 +228,7 @@ describe('极矮横屏（并排布局）与棋盘不可用判定', () => {
   })
 
   it('并排后 879×407 不再算「棋盘不可用」，但真正放不下的横屏仍然减速', () => {
-    // 并排把棋盘救回来了：不再误伤自动步进（用户要求贪吃蛇统一 500ms）
+    // 并排把棋盘救回来了：不再误伤自动步进（贪吃蛇三档统一 700ms）
     expect(isCrampedLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, true)).toBe(false)
     expect(isCrampedLayout(P6PLUS_LANDSCAPE, DEFAULT_LAYOUT, false)).toBe(false)
     // 常用档位：不能误伤（否则会把正常的自动步进也拖慢）
