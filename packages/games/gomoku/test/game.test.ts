@@ -112,45 +112,43 @@ describe('view / 1-bit 呈现约定', () => {
         expect(cells[index]!.glyph).toBe('')
         expect(cells[index]!.selected).toBeUndefined()
       } else {
-        // 玩家的末手借 'given'（壳层里是"白底 + 加粗文字"），AI 末手与其余子是 'tile'
-        expect(cells[index]!.kind).toBe(index === state.lastMove && stone === BLACK ? 'given' : 'tile')
+        // 所有棋子都是 tile：末手不再借 'given'（玩家的放大效果已按用户要求去掉）
+        expect(cells[index]!.kind).toBe('tile')
         expect(cells[index]!.glyph).toBe(stone === BLACK ? '●' : '○')
       }
     }
     expect(cells.filter((cell) => cell.glyph === '●')).toHaveLength(countStones(state.board).black)
     expect(cells.filter((cell) => cell.glyph === '○')).toHaveLength(countStones(state.board).white)
-    expect(cellKindAt(state, state.lastMove!)).toBe(state.board[state.lastMove!] === BLACK ? 'given' : 'tile')
+    expect(cellKindAt(state, state.lastMove!)).toBe('tile')
     expect(cellGlyphAt(state, state.lastMove!)).not.toBe('')
   })
 
-  it('最后一手**不反白**：加粗 + 放大一档，全盘只有它一个标记', () => {
+  it('末手标记：只有 AI 的末手带内框，玩家末手与其余棋子完全一致', () => {
     /*
-     * 用户报的缺陷：AI 的白子在被"选中"的格子里看着像黑子 ——
-     * 因为原先最后一手用 `selected: true`（壳层会把整格反白），
-     * 反白连棋子本体一起翻转，实心/空心互换观感。
-     * 现在改成 kind 'given'（白底加粗）+ textScale 放大：实心仍实心、空心仍空心。
+     * 演进：最初末手用「加粗 + 放大一档」（kind 'given'），用户后来要求去掉放大
+     * （棋子大小不一看起来像"这颗子有问题"，且 ●/○ 是几何字形，加粗也看不出差异），
+     * 于是玩家末手不做任何特殊标记；AI（白方）末手改用内框描边（data-last-to）。
+     * 全程不反白：反白会把棋子本体一起翻转（AI 白子在黑底上看着像黑块，用户报过）。
      */
-    const state = advance(fresh(), 3)
+    const state = advance(fresh(), 4)
     expect(state.lastMove).not.toBeNull()
     const board = gomokuGame.view(state).board!
-    const marked = board.cells.filter((cell) => cell.selected || cell.kind === 'given' || cell.lastTo !== undefined)
+    const marked = board.cells.filter((cell) => cell.lastTo !== undefined)
     expect(marked.map((cell) => cell.index)).toEqual([state.lastMove])
     expect(board.cells.every((cell) => cell.selected === undefined)).toBe(true)
-    if (state.board[state.lastMove!] === BLACK) {
-      // 玩家的末手：保持放大一档（加粗由 given 完成）
-      expect(marked[0]!.kind).toBe('given')
-      expect(marked[0]!.textScale).toBeGreaterThan(1)
-    } else {
-      // AI（白方）的末手：内框描边，不反白也不放大
-      expect(marked[0]!.kind).toBe('tile')
-      expect(marked[0]!.lastTo).toBe(1)
-      expect(marked[0]!.textScale).toBeUndefined()
+    // 全盘棋子大小一致、没有 given 放大：玩家末手与其它子完全一样
+    for (const cell of board.cells) {
+      expect(cell.kind).not.toBe('given')
+      expect(cell.textScale).toBeUndefined()
     }
+    // advance 走 4 手 → 末手是 AI 的白子 → 带双线内框
+    expect(marked[0]!.kind).toBe('tile')
+    expect(marked[0]!.lastTo).toBe(1)
     // 开局没有历史也没有最后一手
     expect(gomokuGame.view(fresh()).board!.cells.some((cell) => cell.kind === 'given')).toBe(false)
   })
 
-  it('棋子不靠灰阶区分：只用两种字形；玩家末手放大、AI 末手内框', () => {
+  it('棋子不靠灰阶区分：只用两种字形；玩家末手无标记、AI 末手内框', () => {
     const state = advance(fresh(), 4)
     const board = gomokuGame.view(state).board!
     const glyphs = new Set(board.cells.map((cell) => cell.glyph))

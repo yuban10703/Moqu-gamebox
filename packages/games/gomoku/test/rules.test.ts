@@ -216,7 +216,7 @@ describe('落子后自动应手', () => {
     expect(state.rngCursor).toBe(state.moves)
     const highlighted = gomokuGame
       .view(state)
-      .board!.cells.filter((cell) => cell.kind === 'given' || cell.selected || cell.lastTo !== undefined)
+      .board!.cells.filter((cell) => cell.lastTo !== undefined)
     expect(highlighted.map((cell) => cell.index)).toEqual([state.lastMove])
   })
 })
