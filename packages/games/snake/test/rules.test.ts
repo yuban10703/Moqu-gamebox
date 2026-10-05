@@ -573,7 +573,7 @@ describe('自动步进的声明：规则层零时间引用', () => {
     expect(snakeGame.tickMs!(won, 'skilled')).toBeNull()
   })
 
-  it('三档间隔**完全相同**：统一 500ms，且不低于 400ms 硬下限', () => {
+  it('三档间隔**完全相同**：统一 700ms，且不低于 400ms 硬下限', () => {
     /*
      * 用户要求"不同难度的延迟应该统一"：难度差异一律由**规则**承担
      * （穿墙 / 障碍 / 每食长两节），不由手速承担。这条用例钉住三件事，
@@ -582,11 +582,11 @@ describe('自动步进的声明：规则层零时间引用', () => {
     const declared = DIFFICULTY_IDS.map((id) => difficultySpec(id).tickMs)
     // 1) 三档一模一样（差 1ms 都算没统一，不是"三个相近的值"）
     expect(new Set(declared).size).toBe(1)
-    expect(declared).toEqual([500, 500, 500])
-    // 2) 统一值就是选定的 500ms：BOOX 整屏刷新实测约 2 次/秒，500ms 正好卡在
+    expect(declared).toEqual([700, 700, 700])
+    // 2) 统一值就是选定的 700ms：BOOX 整屏刷新实测约 2 次/秒，700ms 在它之上
     //    "不产生残影"的边界上。这里写死字面量：改 meta.ts 必须同时改这里，
     //    不允许节奏悄悄漂移（"我们选定的值"是需求的一部分）。
-    expect(declared[0]).toBe(500)
+    expect(declared[0]).toBe(700)
     // 3) 不低于 core 的硬下限 —— 且统一值**不靠壳层钳位兜底**：
     //    声明 300ms 会被钳回 400ms，但那是"不诚实的声明"，这条就是拦住它的。
     expect(MIN_TICK_MS).toBe(400)
@@ -602,7 +602,7 @@ describe('自动步进的声明：规则层零时间引用', () => {
      *    值相等断言仍可能因为"改回同一个数"而看不出结构被破坏）。
      */
     const meta = readFileSync(new URL('../src/meta.ts', import.meta.url), 'utf8')
-    expect(meta).toMatch(/const SNAKE_TICK_MS\s*=\s*500\b/)
+    expect(meta).toMatch(/const SNAKE_TICK_MS\s*=\s*700\b/)
     expect(meta.match(/tickMs:\s*SNAKE_TICK_MS\b/g) ?? []).toHaveLength(DIFFICULTY_IDS.length)
   })
 })

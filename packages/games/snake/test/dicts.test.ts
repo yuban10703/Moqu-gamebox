@@ -99,7 +99,7 @@ describe('中英字典对齐', () => {
     expect(i18nEn.missingKeys()).toEqual([])
   })
 
-  it('玩法说明如实写明「会自动前进」与「怎么暂停」，间隔写的是**三档统一值**（0.5 秒）', () => {
+  it('玩法说明如实写明「会自动前进」与「怎么暂停」，间隔写的是**三档统一值**（0.7 秒）', () => {
     expect(snakeZh['snake.rules.body']).toContain('自己往前爬')
     expect(snakeZh['snake.rules.body2']).toContain('暂停')
     expect(snakeEn['snake.rules.body']).toMatch(/crawls on its own/i)
@@ -110,10 +110,10 @@ describe('中英字典对齐', () => {
     const enSeconds = [...(snakeEn['snake.rules.body'] ?? '').matchAll(/(\d+(?:\.\d+)?)s(?=[ ,.])/g)].map(
       (match) => Number(match[1]),
     )
-    // 用户要求"不同难度的延迟应该统一"：说明里只能出现**一个**间隔值（0.5 秒），
+    // 用户要求"不同难度的延迟应该统一"：说明里只能出现**一个**间隔值（0.7 秒），
     // 不能再宣传"越难越快"的分档速度（旧文案 0.6 / 0.48 / 0.4）。
-    expect(zhSeconds).toEqual([0.5])
-    expect(enSeconds).toEqual([0.5])
+    expect(zhSeconds).toEqual([0.7])
+    expect(enSeconds).toEqual([0.7])
     expect(snakeZh['snake.rules.body']).not.toMatch(/0\.6|0\.48|0\.4/)
     expect(snakeEn['snake.rules.body']).not.toMatch(/0\.6|0\.48|0\.4/)
     for (const value of [...zhSeconds, ...enSeconds]) {
