@@ -14,11 +14,11 @@ import type { Dict } from '@eink/core'
 export const xiangqiZh: Dict = {
   'xiangqi.title': '中国象棋',
   'xiangqi.rules.body':
-    '你执红先行（红方在下）。点自己的棋子选中，再点高亮的落点走子；黑方自动应手，无需等待。',
+    '你执红先行（红方在下）：点自己的子，再点高亮的落点即可走子；黑方会自己应手。',
   'xiangqi.rules.body2':
-    '马走日、别马腿，相走田、塞象眼，仕帅不出九宫，炮吃子必须隔一个炮架，兵过河后才能横走。将帅不可照面，也不得送将。',
+    '马别腿、相塞眼、仕帅不出九宫、炮吃子要隔一个子、兵过河后才能横走；不得送将，将帅不可照面。',
   'xiangqi.rules.body3':
-    '将死或困毙对方即获胜（象棋里无子可动同样判负）；同一局面出现第三次判和。棋盘中间那条粗线就是楚河汉界。',
+    '将死或困毙即获胜（无子可动同样判负）；同一局面出现三次判和。中间那条粗线就是河界。',
   'xiangqi.rules.restart':
     '重新开始会清空当前对局，回到同一种子下的标准开局，且无法撤销回重开之前。',
   'xiangqi.illegal.notice': '这一步走不通',
@@ -47,11 +47,11 @@ export const xiangqiZh: Dict = {
 export const xiangqiEn: Dict = {
   'xiangqi.title': 'Chinese Chess',
   'xiangqi.rules.body':
-    'You play Red (bottom) and move first. Tap one of your pieces to select it, then tap a highlighted target. Black replies automatically in the same move.',
+    'You play Red (bottom) and move first: tap a piece, then tap a highlighted square. Black answers on its own.',
   'xiangqi.rules.body2':
-    'Horse moves in an L and can be blocked at its leg; elephant moves two diagonally and can be blocked at its eye; advisor and general stay inside the palace; a cannon captures only over exactly one screen; a pawn may move sideways only after crossing the river. The two generals may never face each other on an open file, and you may not leave your own general in check.',
+    'Horse and elephant can be blocked at leg and eye; advisor and general stay in the palace; a cannon captures over exactly one screen; pawns gain sideways moves after the river. Never leave your general in check or facing the other general.',
   'xiangqi.rules.body3':
-    'Checkmate or stalemate wins (in xiangqi a side with no legal move loses); a position repeated three times is a draw. The thick line across the middle of the board is the river.',
+    'Checkmate or stalemate wins (no legal move also loses); threefold repetition is a draw. The thick line across the middle is the river.',
   'xiangqi.rules.restart':
     'Restarting clears the current game and returns to the standard opening for the same seed; you cannot undo back past a restart.',
   'xiangqi.illegal.notice': 'That move is not allowed',
