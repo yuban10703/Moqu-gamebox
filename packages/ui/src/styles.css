@@ -1321,8 +1321,14 @@ html[data-font-scale='1.5'] .eink-tile__title {
  *   light（己方）＝ 圆片外再加一圈；dark（可吃的敌子）＝ 格子四角画角标。
  * 角标用背景渐变画（不用伪元素）：::before/::after 被"填错叉"与"起点圆点"占着。
  */
+/*
+ * 注意这里是**不透明白底**，不是 `background: none`：
+ * 棋盘那一层天生带一条 45° 斜纹底纹（`.eink-board` 的 background-image，原本给"未翻格"用的），
+ * 格子正常都画白底把它盖住。早先这里图省事写成 `background: none`，格子变透明 →
+ * **底纹从选中格的四个角透出来**（用户报的就是这个"四角斜纹"，6× 放大一眼可见）。
+ */
 .eink-board .eink-board__cell[data-disc][data-selected='yes'] {
-  background: none;
+  background-color: var(--ink-white);
   color: var(--ink-black);
 }
 
@@ -1336,6 +1342,7 @@ html[data-font-scale='1.5'] .eink-tile__title {
 }
 
 .eink-board .eink-board__cell[data-disc='dark'][data-selected='yes'] {
+  background-color: var(--ink-white);
   --cap-arm: calc(var(--cell, 40px) * 0.2);
   --cap-thick: calc(var(--cell, 40px) * 0.045);
   background-image:
