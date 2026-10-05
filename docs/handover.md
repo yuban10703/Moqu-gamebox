@@ -91,6 +91,21 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 12. **改动先给用户看，得到允许再提交**（2026-10-05 用户明确要求）：写完只留在工作区，
     用摘要/diff 说清改了什么、验了什么；用户点头后才 `git commit` + `git push`。
     不要"改一处提交一处" —— 未经允许的提交（尤其推送）会打断用户的评审节奏。
+13. **设备上做测试一律用 debug 版**（2026-10-05 用户指定）：
+    - 只有 debug 构建会 `WebView.setWebContentsDebuggingEnabled(true)`，`tools/scripts/devtools-eval.py`
+      才能用 —— 直接读真机 DOM（几何、计算样式、游戏状态），比"盲点坐标 + 猜截图"准得多。
+      构建：`gradle assembleDebug`（**不需要**正式密钥的四个环境变量），产物 `app/build/outputs/apk/debug/app-debug.apk`。
+    - 端口约定：P6Plus `9333`、NoteX2 `9444`。socket 名带进程号
+      （`adb shell cat /proc/net/unix | grep -o 'webview_devtools_remote[_0-9]*'`），
+      **应用每次重启 pid 都会变** → 必须重建 `adb forward tcp:<端口> localabstract:<socket>`，
+      再从 `http://127.0.0.1:<端口>/json` 取 `webSocketDebuggerUrl`。
+    - **换装代价（不可逆）**：debug 与正式签名冲突 → 必须先 `adb uninstall` → **设备存档清空**，
+      而且**无法备份**（备份靠 `run-as`，它只对可调试应用有效，正式版正好不是）。
+      换装后 BOOX 会把新包置为 `DISABLED_USER`，要 `pm enable --user 0 com.einkgamebox`
+      （实测**可能要执行两次**才生效，见 `docs/android.md`）。
+    - **发版核对的口径**：验证已发布产物用**签名指纹 + 关于页构建时间戳**（`keytool -printcert -jarfile`），
+      不必为了看界面把设备换回正式版；只有要在设备上体验"用户拿到的那一份"时才换回正式版，
+      并且心里清楚那会再清一次存档。
 
 ## 4. 加一款新游戏：完整步骤
 
