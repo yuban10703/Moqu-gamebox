@@ -29,6 +29,13 @@ import { tetrisEn, tetrisGame, tetrisZh } from '@eink/tetris'
 import { match3En, match3Game, match3Zh } from '@eink/match3'
 import { doudizhuEn, doudizhuGame, doudizhuZh } from '@eink/doudizhu'
 import { buckshotEn, buckshotGame, buckshotZh } from '@eink/buckshot'
+import {
+  cellLabelKey as xiangqiCellLabelKey,
+  progressFor as xiangqiProgressFor,
+  xiangqiEn,
+  xiangqiGame,
+  xiangqiZh,
+} from '@eink/xiangqi'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -196,9 +203,17 @@ export const library: GameLibrary = {
         total: 3,
       }),
     }),
+    defineGame({
+      game: xiangqiGame,
+      // 包自己导出的 kind → 字典键映射（与其它游戏内联写 lambda 等价）
+      cellLabelKey: xiangqiCellLabelKey,
+      rulesKeys: ['xiangqi.rules.body', 'xiangqi.rules.body2', 'xiangqi.rules.body3'],
+      defaultDifficulty: 'starter',
+      progressFor: xiangqiProgressFor,
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh, ...xiangqiZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn, ...xiangqiEn },
   },
 }

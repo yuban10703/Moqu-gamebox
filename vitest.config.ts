@@ -21,6 +21,7 @@ export default defineConfig({
       '@eink/match3': pkg('games/match3/src/index.ts'),
       '@eink/doudizhu': pkg('games/doudizhu/src/index.ts'),
       '@eink/buckshot': pkg('games/buckshot/src/index.ts'),
+      '@eink/xiangqi': pkg('games/xiangqi/src/index.ts'),
     },
   },
   test: {

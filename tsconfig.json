@@ -49,6 +49,8 @@
       "@eink/doudizhu/*": ["packages/games/doudizhu/src/*"],
       "@eink/buckshot": ["packages/games/buckshot/src/index.ts"],
       "@eink/buckshot/*": ["packages/games/buckshot/src/*"],
+      "@eink/xiangqi": ["packages/games/xiangqi/src/index.ts"],
+      "@eink/xiangqi/*": ["packages/games/xiangqi/src/*"],
       "@eink/ui": ["packages/ui/src/index.ts"],
       "@eink/ui/*": ["packages/ui/src/*"],
       "@eink/platform": ["packages/platform/src/index.ts"],
