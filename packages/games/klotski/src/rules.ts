@@ -21,6 +21,7 @@ import {
   isMoveDir,
   isSolved,
   levelOrThrow,
+  nextLevelId,
   occupancy,
   pieceById,
   replaySlides,
@@ -40,6 +41,11 @@ export type KlotskiAction =
   | { type: 'undo' }
   /** 重开：回到本关初始摆法。壳层会无条件派发，必须接受 */
   | { type: 'restart' }
+  /**
+   * 下一关：进关卡包里的下一关（结果面板的「下一关」由壳层派发）。
+   * 已经是最后一关时抛 IllegalActionError —— 与推箱子同一套语义。
+   */
+  | { type: 'nextLevel' }
   /** 自由选关：直接跳到指定关卡（详情页点关卡用）。未知 id 保持原状，不抛错 */
   | { type: 'startLevel'; levelId: string }
 
@@ -148,6 +154,16 @@ export function reduceKlotski(state: KlotskiState, action: KlotskiAction): Klots
       // 回到本关初始摆法（过关后也必须可用）
       return createState(state.levelId)
 
+    case 'nextLevel': {
+      /*
+       * 结果面板的「下一关」。关卡包里的下一关由 board.ts 决定（与详情页的关卡顺序一致）；
+       * 已经是最后一关时明确报错，而不是静默不动 —— 壳层会把按钮禁用，走到这里说明状态不对。
+       */
+      const next = nextLevelId(state.levelId)
+      if (next === null) throw illegal(`klotski.illegal.no-next-level:${state.levelId}`)
+      return createState(next)
+    }
+
     default: {
       // 未知动作（方向键、旧存档、壳层误派）明确报错，避免静默无响应
       const unknown = action as { type?: unknown }
@@ -172,6 +188,8 @@ export function legalActions(state: KlotskiState): KlotskiAction[] {
   }
   if (state.log.length > 0) out.push({ type: 'undo' })
   out.push({ type: 'restart' })
+  // 过关后才给「下一关」：与 view.ts 里那个控件的 enabled 口径一致（最后一关没有下一关）
+  if (gameStatus(state) === 'won' && nextLevelId(state.levelId) !== null) out.push({ type: 'nextLevel' })
   return out
 }
 

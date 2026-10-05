@@ -81,6 +81,17 @@ function asGameAction<A>(action: ShellAction): A {
   return action as unknown as A
 }
 
+/**
+ * **终局后仍然接受**的动作（按动作名判断）。
+ *
+ * 对局一旦结束（过关 / 失败 / 平局），成绩就已经落盘了，此时再改局面会出现
+ * 「记录说已过关、棋盘却已经推乱」的自相矛盾 —— 实测：推箱子过关后接着推，
+ * 把箱子推出目标点，结果面板消失、步数从 9 涨到 14，而 `completed` 与历史记录早已写入。
+ * 因此终局后只放行结果面板与暂停菜单里**真正存在**的入口：撤销（输局专用）、
+ * 重开 / 再来一次、下一关、自由选关；棋盘与方向键一律静默拒绝。
+ */
+const FINISHED_ACTIONS: ReadonlySet<string> = new Set(['undo', 'restart', 'nextLevel', 'startLevel'])
+
 export interface GameProgress {
   completed?: string[]
   bestMoves?: Record<string, number>
@@ -100,8 +111,9 @@ export interface SessionOptions<S, A> {
   /**
    * 首次进入（还没有存档）时带进来的进度。
    *
-   * 为什么需要：开始新游戏会先删掉旧存档，新存档是新造的 —— 但**历史记录是战绩，不该跟着局面一起丢**。
-   * 因此上层把旧存档里的 `history` 通过这里带进来，只有历史记录会被继承，其余进度照旧从零开始。
+   * 为什么需要：开始新游戏会先删掉旧存档，新存档是新造的 —— 但**跨局战绩不该跟着局面一起丢**。
+   * 上层用 `carriedProgress()` 从旧存档里取出历史记录、最高纪录、已通关记录与每关最佳步数，
+   * 从这里带进新存档；局面本身照旧从零开始（只有设置页的「清除全部进度」才会真的清空它们）。
    */
   initialProgress?: Record<string, unknown>
   /**
@@ -339,7 +351,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
             state: game.encode(initial),
           },
           now(),
-          // 只有「历史记录」这类跨局战绩会被继承（见 SessionOptions.initialProgress）
+          // 跨局战绩（历史记录 / 最高纪录 / 已通关 / 最佳步数）会被继承，见 SessionOptions.initialProgress
           initialProgress ? { ...initialProgress } : {},
         )
         envelopeRef.current = fresh
@@ -521,23 +533,38 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const runAction = useCallback(
     (action: A, auto: boolean): boolean => {
       if (pausedRef.current || corrupt || !ready) return false
+      const current = stateRef.current
+      const kind = action && typeof action === 'object' ? (action as { type?: string }).type : undefined
+      // 判一次就够：下面「是否刚刚结束」的跃迁判断复用它（status 对棋类要算合法着法，不便宜）
+      const wasPlaying = game.status(current) === 'playing'
+      /*
+       * 终局守卫：见 FINISHED_ACTIONS 的说明。放在 reduce **之前**，
+       * 拒绝时既不写盘也不弹提示（方向键在结果面板上本来就没有意义）。
+       * 注意 `auto`（tick）同样被拦下：局面已经结束，自动步进不该再把状态推着走。
+       */
+      if (!wasPlaying && !(kind !== undefined && FINISHED_ACTIONS.has(kind))) {
+        return false
+      }
+      // 自动步进的计时用「这次操作前后有没有在等自动步进」来判断（见下方 tickActor 分支）
+      const pendingBefore = game.tickMs?.(current, difficulty) ?? null
       try {
-        const current = stateRef.current
         const next = game.reduce(current, action)
         const statusNow = game.status(next)
-        const wasPlaying = game.status(current) === 'playing'
         if (statusNow !== 'playing' && wasPlaying) {
           // 结束（过关或失败）必须在**一次提交**里同时写入「新状态 + 进度 + 历史记录 + 结束标记」：
           // 分两次提交会互相争抢同一个提交编号，后一笔被提交栅栏判为冲突，
           // 结果就是「界面显示过关、存档里却没有进度」。
           // 只在 `playing → 结束` 的跃迁上写历史：重载页面、重复渲染都不会触发，
           // 因此同一局绝不会记两条（pushHistory 还会对完全相同的记录再兜一道）。
-          if (statusNow === 'won') finalizeLevel(next)
+          //
+          // 平局要按 `outcomeOf` 如实入账：`status` 把平局并入 `won`（为了出结果面板），
+          // 但平局**不是**通关 —— 不写 completed / bestMoves，历史记录记成「未获胜」。
+          const outcome = game.outcomeOf?.(next) ?? (statusNow === 'won' ? 'won' : 'lost')
+          if (outcome === 'won') finalizeLevel(next)
           else finalizeLoss(next)
         } else {
           persist(next, { force: false })
         }
-        const kind = action && typeof action === 'object' ? (action as { type?: string }).type : undefined
         /*
          * 换关（下一关 / 自由选关）与**重开本关**都要重置本关计时起点：
          * 界面上的「用时」是 `elapsed - levelStart`（本关用时），
@@ -549,13 +576,21 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
           levelStartRef.current = elapsedRef.current
         }
         /*
-         * 输入延迟补偿（本轮的核心行为）：玩家的**有效**输入成功后重置自动步进的计时，
+         * 输入延迟补偿：玩家的**有效**输入成功后重置自动步进的计时，
          * 保证他每次操作之后都拿到完整的一个间隔。
          * 没有这一条，玩家刚按完转向、下一个 tick 就立刻到点，墨水瓶上看起来像"吞输入"。
          * 被拒绝的输入不算有效输入，因此不重置（规则层的提示已经明确告诉他没生效）。
+         *
+         * 对手应手类（tickActor: 'opponent'）是例外：只有「刚刚轮到对手」这一次重置计时。
+         * 否则等待应手期间点自己的棋子、手牌会一次次把电脑的思考往后推 ——
+         * 实测连点 3.6 秒，电脑一步不走（等于可以无限拖住对手）。
          */
         if (kind !== 'tick') {
-          setTickEpoch((value) => value + 1)
+          const pendingAfter = game.tickMs?.(next, difficulty) ?? null
+          const startedWaiting = pendingBefore === null && pendingAfter !== null
+          if (game.tickActor !== 'opponent' || startedWaiting) {
+            setTickEpoch((value) => value + 1)
+          }
           // 上一次 tick 被规则拒绝而停过表：玩家又操作了，给他一次恢复的机会
           if (tickHaltedRef.current) {
             tickHaltedRef.current = false
@@ -570,7 +605,7 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
         return false
       }
     },
-    [game, corrupt, ready, persist, finalizeLevel, finalizeLoss],
+    [game, difficulty, corrupt, ready, persist, finalizeLevel, finalizeLoss],
   )
 
   /** 玩家输入（含壳层的撤销/重开/换关）：auto = false */
@@ -604,7 +639,8 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   const discardAndRestart = useCallback(async () => {
     await storage.saves.remove(game.id)
     const seed = nextSeed()
-    // 「重开/再来一局」丢掉的是这一局的局面，不是跨局战绩 —— 历史记录与最高纪录跟着新存档继续
+    // 「重开/再来一局」丢掉的是这一局的局面，不是跨局战绩 —— 历史记录、最高纪录、
+    // 已通关记录与最佳步数都跟着新存档继续（carriedProgress 的口径）
     const carried: GameProgress = carriedProgress(progress as Record<string, unknown>) as GameProgress
     const fresh = newEnvelope(
       {
@@ -760,8 +796,15 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
              *
              * 因此这里统一补上反馈：文案仍由**游戏包**提供，壳层不硬编码任何玩法文案。
              * 只在"正在对局"时提示：终局后棋盘仍可见，那时的点击不该再弹错误。
+             *
+             * 还有一类**不该提示**的点击：正在等自动步进的时候（`autoTickMs !== null`）。
+             * 此时点棋盘的多半是「对手还没应手就急着点」，而各玩法的提示文案说的是别的原因
+             * （五子棋「这里不能落子」实际只是没轮到玩家），照着念反而误导 —— 静默等一拍更诚实。
+             * 贪吃蛇 / 俄罗斯方块这类自动前进的玩法没有 selectAction，不受这条影响。
              */
-            if (status === 'playing' && game.illegalNoticeKey) setNoticeKey(game.illegalNoticeKey)
+            if (status === 'playing' && autoTickMs === null && game.illegalNoticeKey) {
+              setNoticeKey(game.illegalNoticeKey)
+            }
           },
         }
       : {}),

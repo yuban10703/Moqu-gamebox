@@ -347,6 +347,16 @@ export interface GameDef<S, A> {
    * `${i18nNamespace}.result.best`（参数 count）与破纪录时的 `${i18nNamespace}.result.newRecord`。
    */
   scoreOf?(state: S): number | null
+  /**
+   * **真实结果**（可选）。`status()` 只有 `playing / won / lost` 三态，平局在 `status` 上并入
+   * `won` —— 必须并（否则壳层不认为对局结束、不渲染结果面板，而结果面板的标题本来
+   * 就取自 `view().result`，不会把平局说成「你输了」）。但**战绩记录**需要知道真相：
+   * 声明了本钩子的玩法，平局只写一条「未获胜」的历史记录，**不写**通关进度与最佳成绩。
+   *
+   * 只有「存在平局」的玩法需要声明（五子棋满盘、象棋三次重复局面）。
+   * 壳层只在 `status` 变为非 playing 的那一次跃迁上询问它，平时不调用。
+   */
+  outcomeOf?(state: S): 'won' | 'lost' | 'draw'
   status(state: S): GameStatus
   view(state: S): GameView
   controls(state: S): ControlSpec[]
@@ -366,6 +376,20 @@ export interface GameDef<S, A> {
    * 4. 只有需要自动步进的玩法才声明它 —— 没声明的玩法行为完全不变（壳层不会起表）。
    */
   tickMs?(state: S, difficulty: string): number | null
+  /**
+   * 自动步进**由谁执行**（配合 `tickMs` 使用，缺省 `'self'`）：
+   *
+   * - `'self'`：走的是**玩家自己的局面**（贪吃蛇自动前进、俄罗斯方块自动下落）。
+   *   玩家每次有效输入都重置间隔 —— 否则「刚按完转向，下一拍立刻到点」，
+   *   在墨水屏上看起来像吞输入（这是当初加输入延迟补偿的原因）。
+   * - `'opponent'`：走的是**对手的应手**（五子棋 / 中国象棋 / 斗地主 / 恶魔轮盘赌的电脑回合）。
+   *   壳层只在「刚刚轮到对手」的那一次重置计时；等待应手期间玩家再点自己的棋子、手牌、
+   *   道具不会把对手的思考一直往后推（实测：连点 3.6 秒，电脑一步不走）。
+   *
+   * 只有 `tickMs` 会返回非 null 的玩法需要考虑它；两类语义混在一起时（同一款游戏既有
+   * 自动前进又有对手应手）按主要语义声明即可，缺省行为与历史版本完全一致。
+   */
+  tickActor?: 'self' | 'opponent'
 }
 
 export class IllegalActionError extends Error {

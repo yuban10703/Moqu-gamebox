@@ -216,8 +216,15 @@ describe('未知动作', () => {
       reduceKlotski(state, { type: 'move', dir: 'up' } as unknown as KlotskiAction),
     ).toThrow(IllegalActionError)
     expect(() =>
-      reduceKlotski(state, { type: 'nextLevel' } as unknown as KlotskiAction),
+      reduceKlotski(state, { type: 'flip' } as unknown as KlotskiAction),
     ).toThrow(IllegalActionError)
+  })
+
+  it('nextLevel 是已知动作：未过关也能进下一关，但最后一关明确报错', () => {
+    // 语义与推箱子一致：控件由 view 声明（结果面板的「下一关」），reduce 必须接得住。
+    // 这里不额外要求"必须先过关"—— 壳层只在过关后渲染这个按钮。
+    expect(reduceKlotski(fresh('level-1'), { type: 'nextLevel' }).levelId).toBe('level-2')
+    expect(() => reduceKlotski(fresh('level-4'), { type: 'nextLevel' })).toThrow(IllegalActionError)
   })
 })
 

@@ -19,8 +19,9 @@ export const xiangqiZh: Dict = {
     '马别腿、相塞眼、仕帅不出九宫、炮吃子要隔一个子、兵过河后才能横走；不得送将，将帅不可照面。',
   'xiangqi.rules.body3':
     '将死或困毙即获胜（无子可动同样判负）；同一局面出现三次判和。中间那条粗线就是河界。',
+  // 重开走的是「换一个种子重新开局」：不再声称同一种子（AI 的应手会重新随机）
   'xiangqi.rules.restart':
-    '重新开始会清空当前对局，回到同一种子下的标准开局，且无法撤销回重开之前。',
+    '重新开始会清空当前对局、重新摆好开局，且无法撤销回重开之前。',
   'xiangqi.illegal.notice': '这一步走不通',
   'xiangqi.difficulty.starter': '入门',
   'xiangqi.difficulty.skilled': '熟练',
@@ -53,7 +54,7 @@ export const xiangqiEn: Dict = {
   'xiangqi.rules.body3':
     'Checkmate or stalemate wins (no legal move also loses); threefold repetition is a draw. The thick line across the middle is the river.',
   'xiangqi.rules.restart':
-    'Restarting clears the current game and returns to the standard opening for the same seed; you cannot undo back past a restart.',
+    'Restarting clears the game and resets the board; you cannot undo back past a restart.',
   'xiangqi.illegal.notice': 'That move is not allowed',
   'xiangqi.difficulty.starter': 'Starter',
   'xiangqi.difficulty.skilled': 'Skilled',

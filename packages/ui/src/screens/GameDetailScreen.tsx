@@ -55,7 +55,15 @@ export function GameDetailScreen({
   const { i18n, settings, updateGameSettings, viewport, layoutConfig } = useUi()
   const layout = computeRootLayout(viewport, layoutConfig, { showDpad: false })
   const progress = progressOf(envelope)
-  const hasSave = (envelope !== undefined && envelope.moves > 0) || corrupt
+  /*
+   * 有没有「进行中的局面」：判据是**存档存在**，不是「已经走过棋」。
+   *
+   * 原先写的是 `envelope.moves > 0`，于是刚开一局、一步没走就返回游戏库的新局
+   * （返回时会话会把新种子落盘，`moves` 仍是 0）在详情页被当成「没有存档」：
+   * 不显示「继续」、点「开始新游戏」也不弹「替换并开始」就把它换掉 ——
+   * 而首页的「继续上一局」认的是同一个存档、能正常恢复，两个入口的口径对不上。
+   */
+  const hasSave = envelope !== undefined || corrupt
   const [difficulty, setDifficulty] = useState<string>(
     settings.perGame[entry.game.id]?.difficulty ??
       (envelope?.difficulty ?? entry.defaultDifficulty),

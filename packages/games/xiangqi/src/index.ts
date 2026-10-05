@@ -25,6 +25,7 @@ import {
   decodeState,
   encodeState,
   gameStatus,
+  isDrawnByRepetition,
   legalActions,
   reduceXiangqi,
   selectAction,
@@ -209,6 +210,21 @@ export const xiangqiGame: GameDef<XiangqiState, XiangqiAction> = {
     if (gameStatus(state) !== 'playing' || state.sideToMove !== BLACK) return null
     // 两拍：先"选中"（450ms 后玩家能看到 AI 挑了哪枚子），再隔 500ms 才落子
     return state.opponentPick === null ? REPLY_DELAY_MS : PICK_TO_MOVE_MS
+  },
+
+  /*
+   * 这两拍走的是**对手**的应手：等待期间玩家再点自己的棋子不该把黑方的思考一直往后推
+   * （实测连点 3.6 秒，黑方一步不走）。壳层只在「刚刚轮到黑方」的那一次重置计时。
+   */
+  tickActor: 'opponent',
+
+  /**
+   * 真实结果：`status()` 把「三次重复局面判和」并入 `won`（否则壳层不认为对局结束、
+   * 结果面板不出来），但和棋不是通关 —— 壳层据此不写 completed / bestMoves。
+   */
+  outcomeOf(state: XiangqiState): 'won' | 'lost' | 'draw' {
+    if (isDrawnByRepetition(state)) return 'draw'
+    return gameStatus(state) === 'won' ? 'won' : 'lost'
   },
 
   /** 计步：最佳成绩用玩家的落子数（黑方应手不算） */

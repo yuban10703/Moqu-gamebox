@@ -2,8 +2,8 @@
  * 五子棋的 GameDef 实现 —— 游戏盒子唯一需要认识的东西。
  *
  * 接入要点：
- * - 白方（对手）在 `reduce` 内自动应手：壳层只派发 `place`/`undo`/`restart`，
- *   不需要驱动任何 AI，也没有「等对方走棋」的中间态；
+ * - 白方（对手）的应手**由壳层按 tickMs 分两拍派发** `{ type: 'tick' }`：
+ *   第一拍亮出白方选中的目标格，第二拍才落子（规则层零时间引用）；
  * - 全部随机性来自 `create(seed, difficulty)` 保存的 seed（seed + 随机游标），
  *   绝不使用 Math.random，因此同 seed + 同玩家动作序列双端必然同局面；
  * - 非法落子抛 IllegalActionError，壳层据此给出明确文字反馈；
@@ -25,7 +25,7 @@ import {
   encodeState,
   gameStatus,
   legalActions,
-  outcomeOf,
+  outcomeOf as boardOutcome,
   reduceGomoku,
   selectAction,
   type GomokuAction,
@@ -155,8 +155,25 @@ export const gomokuGame: GameDef<GomokuState, GomokuAction> = {
   tickMs(state: GomokuState): number | null {
     const last = state.history[state.history.length - 1]
     if (!last || last.white !== null) return null
-    if (outcomeOf(state.board) !== null) return null // 黑方这一手直接终局：没有应手
+    if (boardOutcome(state.board) !== null) return null // 黑方这一手直接终局：没有应手
     return state.opponentPick === null ? REPLY_DELAY_MS : PICK_TO_MOVE_MS
+  },
+
+  /*
+   * 这两拍走的是**对手**的应手：等待期间玩家再点棋盘不该把白方的思考一直往后推
+   * （实测连点 3.6 秒，白方一步不走）。壳层只在「刚刚轮到白方」的那一次重置计时。
+   */
+  tickActor: 'opponent',
+
+  /**
+   * 真实结果：`status()` 把平局并入 `won`（否则壳层不认为对局结束、结果面板不出来），
+   * 但平局不是通关 —— 壳层据此不写 completed / bestMoves，历史记录只记「未获胜」。
+   */
+  outcomeOf(state: GomokuState): 'won' | 'lost' | 'draw' {
+    const result = boardOutcome(state.board)
+    if (result === 'white') return 'lost'
+    if (result === 'draw') return 'draw'
+    return 'won'
   },
 
   /**

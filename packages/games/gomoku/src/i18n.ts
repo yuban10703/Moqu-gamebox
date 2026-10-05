@@ -14,8 +14,9 @@ export const gomokuZh: Dict = {
   'gomoku.rules.body':
     '点空格落子，你执黑先手。横竖斜任意方向先连成五子即获胜。',
   'gomoku.rules.body2':
-    '白方自动应手，无需等待；撤销退回一整回合（你的落子与白方应手一起）。',
-  'gomoku.rules.restart': '重新开始会清空当前对局，回到同一种子下的空棋盘，且无法撤销回重开之前。',
+    '白方会先亮出落点、再落子（间隔约一秒）；撤销退回一整回合（你的落子与白方应手一起）。',
+  // 重开走的是「换一个种子重新开局」：不再声称同一种子（AI 的应手会重新随机）
+  'gomoku.rules.restart': '重新开始会清空当前对局、重新开一盘，且无法撤销回重开之前。',
   'gomoku.illegal.notice': '这里不能落子',
   'gomoku.difficulty.starter': '入门',
   'gomoku.difficulty.skilled': '熟练',
@@ -40,9 +41,9 @@ export const gomokuEn: Dict = {
   'gomoku.rules.body':
     'Tap an empty point to place a stone; you are Black and move first. Five in a row wins.',
   'gomoku.rules.body2':
-    'White replies automatically in the same move. Undo takes back a whole round.',
+    'White marks its point first, then plays it a beat later. Undo takes back a whole round.',
   'gomoku.rules.restart':
-    'Restarting clears the current game and returns to an empty board for the same seed; you cannot undo back past a restart.',
+    'Restarting clears the board and deals a fresh game; you cannot undo back past a restart.',
   'gomoku.illegal.notice': 'Cannot play that cell',
   'gomoku.difficulty.starter': 'Starter',
   'gomoku.difficulty.skilled': 'Skilled',

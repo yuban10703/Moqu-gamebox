@@ -218,6 +218,36 @@ describe('view / 1-bit 呈现约定', () => {
       { key: 'gomoku.result.moves', params: { count: 113 } },
       { key: 'gomoku.result.draw' },
     ])
+    // 但**战绩**要知道真相：平局不是通关，壳层据此不写 completed / bestMoves
+    // （审计实测：满盘平局被记成 completed:['starter'] + bestMoves + history.won=true）
+    expect(gomokuGame.outcomeOf!(state)).toBe('draw')
+  })
+
+  it('outcomeOf 与 status 的分工：胜/负/平局三态都如实', () => {
+    const beforeWin = stateOf([
+      { black: at(7, 3), white: at(0, 0) },
+      { black: at(7, 4), white: at(0, 1) },
+      { black: at(7, 5), white: at(0, 2) },
+      { black: at(7, 6), white: at(0, 3) },
+    ])
+    const won = reduceGomoku(beforeWin, { type: 'place', index: at(7, 7) })
+    expect(gomokuGame.status(won)).toBe('won')
+    expect(gomokuGame.outcomeOf!(won)).toBe('won')
+
+    const lost = stateOf([
+      { black: at(0, 0), white: at(3, 3) },
+      { black: at(0, 2), white: at(3, 4) },
+      { black: at(0, 4), white: at(3, 5) },
+      { black: at(0, 6), white: at(3, 6) },
+      { black: at(6, 6), white: at(3, 7) },
+    ])
+    expect(gomokuGame.status(lost)).toBe('lost')
+    expect(gomokuGame.outcomeOf!(lost)).toBe('lost')
+  })
+
+  it("tickActor 是 'opponent'：应手计时不该被玩家的选点重置", () => {
+    // 与 session.ts 的输入延迟补偿配套：等待白方应手期间连点棋盘不能把白方无限拖住
+    expect(gomokuGame.tickActor).toBe('opponent')
   })
 })
 

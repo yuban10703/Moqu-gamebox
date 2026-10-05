@@ -15,7 +15,8 @@ export const lightsoutZh: Dict = {
     '点一盏灯会同时翻转它和上下左右的灯。全部熄灭即过关。',
   'lightsout.rules.body2':
     '谜题由全灭局面随机翻转生成，所以一定有解；步数越少越好。',
-  'lightsout.rules.restart': '重新开始会回到同一种子下的同一道谜题，且无法撤销回重开之前。',
+  // 重开走的是「换一个种子重新出题」：不再声称同一种子（实测每次都是新谜题）
+  'lightsout.rules.restart': '重新开始会换一道新谜题，且无法撤销回重开之前。',
   'lightsout.illegal.notice': '这里不能这样操作',
   'lightsout.difficulty.starter': '入门 5×5',
   'lightsout.difficulty.skilled': '熟练 5×5（更多翻转）',
@@ -40,7 +41,7 @@ export const lightsoutEn: Dict = {
   'lightsout.rules.body2':
     'Every puzzle is generated from an all-off board, so a solution always exists.',
   'lightsout.rules.restart':
-    'Restarting returns to the same puzzle for the same seed; you cannot undo back past a restart.',
+    'Restarting generates a new puzzle; you cannot undo back past a restart.',
   'lightsout.illegal.notice': 'Action not allowed',
   'lightsout.difficulty.starter': 'Starter 5×5',
   'lightsout.difficulty.skilled': 'Skilled 5×5 (more flips)',

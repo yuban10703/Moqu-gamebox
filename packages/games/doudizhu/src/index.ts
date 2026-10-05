@@ -54,6 +54,11 @@ export const doudizhuGame: GameDef<DoudizhuState, DoudizhuAction> = {
   encode: (state) => encodeState(state),
   decode: (raw) => decodeState(raw),
   tickMs: (state) => tickMsOf(state),
+  /*
+   * tick 走的是**电脑**的回合（叫分 / 出牌 / 不出）。等待期间玩家连点手牌只是选中/取消选中，
+   * 不该把两个电脑的思考一直往后推（实测连点 2.77 秒，电脑一步不走）。
+   */
+  tickActor: 'opponent',
 
   /** 点手牌 = 选中 / 取消选中（叫分与出牌阶段都可以；打完之后不再响应） */
   selectAction(state, index) {

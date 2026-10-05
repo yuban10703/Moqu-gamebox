@@ -201,9 +201,22 @@ export function GameScreen({
     session.startLevel(startLevelId)
   }, [startLevelId, session.ready, session.corrupt, session.startLevel])
 
+  /*
+   * U 键与「撤销」按钮**共用同一套开关**。
+   *
+   * 原先 `hideShellControls: ['undo']` 只关掉了按钮，键盘这条路径照旧可用 ——
+   * 数独声明「不提供撤销」，按 U 却真的能撤销（终局后还能把已完成的局面退回对局中）；
+   * 扫雷赢下之后按 U 也能把结局撤回去。判据与结果面板里那个撤销按钮完全一致：
+   * 没有声明隐藏、局面未判胜、且游戏此刻确实给出一个可用的 undo 控件。
+   */
+  const undoAvailable =
+    !session.solved &&
+    !entry.hideShellControls?.includes('undo') &&
+    session.controls.some((control) => control.id === 'undo' && control.enabled)
+
   useKeyboardControls({
     onMove,
-    onUndo: () => session.undo(),
+    ...(undoAvailable ? { onUndo: () => session.undo() } : {}),
     onRestart: () => setConfirmRestart(true),
     onEscape: () => (session.paused ? session.resume() : session.pause()),
     enabled: session.ready && !session.corrupt,

@@ -14,8 +14,10 @@ export const minesweeperZh: Dict = {
   'minesweeper.illegal': '这里不能这样操作',
   'minesweeper.stat.mines': '剩余雷数',
   'minesweeper.stat.progress': '已翻开',
-  'minesweeper.control.flagMode.on': '标记模式：开',
-  'minesweeper.control.flagMode.off': '标记模式：关',
+  // 按钮文案写**动作**而不是状态：写「标记模式：开」时玩家要猜「点下去会变成什么」。
+  // 键名沿用 on/off（表示当前状态），文案则是「点下去会发生什么」。
+  'minesweeper.control.flagMode.on': '关闭标记模式',
+  'minesweeper.control.flagMode.off': '开启标记模式',
   'minesweeper.difficulty.starter': '入门',
   'minesweeper.difficulty.skilled': '熟练',
   'minesweeper.difficulty.challenging': '挑战',
@@ -46,8 +48,8 @@ export const minesweeperEn: Dict = {
   'minesweeper.illegal': 'That action is not allowed here',
   'minesweeper.stat.mines': 'Mines left',
   'minesweeper.stat.progress': 'Opened',
-  'minesweeper.control.flagMode.on': 'Flag mode: on',
-  'minesweeper.control.flagMode.off': 'Flag mode: off',
+  'minesweeper.control.flagMode.on': 'Turn flag mode off',
+  'minesweeper.control.flagMode.off': 'Turn flag mode on',
   'minesweeper.difficulty.starter': 'Starter',
   'minesweeper.difficulty.skilled': 'Skilled',
   'minesweeper.difficulty.challenging': 'Challenging',

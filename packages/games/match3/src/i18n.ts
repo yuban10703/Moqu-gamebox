@@ -14,8 +14,8 @@ export const match3Zh: Dict = {
   'match3.rules.body': '点一格选中，再点相邻格交换；横竖连成三格以上即消除计分。',
   'match3.rules.body2': '换不出三连的交换会被拒绝，不扣步数。',
   'match3.rules.body3': '达到目标分数过关，步数用尽失败；无可交换组合时自动重排。',
-  'match3.rules.restart':
-    '重开会清空分数与撤销记录，回到同一局的初始棋盘；同一难度与同一开局种子完全可复现。',
+  // 重开走的是「换一个种子重新发牌」：不再声称回到同一局的初始棋盘（实测 20/20 次都是新盘面）
+  'match3.rules.restart': '重开会清空分数与撤销记录，并重新发一副棋盘。',
   'match3.illegal.notice': '换不出三连：不扣步数',
   'match3.notice.pick': '再点相邻一格交换',
   'match3.notice.shuffled': '没有可换的组合，已重排',
@@ -42,7 +42,7 @@ export const match3En: Dict = {
   'match3.rules.body3':
     'Reach the target score to win; run out of moves and the round is lost. With no match available the board reshuffles.',
   'match3.rules.restart':
-    'Restart clears the score and the undo records and returns to the same opening board; the same difficulty and starting seed stay fully reproducible.',
+    'Restart clears the score and the undo records and deals a new board.',
   'match3.illegal.notice': 'Swap must make a match',
   'match3.notice.pick': 'Tap a neighbour to swap',
   'match3.notice.shuffled': 'No swaps left, shuffled',

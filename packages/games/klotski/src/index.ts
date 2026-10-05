@@ -6,10 +6,13 @@
  *   （布局固定，因此忽略 seed，也绝不用 Math.random）；
  * - 玩家只派发 `select` / `slide`：选中是界面状态（不计步、不进日志），
  *   滑动只走一格，目标格有块或越界就抛 IllegalActionError；
- * - `undo` 撤回一次滑动（不撤回选中），`restart` 回到本关初始摆法（壳层会无条件派发）；
+ * - `undo` 撤回一次滑动（不撤回选中），`restart` 回到本关初始摆法，
+ *   `nextLevel` 进入关卡包的下一关（最后一关抛错）—— 三个都由壳层直接派发；
  * - `decode` 从 `(levelId, log)` 重放并逐字段比对，块重叠/越界/数量不对/选中不存在都会被拒绝。
  *
- * 关卡选择与「下一关」由壳层按注册表渲染，本游戏不声明 dpad / next-level 控件。
+ * 关卡选择由壳层按注册表渲染；「下一关」按钮由本游戏的 `controls()` 声明（见 view.ts），
+ * 点击后壳层派发 `nextLevel`。声明了控件就必须能处理这个动作，否则按钮是死的
+ * （曾经只有控件、没有 reduce 分支，点下去只弹「这一步滑不过去」）。
  */
 import type { GameDef } from '@eink/core'
 import {
@@ -141,12 +144,13 @@ export const klotskiGame: GameDef<KlotskiState, KlotskiAction> = {
   },
 
   /**
-   * 撤销/重开按钮的映射。壳层自己渲染这两个固定 id 的按钮并直接派发同名动作，
+   * 撤销/重开/下一关按钮的映射。壳层自己渲染这几个固定 id 的按钮并直接派发同名动作，
    * 这里再提供一次映射，是为了壳层改走 controlAction 时也不会失效。
    */
   controlAction(_state: KlotskiState, controlId: string): KlotskiAction | null {
     if (controlId === 'undo') return { type: 'undo' }
     if (controlId === 'restart') return { type: 'restart' }
+    if (controlId === 'next-level') return { type: 'nextLevel' }
     return null
   },
 

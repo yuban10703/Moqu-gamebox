@@ -53,6 +53,11 @@ export const buckshotGame: GameDef<BuckshotState, BuckshotAction> = {
   encode: (state) => encodeState(state),
   decode: (raw) => decodeState(raw),
   tickMs: (state) => tickMsOf(state),
+  /*
+   * tick 走的是**恶魔**的回合。等待期间玩家点道具的落空点击不该把恶魔的思考一直往后推
+   * （双人同屏档没有 AI，tickMsOf 返回 null，因此这条声明在那里不产生任何影响）。
+   */
+  tickActor: 'opponent',
 
   /** 点道具 = 立即使用（只对当前能操作、且现在用得上的道具生效） */
   selectAction(state, index) {
