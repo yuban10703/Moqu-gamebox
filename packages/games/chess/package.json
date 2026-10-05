@@ -1,0 +1,10 @@
+{
+  "name": "@eink/chess",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@eink/core": "*"
+  }
+}

@@ -58,6 +58,22 @@ const SHAPES: Record<string, ReactNode> = {
     </>
   ),
   // 五子棋：棋盘十字 + 一枚实心棋子
+  // 黑白棋：一颗实心 + 一颗空心圆（● ○）
+  reversi: (
+    <>
+      <circle cx="9.2" cy="12" r="6" fill="currentColor" />
+      <circle cx="16.2" cy="12" r="6" />
+    </>
+  ),
+  // 国际象棋：城堡（车）—— 垛口塔顶 + 塔身横纹 + 底座，纯线条
+  chess: (
+    <>
+      <path d="M7.2 3v2M10.2 3v2M13.8 3v2M16.8 3v2" strokeWidth="1.4" />
+      <rect x="5.6" y="5" width="12.8" height="3.4" />
+      <path d="M8.2 8.4h7.6v8.2H8.2zM8.2 12.2h7.6M8.2 16.2h7.6" />
+      <path d="M5.6 18.4h12.8M7 18.4v2.6h10v-2.6" />
+    </>
+  ),
   gomoku: (
     <>
       <path d="M3 8h18M3 16h18M8 3v18M16 3v18" strokeWidth="1" />
