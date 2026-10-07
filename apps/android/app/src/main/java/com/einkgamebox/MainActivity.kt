@@ -20,6 +20,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import org.json.JSONObject
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * 壳层主界面：一个全屏 WebView，加载安装包内置的网页资源。
@@ -37,6 +38,7 @@ class MainActivity : Activity() {
     private lateinit var store: NativeStore
     private lateinit var backend: EinkBackend
     private var pendingExportText: String? = null
+    private val backupIo = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -145,6 +147,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        backupIo.shutdownNow()
         if (::webView.isInitialized) {
             webView.removeJavascriptInterface("EinkNative")
             webView.destroy()
@@ -217,18 +220,20 @@ class MainActivity : Activity() {
                     notifyJs("__EINK_IMPORT_RESULT__", resultJson(false, "cancelled"))
                     return
                 }
-                try {
-                    val text = contentResolver.openInputStream(data.data!!)?.use { stream ->
-                        stream.bufferedReader(Charsets.UTF_8).readText()
+                val uri = data.data!!
+                backupIo.execute {
+                    try {
+                        val text = contentResolver.openInputStream(uri)?.use { BackupReader.readText(it) }
+                        if (text == null) {
+                            notifyJs("__EINK_IMPORT_RESULT__", resultJson(false, "read-failed"))
+                        } else {
+                            notifyJs("__EINK_IMPORT_RESULT__", resultJson(true, null, text))
+                        }
+                    } catch (error: Exception) {
+                        Log.w(TAG, "import failed", error)
+                        val reason = if (error.message == "backup-too-large") "backup-too-large" else "read-failed"
+                        notifyJs("__EINK_IMPORT_RESULT__", resultJson(false, reason))
                     }
-                    if (text == null) {
-                        notifyJs("__EINK_IMPORT_RESULT__", resultJson(false, "read-failed"))
-                    } else {
-                        notifyJs("__EINK_IMPORT_RESULT__", resultJson(true, null, text))
-                    }
-                } catch (error: Throwable) {
-                    Log.w(TAG, "import failed", error)
-                    notifyJs("__EINK_IMPORT_RESULT__", resultJson(false, "read-failed"))
                 }
             }
         }
@@ -244,7 +249,11 @@ class MainActivity : Activity() {
     /** 把 JSON 作为 JS 字符串字面量安全地回传给网页层 */
     private fun notifyJs(callbackName: String, payloadJson: String) {
         val quoted = JSONObject.quote(payloadJson)
-        webView.evaluateJavascript("window.$callbackName && window.$callbackName($quoted)", null)
+        runOnUiThread {
+            if (!isFinishing && !isDestroyed) {
+                webView.evaluateJavascript("window.$callbackName && window.$callbackName($quoted)", null)
+            }
+        }
     }
 
     companion object {

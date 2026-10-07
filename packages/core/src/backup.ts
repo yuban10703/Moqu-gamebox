@@ -11,6 +11,7 @@ import {
   checksumOf,
   fnv1a,
   parseEnvelope,
+  isCompletionRecord,
   type SaveEnvelope,
   type SaveEnvelopeV1,
   type SaveMeta,
@@ -18,6 +19,7 @@ import {
 import type { CompletionRecord } from './types.js'
 import type { DeviceBaseline } from './diagnostics.js'
 import { parseSettings, type SettingsSnapshot } from './settings.js'
+import { exceedsJsonSize, isBoundedJson } from './inputLimits.js'
 
 export interface BackupFileV1 {
   schema: typeof BACKUP_SCHEMA
@@ -56,6 +58,7 @@ export type BackupParseResult =
   | { ok: false; errors: string[] }
 
 export function parseBackup(text: string): BackupParseResult {
+  if (exceedsJsonSize(text)) return { ok: false, errors: ['backup-too-large'] }
   const errors: string[] = []
   const warnings: string[] = []
   let raw: unknown
@@ -65,10 +68,14 @@ export function parseBackup(text: string): BackupParseResult {
     return { ok: false, errors: ['not-json'] }
   }
   if (!raw || typeof raw !== 'object') return { ok: false, errors: ['not-object'] }
+  if (!isBoundedJson(raw)) return { ok: false, errors: ['invalid-json-structure'] }
   const candidate = raw as Partial<BackupFileV1>
   if (typeof candidate.schema !== 'number') errors.push('missing-schema')
   if (typeof candidate.checksum !== 'string') errors.push('missing-checksum')
   if (!Array.isArray(candidate.saves)) errors.push('missing-saves')
+  else if (candidate.saves.length > 256) errors.push('too-many-saves')
+  if (candidate.records !== undefined && (!Array.isArray(candidate.records) ||
+    candidate.records.length > 10000 || !candidate.records.every(isCompletionRecord))) errors.push('invalid-records')
   if (errors.length > 0) return { ok: false, errors }
 
   if ((candidate.schema ?? 0) > BACKUP_SCHEMA) {
@@ -80,9 +87,14 @@ export function parseBackup(text: string): BackupParseResult {
   if (expected !== checksum) errors.push('checksum-mismatch')
 
   const saves: SaveEnvelopeV1[] = []
+  const gameIds = new Set<string>()
   for (const entry of candidate.saves ?? []) {
     const parsed = parseEnvelope(entry)
-    if (parsed.ok) saves.push(parsed.envelope)
+    if (parsed.ok) {
+      if (gameIds.has(parsed.envelope.gameId)) errors.push('duplicate-game-id')
+      gameIds.add(parsed.envelope.gameId)
+      saves.push(parsed.envelope)
+    }
     else warnings.push(`skipped-save:${parsed.reason}`)
   }
   if (errors.length > 0) return { ok: false, errors }

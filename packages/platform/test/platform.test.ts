@@ -136,7 +136,8 @@ describe('应用存储门面', () => {
     // 备份可以恢复回来
     const restored = await target.restoreBackup('sokoban', backups[0]!.slot)
     expect(restored).toBe(true)
-    expect((await target.saves.load('sokoban'))?.commitId).toBe(1)
+    // Replacements keep commit IDs monotonic, so an older session cannot overwrite a restored save.
+    expect((await target.saves.load('sokoban'))?.commitId).toBe(3)
   })
 
   it('损坏的备份会被拒绝，且不改动本机进度', async () => {

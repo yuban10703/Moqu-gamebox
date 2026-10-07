@@ -9,6 +9,7 @@
  */
 import { SAVE_SCHEMA } from './version.js'
 import type { CompletionRecord } from './types.js'
+import { exceedsJsonSize, isBoundedJson, isCount, isGameId, isRecord } from './inputLimits.js'
 
 export interface SaveSession {
   elapsedMs: number
@@ -52,7 +53,7 @@ export function canonicalJson(value: unknown): string {
 function sortValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortValue)
   if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       out[key] = sortValue((value as Record<string, unknown>)[key])
     }
@@ -167,13 +168,14 @@ export function reseal(envelope: SaveEnvelopeV1): SaveEnvelopeV1 {
 export function parseEnvelope(raw: unknown): MigrationResult {
   let value: unknown = raw
   if (typeof raw === 'string') {
+    if (exceedsJsonSize(raw)) return { ok: false, reason: 'corrupt' }
     try {
       value = JSON.parse(raw)
     } catch {
       return { ok: false, reason: 'corrupt' }
     }
   }
-  if (!value || typeof value !== 'object') return { ok: false, reason: 'corrupt' }
+  if (!isRecord(value) || !isBoundedJson(value)) return { ok: false, reason: 'corrupt' }
   const candidate = value as Partial<SaveEnvelopeV1> & { schema?: number }
   if (typeof candidate.schema !== 'number') return { ok: false, reason: 'corrupt' }
 
@@ -203,23 +205,45 @@ function migrateEnvelope(input: SaveEnvelopeV1): SaveEnvelopeV1 | null {
 
 function isStructurallyValid(value: SaveEnvelopeV1): boolean {
   return (
-    typeof value.gameId === 'string' &&
-    value.gameId.length > 0 &&
-    typeof value.rulesVersion === 'number' &&
-    typeof value.contentVersion === 'number' &&
+    value.schema === SAVE_SCHEMA &&
+    isGameId(value.gameId) &&
+    isCount(value.rulesVersion) &&
+    isCount(value.contentVersion) &&
     typeof value.difficulty === 'string' &&
-    typeof value.seed === 'number' &&
+    value.difficulty.length <= 64 &&
+    typeof value.seed === 'number' && Number.isFinite(value.seed) &&
     value.state !== undefined &&
-    typeof value.moves === 'number' &&
-    !!value.session &&
-    typeof value.session === 'object' &&
-    typeof value.session.elapsedMs === 'number' &&
-    typeof value.commitId === 'number' &&
-    typeof value.updatedAt === 'number' &&
-    !!value.progress &&
-    typeof value.progress === 'object' &&
+    isCount(value.moves) &&
+    isRecord(value.session) &&
+    isCount(value.session.elapsedMs) &&
+    ['undos', 'restarts', 'hintsUsed'].every(key => value.session[key as keyof SaveSession] === undefined ||
+      isCount(value.session[key as keyof SaveSession])) &&
+    (value.session.ended === undefined || value.session.ended === 'won' || value.session.ended === 'lost') &&
+    isCount(value.commitId) &&
+    isCount(value.updatedAt) &&
+    isRecord(value.progress) &&
+    isValidProgress(value.progress) &&
     typeof value.checksum === 'string'
   )
+}
+
+function isValidProgress(progress: Record<string, unknown>): boolean {
+  if (progress.completed !== undefined && (!Array.isArray(progress.completed) ||
+    !progress.completed.every(id => typeof id === 'string'))) return false
+  for (const key of ['bestMoves', 'bestScore']) {
+    const map = progress[key]
+    if (map !== undefined && (!isRecord(map) || !Object.values(map).every(isCount))) return false
+  }
+  return true
+}
+
+export function isCompletionRecord(raw: unknown): raw is CompletionRecord {
+  if (!isRecord(raw)) return false
+  return isGameId(raw.gameId) && typeof raw.difficulty === 'string' && raw.difficulty.length <= 64 &&
+    (raw.outcome === 'won' || raw.outcome === 'lost') &&
+    isCount(raw.finishedAt) && isCount(raw.moves) && isCount(raw.elapsedMs) && isCount(raw.hintsUsed) &&
+    (raw.best === undefined || (isRecord(raw.best) && Object.values(raw.best).every(value =>
+      typeof value === 'number' && Number.isFinite(value))))
 }
 
 /** 仅取元信息，用于列表与冲突判断（不解析游戏状态） */

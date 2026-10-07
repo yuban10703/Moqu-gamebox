@@ -5,9 +5,9 @@
  * 覆盖 M2 的验收点：游戏库 → 详情 → 游戏 → 存档；设置切换即时生效；
  * 保存失败可见可重试；损坏存档被保留并提示（不被静默覆盖）；返回键钩子行为正确。
  */
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { coreDictEn, coreDictZh, createMemoryKv, newEnvelope, reseal, type KvBackend } from '@eink/core'
+import { coreDictEn, coreDictZh, createMemoryKv, newEnvelope, reseal, MAX_BACKUP_BYTES, type KvBackend } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import {
   LEVEL_WITNESSES,
@@ -327,5 +327,30 @@ describe('系统返回键', () => {
     fireEvent.click(screen.getByText('Settings'))
     await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
     expect(window.__einkHandleBack?.()).toBe(true)
+  })
+})
+
+describe('backup file input limits', () => {
+  it('rejects an oversized file before reading its contents', async () => {
+    const { container } = await mount()
+    fireEvent.click(screen.getByText('Settings'))
+    await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
+    const file = new File(['{}'], 'oversized.json', { type: 'application/json' })
+    const read = vi.fn(async () => '{}')
+    Object.defineProperty(file, 'size', { value: MAX_BACKUP_BYTES + 1 })
+    Object.defineProperty(file, 'text', { value: read })
+    fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('backup-too-large'))
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('shows read failures instead of leaving an unhandled rejection', async () => {
+    const { container } = await mount()
+    fireEvent.click(screen.getByText('Settings'))
+    await waitFor(() => expect(screen.getByText(/Text size/)).toBeTruthy())
+    const file = new File(['{}'], 'bad.json', { type: 'application/json' })
+    Object.defineProperty(file, 'text', { value: vi.fn(async () => { throw new Error('read failed') }) })
+    fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [file] } })
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('read-failed'))
   })
 })

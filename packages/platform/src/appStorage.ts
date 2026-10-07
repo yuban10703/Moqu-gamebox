@@ -19,6 +19,7 @@ import {
   createSaveStore,
   parseBackup,
   parseEnvelope,
+  isCompletionRecord,
   parseSettings,
   planImport,
   readMeta,
@@ -135,7 +136,8 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
       const text = await kv.get(key)
       if (!text) continue
       try {
-        out.push(JSON.parse(text) as CompletionRecord)
+        const record: unknown = JSON.parse(text)
+        if (isCompletionRecord(record)) out.push(record)
       } catch {
         // 单条记录损坏不影响其它记录
       }
@@ -171,8 +173,8 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
     if (!text) return false
     const parsed = parseEnvelope(text)
     if (!parsed.ok) return false
-    await saves.remove(gameId)
-    const result = await saves.commit(reseal({ ...parsed.envelope, commitId: 0 }))
+    if (parsed.envelope.gameId !== gameId) return false
+    const result = await saves.replace(parsed.envelope)
     return result.ok
   }
 
@@ -225,26 +227,24 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
         summary.skipped++
         continue
       }
-      if (decision.action === 'add') {
-        const result = await saves.commit(fresh)
-        if (result.ok) summary.added++
-        else summary.warnings.push(`commit-failed:${decision.gameId}:${result.reason}`)
-        continue
-      }
-      // overwrite / keepBoth 都需要先移除现有记录；keepBoth 额外落一份备份副本
-      if (decision.action === 'keepBoth') {
-        await saves.backupBefore(decision.gameId, now())
-        summary.keptBoth++
-      } else {
-        summary.overwritten++
-      }
-      await saves.remove(decision.gameId)
-      const result = await saves.commit(fresh)
-      if (!result.ok) summary.warnings.push(`commit-failed:${decision.gameId}:${result.reason}`)
+      const result = await saves.replace(fresh, {
+        ...(decision.action === 'add' ? { onlyIfEmpty: true } : {}),
+        ...(decision.action === 'keepBoth' ? { backupSlot: now() } : {}),
+      })
+      if (!result.ok) return { ok: false, reason: `commit-failed:${decision.gameId}:${result.reason}` }
+      if (decision.action === 'add') summary.added++
+      else if (decision.action === 'keepBoth') summary.keptBoth++
+      else summary.overwritten++
     }
 
-    if (parsed.backup.settings) await saveSettings(parsed.backup.settings)
-    for (const record of parsed.backup.records) await appendRecord(record)
+    if (parsed.backup.settings && !await saveSettings(parsed.backup.settings)) {
+      return { ok: false, reason: 'settings-write-failed' }
+    }
+    try {
+      for (const record of parsed.backup.records) await appendRecord(record)
+    } catch {
+      return { ok: false, reason: 'records-write-failed' }
+    }
     return { ok: true, summary }
   }
 

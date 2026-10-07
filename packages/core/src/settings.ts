@@ -4,6 +4,7 @@
  */
 import type { FontScale } from './layout.js'
 import type { LocaleId } from './i18n.js'
+import { isGameId, isRecord } from './inputLimits.js'
 
 export interface GameSettings {
   difficulty?: string
@@ -38,13 +39,25 @@ export function parseSettings(raw: unknown): SettingsSnapshot {
     value.fontScale === 1.25 || value.fontScale === 1.5 ? value.fontScale : 1
   const locale =
     value.locale === 'zh-CN' || value.locale === 'en-US' ? value.locale : ('auto' as const)
+  const perGame: Record<string, GameSettings> = {}
+  if (isRecord(value.perGame)) {
+    for (const [gameId, rawGame] of Object.entries(value.perGame)) {
+      if (!isGameId(gameId) || !isRecord(rawGame)) continue
+      const game: GameSettings = {}
+      if (typeof rawGame.difficulty === 'string' && rawGame.difficulty.length <= 64) game.difficulty = rawGame.difficulty
+      for (const key of ['timer', 'dpad', 'boldLines'] as const) {
+        if (typeof rawGame[key] === 'boolean') game[key] = rawGame[key]
+      }
+      perGame[gameId] = game
+    }
+  }
   return {
     locale,
     fontScale,
     timer: value.timer !== false,
     dpad: value.dpad !== false,
     boldLines: value.boldLines !== false,
-    perGame: typeof value.perGame === 'object' && value.perGame !== null ? value.perGame : {},
+    perGame,
   }
 }
 

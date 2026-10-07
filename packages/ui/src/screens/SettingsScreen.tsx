@@ -3,7 +3,7 @@
  * 「不支持的选项不作为可用选项显示」——只呈现本设备真正生效的选项。
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { APP_VERSION, type ConflictStrategy } from '@eink/core'
+import { APP_VERSION, MAX_BACKUP_BYTES, type ConflictStrategy } from '@eink/core'
 import { ActionButton, Dialog, TopBar } from '../components.js'
 import { FONT_SCALE_OPTIONS, LOCALE_OPTIONS, useUi } from '../contexts.js'
 
@@ -134,11 +134,20 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
           onChange={(event) => {
             const file = event.target.files?.[0]
             if (!file) return
+            const input = event.currentTarget
+            if (file.size > MAX_BACKUP_BYTES) {
+              setMessage(i18n.t('shell.storage.importFailed', { reason: 'backup-too-large' }))
+              input.value = ''
+              return
+            }
             void file
               .text()
               .then((text) => applyImportText(text, 'keepBoth'))
+              .catch(() => {
+                setMessage(i18n.t('shell.storage.importFailed', { reason: 'read-failed' }))
+              })
               .finally(() => {
-                event.target.value = ''
+                input.value = ''
               })
           }}
         />

@@ -60,6 +60,8 @@ export interface RecoveryReport {
 
 export interface SaveStore {
   commit(envelope: SaveEnvelopeV1): Promise<CommitResult>
+  /** Atomic import/restore: never delete the current save or leave a failed replacement intent. */
+  replace(envelope: SaveEnvelopeV1, options?: { backupSlot?: number; onlyIfEmpty?: boolean }): Promise<CommitResult>
   load(gameId: string): Promise<SaveEnvelope | null>
   /**
    * 区分「没有存档」「有存档」与「存档损坏/版本不支持」。
@@ -107,6 +109,31 @@ export function createSaveStore(
   }
 
   return {
+    async replace(envelope, options = {}) {
+      try {
+        const key = committedKey(envelope.gameId)
+        const current = await kv.get(key)
+        if (options.onlyIfEmpty && current !== null) return { ok: false, reason: 'conflict' }
+        const previousId = current ? (readMeta(current)?.commitId ?? 0) : 0
+        const target = reseal({ ...envelope, commitId: previousId + 1, updatedAt: now() })
+        if (options.backupSlot !== undefined && current !== null) {
+          // Reserve a fresh archive key atomically; equal timestamps must not overwrite a backup.
+          let archived = false
+          for (let offset = 0; offset < 1000; offset++) {
+            const result = await kv.commitCas(backupKey(envelope.gameId, options.backupSlot + offset), null, current)
+            if (result.ok) { archived = true; break }
+          }
+          if (!archived) return { ok: false, reason: 'io', detail: 'backup slots exhausted' }
+        }
+        const result = await kv.commitCas(key, current, JSON.stringify(target))
+        if (!result.ok) return { ok: false, reason: 'conflict', detail: 'concurrent replacement detected' }
+        return { ok: true, commitId: target.commitId }
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        return { ok: false, reason: /quota|exceeded|space/i.test(detail) ? 'quota' : 'io', detail }
+      }
+    },
+
     async commit(envelope) {
       try {
         const target = reseal({ ...envelope, updatedAt: now(), commitId: envelope.commitId + 1 })
