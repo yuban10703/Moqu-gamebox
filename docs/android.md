@@ -56,15 +56,16 @@ adb logcat -s MainActivity   # 壳层日志
 
 `.github/workflows/release-apk.yml`：push 到 `main` 时先看 `v<versionName>` 这个 tag / release **是否存在** ——
 **存在就整个跳过**（版本号没变，不重复发也不白烧构建时间），不存在才走
-「`npm ci` → `npm run check` → 装 JDK 17 / Android SDK 35 / Gradle 8.14.3 → `gradle assembleDebug` → 发 Release」。
+「`npm ci` → `npm run check` → 装 JDK 17 / Android SDK 35 / Gradle 8.14.3 → `gradle assembleRelease` → 发 Release」。
 
 所以**发新版本只需要改版本号**：
 
 1. `apps/android/app/build.gradle.kts`：`versionName`（例如 `0.2.0`）与 `versionCode`（必须递增，否则设备覆盖安装会被拒）；
-2. `package.json` 的 `version` 改成同一个值 —— workflow 会校验两者一致，不一致直接失败（避免改了一个忘另一个）；
-3. 提交并 push 到 `main`。
+2. 同步 `package.json`、`apps/web/package.json`、`package-lock.json` 和 `packages/core/src/version.ts` 的应用版本；workflow 会校验根包与 Android 版本一致；
+3. 将本版变更写入 `docs/releases/v<版本>.md`，工作流会加入 Release 说明；
+4. 提交并 push 到 `main`；工作流以实际构建的提交创建版本标签。
 
-产物是 `moqu-<版本>.apk`（**debug 签名**，可直接侧载；Release 说明里带 `versionCode` 与 SHA-256）。
+产物是 `moqu-<版本>.apk`（正式 keystore 签名，缺少签名配置时回退 debug；Release 说明里带签名方式、`versionCode` 与 SHA-256）。
 也可以在 Actions 页面手动触发（`workflow_dispatch`）来重试或补发。
 
 ### 签名：缺 Secrets 时回退 debug（2026-10-05 已接好）
@@ -115,8 +116,8 @@ Windows PowerShell（不借 WSL 时）：
 
 # 4) 触发一次正式签名的发布：**必须改版本号** —— 已经发过的版本号（例如 v0.1.0）
 #    因为 tag 已存在会被 workflow 直接跳过，不会重新构建：
-#      apps/android/app/build.gradle.kts：versionName = "0.1.3"、versionCode = 4
-#      package.json：version = "0.1.3"（两者不一致 workflow 会直接失败）
+#      apps/android/app/build.gradle.kts：versionName = "0.1.4"、versionCode = 5
+#      package.json：version = "0.1.4"（两者不一致 workflow 会直接失败）
 ```
 
 配好之后下次发布就会用正式签名（工作流会打印签名者与有效期，可据此确认不再是 Debug）。

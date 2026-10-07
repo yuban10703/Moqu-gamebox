@@ -203,7 +203,13 @@ jobs:
           # 注意：这里用**不带引号**的 heredoc（要让 $VERSION/$CODE/$SHA 展开），
           # 因此正文里的反引号必须转义成 \`，否则会被当成命令替换执行。
           cat > release-notes.md <<EOF
-          **墨趣** —— 为墨水屏而生的离线游戏合集，14 款游戏，中文 / 英文，完全离线、不申请任何权限。
+          **墨趣** —— 为墨水屏而生的离线游戏合集，17 款游戏，中文 / 英文，完全离线、不申请任何权限。
+
+          EOF
+          if [ -f "docs/releases/v$VERSION.md" ]; then
+            cat "docs/releases/v$VERSION.md" >> release-notes.md
+          fi
+          cat >> release-notes.md <<EOF
 
           ## 下载安装
 
@@ -239,4 +245,5 @@ jobs:
           set -euo pipefail
           gh release create "v$VERSION" "moqu-$VERSION.apk" \
             --title "墨趣 v$VERSION" \
+            --target "$GITHUB_SHA" \
             --notes-file release-notes.md
