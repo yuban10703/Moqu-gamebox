@@ -4,8 +4,18 @@
  * 视角：对恶魔时永远是真人（0 号位）；双人同屏时是「当前行动者」（放大镜 / 手机的结果给正在操作的人看）。
  * 只用 SeatView，不碰枪里弹的真实顺序。
  */
-import type { ControlSpec, DuelLine, GameStatus, DuelSide, DuelToken, DuelView, GameView, StatView } from '@eink/core'
-import { MAX_ITEMS, ROUND_COUNT, opponent, type DuelEvent, type Seat } from './engine.js'
+import type {
+  ControlSpec,
+  DuelFireScene,
+  DuelLine,
+  GameStatus,
+  DuelSide,
+  DuelToken,
+  DuelView,
+  GameView,
+  StatView,
+} from '@eink/core'
+import { MAX_ITEMS, ROUND_COUNT, canSteal, opponent, stealTargets, type DuelEvent, type Seat } from './engine.js'
 import { observe, remainingShells, type SeatView } from './observe.js'
 import { devilLevelAt, duelOf, humanActor, isHuman, itemUsable, modeOf, statusOf, type BuckshotState } from './rules.js'
 
@@ -104,6 +114,14 @@ function lineFor(state: BuckshotState, event: DuelEvent): DuelLine {
       return { key: 'buckshot.log.use.medicine.heal', subjectKey: name(event.user), params: { amount: event.amount } }
     case 'hurt':
       return { key: 'buckshot.log.use.medicine.hurt', subjectKey: name(event.user), params: { amount: event.amount } }
+    case 'steal':
+      // 抢来的这件接着就会有它自己的效果事件（单独一条），所以这里不并进「用了道具」
+      return {
+        key: 'buckshot.log.steal',
+        subjectKey: name(event.user),
+        objectKey: name(opponent(event.user)),
+        itemKey: `buckshot.item.${event.item}`,
+      }
     case 'skip':
       return { key: 'buckshot.log.skip', subjectKey: name(event.seat) }
     case 'round':
@@ -158,12 +176,60 @@ function sideFor(state: BuckshotState, view: SeatView, seat: Seat): DuelSide {
       icon: item,
       labelKey: `buckshot.item.${item}`,
       ...(view.phase === 'load' && slot >= freshFrom ? { fresh: true } : {}),
-      selectable: view.phase === 'turn' && actor === seat && isHuman(state, seat) && itemUsable(duel, seat, slot),
+      selectable:
+        view.phase === 'turn' &&
+        actor === seat &&
+        isHuman(state, seat) &&
+        // 肾上腺素不是「直接用」的道具：有得抢才给点（点了进入选目标状态）
+        (item === 'adrenaline' ? stealTargets(duel, seat).length > 0 : itemUsable(duel, seat, slot)),
+      stealable: view.phase === 'turn' && actor !== null && seat !== actor && isHuman(state, actor) && canSteal(duel, actor, slot),
     })),
     itemCapacity: MAX_ITEMS,
     active: (view.phase === 'turn' || view.phase === 'load') && view.turn === seat,
     ...(view.cuffed[seat] ? { statusKey: 'buckshot.status.cuffed' } : {}),
     wins: view.roundWins[seat],
+  }
+}
+
+/**
+ * 刚打出的那一枪 → 定格画面（`DuelView.fire`）。
+ *
+ * 判据只有一个：**最后一条事件是不是开枪**。是，就把那一枪摆成一屏；之后任何事件
+ * （对手 tick、自己用道具、重新装填）都会自然把它顶掉 —— 所以画面不需要额外的状态、
+ * 存档也不用改（局面仍然只由日志复算）。
+ *
+ * 位置口径与 `sideFor` 一致：0 号位在下方、1 号位在上方。
+ */
+export function buildFire(view: SeatView): DuelFireScene | null {
+  /*
+   * 整场已经结束（matchOver）就让位给壳层的结果面板：这一屏是「刚刚这一枪」的定格，
+   * 它的退场条件是**下一条事件到来**；而整场结束时不会再有下一条事件 ——
+   * 不定这一条，画面会一直挂在那儿，玩家看完结果回来还看到它盖着枪与说明
+   * （用户真机反馈「游戏结束了也还在」）。
+   *
+   * 一轮结束（roundOver）**仍然保留**：那正是打倒人的那一枪，是全屏最有分量的一下，
+   * 而且它天然有下一条事件（玩家点「下一轮」）。
+   */
+  if (view.phase === 'matchOver') return null
+  // 末尾的 `round` 是**这一枪**打出来的（引擎在 shoot 之后紧跟着记一条），
+  // 所以要跳过它再看：打倒人的那一枪同样要定格，不能因为多了一条结算事件就不显示。
+  let index = view.events.length - 1
+  while (index >= 0 && view.events[index]!.type === 'round') index--
+  const event = index >= 0 ? view.events[index] : undefined
+  if (!event || event.type !== 'shoot') return null
+  const pos = (seat: Seat): 'top' | 'bottom' => (seat === 0 ? 'bottom' : 'top')
+  const hp = view.hp[event.target]
+  // 伤害已经记在事件里；开枪前的血量由「现在 + 这一枪的伤害」反推（这一枪就是最后一条事件）
+  return {
+    shooter: pos(event.shooter),
+    target: pos(event.target),
+    shell: event.live ? 'live' : 'blank',
+    damage: event.damage,
+    sawn: event.damage >= 2,
+    hp,
+    hpBefore: Math.min(view.maxHp, hp + event.damage),
+    maxHp: view.maxHp,
+    lethal: hp === 0,
   }
 }
 
@@ -212,6 +278,7 @@ export function buildDuel(state: BuckshotState): DuelView {
     tags,
     sawn: view.saw,
     log: buildLog(state, view),
+    fire: buildFire(view),
   }
 }
 

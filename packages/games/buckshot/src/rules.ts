@@ -15,7 +15,9 @@ import {
   SEATS,
   applyMove,
   opponent,
+  canSteal,
   replayDuel,
+  stealTargets,
   type DuelState,
   type LoggedMove,
   type Mode,
@@ -26,10 +28,15 @@ import { observe } from './observe.js'
 
 export { GAME_ID }
 
-export const RULES_VERSION = 1
-export const CONTENT_VERSION = 1
+export const RULES_VERSION = 2
+export const CONTENT_VERSION = 2
 /** 恶魔每一步的间隔：墨水屏上看得清它用了什么、打了谁（≥ MIN_TICK_MS） */
 export const DEVIL_DELAY_MS = 1000
+/**
+ * 刚挨了一枪之后的间隔：比平时多停一拍，让「开枪定格画面」看得完
+ * （实弹还是空包、掉了几个血都要读清楚；墨水屏没有动画，时间就是唯一的强调手段）。
+ */
+export const FIRE_HOLD_MS = 1800
 export const DIFFICULTY_IDS = ['starter', 'skilled', 'challenging', 'endless', 'hotseat'] as const
 /** 无尽模式里恶魔每隔几轮升一档 */
 export const ENDLESS_LEVEL_EVERY = 3
@@ -45,6 +52,7 @@ export interface BuckshotState {
 export type BuckshotAction =
   | { type: 'begin' }
   | { type: 'item'; slot: number }
+  | { type: 'steal'; slot: number }
   | { type: 'shoot'; target: 'self' | 'opponent' }
   | { type: 'nextRound' }
   | { type: 'tick' }
@@ -120,6 +128,8 @@ export function itemUsable(duel: DuelState, seat: Seat, slot: number): boolean {
   if (item === undefined) return false
   if (item === 'handcuffs') return !duel.cuffed[opponent(seat)]
   if (item === 'saw') return !duel.saw
+  // 肾上腺素**不是**普通道具：它要走 steal 动作（先点它，再点对手那一格）
+  if (item === 'adrenaline') return false
   return true
 }
 
@@ -134,17 +144,24 @@ export function reduceState(state: BuckshotState, action: BuckshotAction): Bucks
       return commit(state, duel, { seat, move: { kind: action.type } })
     }
     case 'item':
+    case 'steal':
     case 'shoot': {
       if (duel.phase !== 'turn' || actor === null) illegal('not your turn')
       const move: Move =
-        action.type === 'item' ? { kind: 'item', slot: action.slot } : { kind: 'shoot', target: action.target }
+        action.type === 'item'
+          ? { kind: 'item', slot: action.slot }
+          : action.type === 'steal'
+            ? { kind: 'steal', slot: action.slot }
+            : { kind: 'shoot', target: action.target }
       return commit(state, duel, { seat: actor, move })
     }
     case 'tick': {
       const level = devilLevelAt(state.difficulty, duel.round)
       if (level === null || duel.phase !== 'turn' || duel.turn !== 1) illegal('the devil is not due to act')
       const rng = createRng((state.seed ^ Math.imul(state.log.length + 1, 0x27d4eb2f)) >>> 0)
-      return commit(state, duel, { seat: 1, move: decideMove(observe(duel, 1), level, rng) })
+      // 真实弹序交给 AI（用多少由难度决定）：原版 Dealer 的「作弊感」就来自这里
+      const truth = { order: duel.load, pos: duel.pos, stealable: stealTargets(duel, 1) }
+      return commit(state, duel, { seat: 1, move: decideMove(observe(duel, 1), level, rng, truth) })
     }
     default:
       illegal(`unknown action ${JSON.stringify(action)}`)
@@ -159,9 +176,24 @@ export function statusOf(state: BuckshotState): GameStatus {
   return duel.winner === 0 ? 'won' : 'lost'
 }
 
+/** 最后一条日志是不是刚刚打出的一枪（定格画面还停在屏幕上） */
+function freshShot(state: BuckshotState): boolean {
+  return state.log.at(-1)?.move.kind === 'shoot'
+}
+
 export function tickMsOf(state: BuckshotState): number | null {
   const duel = duelOf(state)
-  return hasDevil(state.difficulty) && duel.phase === 'turn' && duel.turn === 1 ? DEVIL_DELAY_MS : null
+  if (!hasDevil(state.difficulty) || duel.phase !== 'turn' || duel.turn !== 1) return null
+  // 刚有人开过枪：定格画面还在，多停一拍再让恶魔动
+  return freshShot(state) ? FIRE_HOLD_MS : DEVIL_DELAY_MS
+}
+
+/** 对决面板专用：把「抢对手这一格」变成动作；规则层不认的格子返回 null（壳层据此提示或静默） */
+export function stealAction(state: BuckshotState, slot: number): BuckshotAction | null {
+  const duel = duelOf(state)
+  const actor = humanActor(state)
+  if (actor === null || !canSteal(duel, actor, slot)) return null
+  return { type: 'steal', slot }
 }
 
 export function legalActions(state: BuckshotState): BuckshotAction[] {
@@ -175,6 +207,7 @@ export function legalActions(state: BuckshotState): BuckshotAction[] {
   duel.items[actor].forEach((_, slot) => {
     if (itemUsable(duel, actor, slot)) out.push({ type: 'item', slot })
   })
+  for (const slot of stealTargets(duel, actor)) out.push({ type: 'steal', slot })
   out.push({ type: 'shoot', target: 'self' }, { type: 'shoot', target: 'opponent' })
   return out
 }
@@ -196,6 +229,10 @@ function readMove(raw: unknown): Move {
   if (move.kind === 'item') {
     if (typeof move.slot !== 'number' || !Number.isInteger(move.slot)) illegal('bad slot')
     return { kind: 'item', slot: move.slot }
+  }
+  if (move.kind === 'steal') {
+    if (typeof move.slot !== 'number' || !Number.isInteger(move.slot)) illegal('bad slot')
+    return { kind: 'steal', slot: move.slot }
   }
   if (move.kind === 'shoot') {
     if (move.target !== 'self' && move.target !== 'opponent') illegal('bad target')

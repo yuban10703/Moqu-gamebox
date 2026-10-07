@@ -10,8 +10,8 @@
  * 1-bit：血量是爱心（实心 / 空心），实弹实心、空包空心，已打出的实弹画斜纹、空包打叉；
  * 没有动画 —— 发生了什么全靠记录用文字交代。尺寸由 CSS 按棋盘区（容器查询）算。
  */
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import type { DuelItem, DuelLine, DuelSide, DuelToken, DuelView } from '@eink/core'
+import { useLayoutEffect, useRef, type ReactNode, useState } from 'react'
+import type { DuelFireScene, DuelItem, DuelLine, DuelSide, DuelToken, DuelView } from '@eink/core'
 import { useUi } from './contexts.js'
 
 /** 道具图标（24×24 线条，黑白）：未知名字回退成一个空方框 */
@@ -89,8 +89,19 @@ function ItemIcon({ icon }: { icon: string }): ReactNode {
         </>
       )
       break
+    case 'adrenaline':
+      // 一支注射器：药管 + 推杆 + 针头（1-bit 下靠线宽区分，不靠颜色）
+      body = (
+        <>
+          <rect x="3.5" y="9" width="12" height="6" rx="1" {...stroke} />
+          <path d="M15.5 12h4.2" stroke="#000" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M19.7 12h1.8" stroke="#000" strokeWidth="1.4" />
+          <path d="M7 9v6M10 9v6M13 9v6" stroke="#000" strokeWidth="1.1" />
+          <path d="M3.5 9.6V6.8M3.5 14.4v2.8" stroke="#000" strokeWidth="2.2" strokeLinecap="round" />
+        </>
+      )
+      break
     default:
-      body = <rect x="5" y="5" width="14" height="14" {...stroke} />
   }
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -201,30 +212,52 @@ function Log({ log }: { log: readonly DuelLine[] }): ReactNode {
 }
 
 function Items({
+
   side,
+
   onSelect,
+
+  onSteal,
+
+  stealMode,
+
 }: {
+
   side: DuelSide
+
   onSelect?: ((id: number) => void) | undefined
+
+  onSteal?: ((id: number) => void) | undefined
+
+  /** 正处在「用肾上腺素抢一件」的选择状态：对手那几件可选的就成了按钮 */
+
+  stealMode?: boolean | undefined
+
 }): ReactNode {
   const { i18n } = useUi()
   const empty = Math.max(0, side.itemCapacity - side.items.length)
   return (
-    <div className="eink-duel__items" data-position={side.position}>
-      {side.items.map((item: DuelItem) => (
-        <button
-          key={item.id}
-          type="button"
-          className="eink-duel__slot"
-          disabled={!item.selectable}
-          data-selectable={item.selectable ? 'yes' : 'no'}
-          {...(onSelect && item.selectable ? { onClick: () => onSelect(item.id) } : {})}
-        >
+    <div className="eink-duel__items" data-position={side.position} {...(stealMode ? { 'data-steal': 'yes' } : {})}>
+      {side.items.map((item: DuelItem) => {
+        const stealing = stealMode === true && item.stealable === true
+        const usable = stealing || item.selectable
+        const handler = stealing ? onSteal : onSelect
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className="eink-duel__slot"
+            disabled={!usable}
+            data-selectable={usable ? 'yes' : 'no'}
+            {...(stealing ? { 'data-stealable': 'yes' } : {})}
+            {...(handler && usable ? { onClick: () => handler(item.id) } : {})}
+          >
           <ItemIcon icon={item.icon} />
           <span className="eink-duel__slotlabel">{i18n.t(item.labelKey)}</span>
           {item.fresh ? <span className="eink-duel__fresh">{i18n.t('shell.duel.fresh')}</span> : null}
         </button>
-      ))}
+          )
+      })}
       {Array.from({ length: empty }, (_, index) => (
         <span key={`empty-${index}`} className="eink-duel__slot eink-duel__slot--empty" aria-hidden="true" />
       ))}
@@ -232,7 +265,27 @@ function Items({
   )
 }
 
-function Side({ side, onSelect }: { side: DuelSide; onSelect?: ((id: number) => void) | undefined }): ReactNode {
+function Side({
+
+  side,
+
+  onSelect,
+
+  onSteal,
+
+  stealMode,
+
+}: {
+
+  side: DuelSide
+
+  onSelect?: ((id: number) => void) | undefined
+
+  onSteal?: ((id: number) => void) | undefined
+
+  stealMode?: boolean | undefined
+
+}): ReactNode {
   const { i18n } = useUi()
   const head = (
     <div className="eink-duel__head">
@@ -256,7 +309,7 @@ function Side({ side, onSelect }: { side: DuelSide; onSelect?: ((id: number) => 
       ) : null}
       <div className="eink-duel__info">
         {head}
-        <Items side={side} onSelect={onSelect} />
+        <Items side={side} onSelect={onSelect} onSteal={onSteal} stealMode={stealMode} />
       </div>
     </section>
   )
@@ -288,58 +341,190 @@ function Gun({ sawn }: { sawn: boolean }): ReactNode {
   )
 }
 
+/** 枪口爆闪：实心多角星 —— 1-bit 下最醒目的「开火了」 */
+function Blast(): ReactNode {
+  return (
+    <svg className="eink-duel__blast" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <path
+        d="M50 1 L59 32 L90 14 L70 43 L99 50 L70 57 L90 86 L59 68 L50 99 L41 68 L10 86 L30 57 L1 50 L30 43 L10 14 L41 32 Z"
+        fill="#000"
+      />
+    </svg>
+  )
+}
+
+/** 空膛：空心膛口 + 打叉（空包弹那一声「咔」） */
+function Dud(): ReactNode {
+  return (
+    <svg className="eink-duel__dud" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <circle cx="50" cy="50" r="36" fill="none" stroke="#000" strokeWidth="7" />
+      <path d="M32 32 L68 68 M68 32 L32 68" stroke="#000" strokeWidth="9" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * 开枪定格画面：刚打出的那一枪单独占一屏。
+ *
+ * 墨水屏没有动画（面板约 2 次整屏刷新/秒），所以「开枪」的打击感只能靠三样东西给：
+ * **对比度**（白底黑字 + 大字 + 粗框）、**图形**（实心爆闪 / 空心打叉）、**停多久**
+ * （引擎在对手回合多停一拍，见 FIRE_HOLD_MS）。画面一直停到下一次行动为止。
+ *
+ * 为什么不是黑带白字：那是俄罗斯方块消行特效里试过、用户看过真机后否掉的做法
+ * （docs/eink-guidelines.md 第 51 行），这里沿用留下的口径「白底黑字」。
+ *
+ * 覆盖范围**只有枪 / 弹仓 / 说明那一段**（`.eink-duel__stage` 只包 `.eink-duel__table`）：
+ * 战斗记录与两侧的血量、道具始终露着 —— 用户明确要求「不要把战斗日志挡住」，
+ * 而且记录里就有这一枪的那一条，翻得到才安心。为此画面压成两行（主行 + 信息行），
+ * 高度对齐 table（真机实测 415×172），出现/消失都不会顶动下面的记录。
+ */
+function FireScene({
+  fire,
+  top,
+  bottom,
+  remaining,
+}: {
+  fire: DuelFireScene
+  top?: DuelSide | undefined
+  bottom?: DuelSide | undefined
+  remaining?: DuelLine | null | undefined
+}): ReactNode {
+  const { i18n } = useUi()
+  const line = useLine()
+  const nameOf = (pos: 'top' | 'bottom'): string => {
+    const side = pos === 'top' ? top : bottom
+    return side ? i18n.t(side.nameKey) : ''
+  }
+  const self = fire.shooter === fire.target
+  return (
+    <div className="eink-duel__fire" data-shell={fire.shell} data-lethal={fire.lethal ? 'yes' : 'no'} role="status">
+      {/* 主行：这一枪是什么 + 枪的图形 + 伤害（三样都放大，一眼扫到） */}
+      <div className="eink-duel__firerow eink-duel__firerow--main">
+        <p className="eink-duel__firetitle">
+          {i18n.t(fire.shell === 'live' ? 'shell.duel.fire.live' : 'shell.duel.fire.blank')}
+        </p>
+        <span className="eink-duel__firegun">
+          <Gun sawn={fire.sawn} />
+          {fire.shell === 'live' ? <Blast /> : <Dud />}
+        </span>
+        {fire.damage > 0 ? (
+          <span className="eink-duel__firedmg">{i18n.t('shell.duel.fire.damage', { amount: fire.damage })}</span>
+        ) : null}
+      </div>
+      {/* 信息行：谁打谁、挨打方的血量与掉血、击倒，以及枪里还剩什么 */}
+      <div className="eink-duel__firerow eink-duel__firerow--info">
+        <span className="eink-duel__firehit">
+          {self
+            ? i18n.t('shell.duel.fire.self', { subject: nameOf(fire.shooter) })
+            : i18n.t('shell.duel.fire.at', { subject: nameOf(fire.shooter), object: nameOf(fire.target) })}
+        </span>
+        <span className="eink-duel__firehp">
+          <span className="eink-duel__firename">{nameOf(fire.target)}</span>
+          <Hp hp={fire.hp} max={fire.maxHp} />
+        </span>
+        {fire.hpBefore > fire.hp ? (
+          <span className="eink-duel__firelost">
+            {i18n.t('shell.duel.fire.lost', { amount: fire.hpBefore - fire.hp })}
+          </span>
+        ) : null}
+        {fire.lethal ? <span className="eink-duel__fireknock">{i18n.t('shell.duel.fire.knockdown')}</span> : null}
+        {/* 枪里还剩什么：平时它在枪下面（属于被盖住的那一段），信息行里补一份 */}
+        {remaining ? <span className="eink-duel__fireremaining">{line(remaining)}</span> : null}
+      </div>
+    </div>
+  )
+}
+
 export interface DuelPanelProps {
   duel: DuelView
   /** 点道具：交给游戏的 selectAction（编号由游戏给） */
   onItemSelect?: (id: number) => void
+  /** 肾上腺素选目标：壳层把它接到游戏的 stealAction 上 */
+  onStealSelect?: (slot: number) => void
 }
 
-export function DuelPanel({ duel, onItemSelect }: DuelPanelProps): ReactNode {
+export function DuelPanel({ duel, onItemSelect, onStealSelect }: DuelPanelProps): ReactNode {
+
   const { i18n } = useUi()
   const line = useLine()
+  /*
+   * 「用肾上腺素抢一件」是**两步**操作：先点自己那件肾上腺素、再点对手那一格。
+   * 这一步状态只活在面板里（不进存档、不进规则层）：点肾上腺素进入，点目标或再点一次退出。
+   */
+  const [stealMode, setStealMode] = useState(false)
+  const armed = stealMode && duel.sides.some((side) => side.items.some((item) => item.stealable === true))
+  const pick = (side: DuelSide | undefined) =>
+    side
+      ? (id: number) => {
+          const item = side.items.find((entry) => entry.id === id)
+          if (item?.labelKey === 'buckshot.item.adrenaline') {
+            setStealMode((open) => !open)
+            return
+          }
+          onItemSelect?.(id)
+        }
+      : undefined
+  const steal = (id: number) => {
+    setStealMode(false)
+    onStealSelect?.(id)
+  }
   const top = duel.sides.find((side) => side.position === 'top')
   const bottom = duel.sides.find((side) => side.position === 'bottom')
   return (
     <div className="eink-duel">
-      {top ? <Side side={top} onSelect={onItemSelect} /> : null}
+      {top ? <Side side={top} onSelect={pick(top)} onSteal={steal} stealMode={armed} /> : null}
 
-      <section className="eink-duel__table">
-        <div className="eink-duel__gunrow">
-          <Gun sawn={duel.sawn} />
-          {duel.tags.length > 0 ? (
-            <span className="eink-duel__tags">
-              {duel.tags.map((tag) => (
-                <span key={tag.key} className="eink-duel__tag">
-                  {line(tag)}
-                </span>
-              ))}
-            </span>
-          ) : null}
-        </div>
-        <div className="eink-duel__chamber">
-          {duel.spent.length > 0 ? (
-            <>
+      <div className="eink-duel__stage">
+        {/* 定格画面盖住这一段时对读屏隐藏：内容由画面负责播报，免得同一枪念两遍 */}
+        <section className="eink-duel__table" {...(duel.fire ? { 'aria-hidden': true } : {})}>
+          <div className="eink-duel__gunrow">
+            <Gun sawn={duel.sawn} />
+            {duel.tags.length > 0 ? (
+              <span className="eink-duel__tags">
+                {duel.tags.map((tag) => (
+                  <span key={tag.key} className="eink-duel__tag">
+                    {line(tag)}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </div>
+          <div className="eink-duel__chamber">
+            {/*
+             * 「已打出」这一组**常驻**：还没开过枪时它只是不画（visibility: hidden），
+             * 但位置一直占着 —— 否则首次开枪多出这一组、枪那一段变高，
+             * 下面的战斗记录（flex: 1 1 auto）就会被挤矮一截（真机实测差 33px）。
+             */}
+            <span className="eink-duel__spent" data-empty={duel.spent.length > 0 ? 'no' : 'yes'}>
               <span className="eink-duel__label">{i18n.t('shell.duel.spent')}</span>
               {duel.spent.map((kind, index) => (
                 <Token key={`s-${index}`} kind={kind} spent />
               ))}
               <span className="eink-duel__sep" aria-hidden="true" />
-            </>
-          ) : null}
-          <span className="eink-duel__label">{i18n.t('shell.duel.chamber')}</span>
-          {duel.chamber.map((kind, index) => (
-            <Token key={`c-${index}`} kind={kind} />
-          ))}
-        </div>
-        {duel.remaining ? <p className="eink-duel__remaining">{line(duel.remaining)}</p> : null}
-        <p className="eink-duel__caption" role="status">
-          {line(duel.caption)}
-        </p>
-      </section>
+            </span>
+            <span className="eink-duel__label">{i18n.t('shell.duel.chamber')}</span>
+            {duel.chamber.map((kind, index) => (
+              <Token key={`c-${index}`} kind={kind} />
+            ))}
+          </div>
+          {/*
+           * 「剩余」行同样常驻：装填阶段没有它，但空行要占着 —— 否则点「开始」时
+           * 这一行凭空出现，日志又会被挤矮（真机实测 142 → 109）。
+           */}
+          <p className="eink-duel__remaining" {...(duel.remaining ? {} : { 'aria-hidden': true })}>
+            {duel.remaining ? line(duel.remaining) : '\u00a0'}
+          </p>
+          <p className="eink-duel__caption" role="status">
+            {armed ? i18n.t('buckshot.steal.pick') : line(duel.caption)}
+          </p>
+        </section>
+
+        {duel.fire ? <FireScene fire={duel.fire} top={top} bottom={bottom} remaining={duel.remaining} /> : null}
+      </div>
 
       <Log log={duel.log} />
 
-      {bottom ? <Side side={bottom} onSelect={onItemSelect} /> : null}
+      {bottom ? <Side side={bottom} onSelect={pick(bottom)} onSteal={steal} stealMode={armed} /> : null}
     </div>
   )
 }

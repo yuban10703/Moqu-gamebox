@@ -2025,7 +2025,8 @@ html[data-font-scale='1.5'] .eink-tile__title {
   gap: min(8px, 1.4cqh);
   font-size: min(1em, 3.6cqh);
   --slot-top: min(8cqh, 44px);
-  --slot-bottom: min(10cqh, 54px);
+  /* 道具槽：**单行 8 格**（P1 方案）——上家 44px、下家 48px（触摸下限） */
+  --slot-bottom: min(9.6cqh, 48px);
   --token-w: min(22px, 5cqw);
 }
 
@@ -2035,14 +2036,30 @@ html[data-font-scale='1.5'] .eink-tile__title {
   align-items: flex-start;
 }
 
-.eink-duel__portrait {
-  flex: 0 0 auto;
-  width: min(18cqh, 96px);
-  height: min(18cqh, 96px);
-  border: 2px solid var(--ink-black);
-  border-radius: 6px;
-  display: flex;
-}
+  /*
+   * 头像：**跟着右侧（名字 + 血量 + 道具）的高度走**，不再自己撑高。
+   *
+   * 由来：道具压成一行后右列只有 ~77px，而头像还是 min(18cqh, 96px) ——
+   * 上家整块被头像撑住，道具行下面空出 19px（用户反馈「下面怎么还是空的」）。
+   * 现在 align-self: stretch + aspect-ratio 让它正好等于右列高度（仍是正方形），
+   * max-width 兜住极矮横屏，避免它把宽度吃光；min-width 防 flex 把宽度算成 0。
+   */
+  /*
+   * 头像：尺寸**小于右侧那一列**（名字 + 血量 + 道具 ≈ 77px），让右列决定上家整块的高度。
+   *
+   * 由来：道具压成一行后右列只有 ~77px，头像却还是 min(18cqh, 96px) ——
+   * 上家整块被头像撑到 96px，道具行下面空出 19px（用户反馈「下面怎么还是空的」）。
+   * 现在 64px：既保住正方形与辨识度，又把高度交还给右列；
+   * 极矮横屏另有 --slot-* 覆盖，这里不再跟着 cq 放大。
+   */
+  .eink-duel__portrait {
+    flex: 0 0 auto;
+    width: min(11cqh, 64px);
+    height: min(11cqh, 64px);
+    border: 2px solid var(--ink-black);
+    border-radius: 6px;
+    display: flex;
+  }
 
 .eink-duel__portrait > svg {
   width: 100%;
@@ -2110,47 +2127,61 @@ html[data-font-scale='1.5'] .eink-tile__title {
   flex: 0 0 auto;
 }
 
-/* 道具：4 列网格（共 8 格）；能用的实线框，不能用的点线框，空格虚线 */
-.eink-duel__items {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-}
+  /*
+   * 道具：**单行 8 格**（原来 4 列 × 2 行）。
+   *
+   * 为什么压成一行：两行时单侧吃掉 92~112px，比战斗记录（107px）还高 ——
+   * 而 8 格是上限（engine 的 MAX_ITEMS = 8），一行放得下，且**格子数恒定**：
+   * 拿到/用掉道具时行高不会变（硬要求，日志高度不能被顶动）。
+   * 每格约 48px 宽，正好卡在 48px 触摸下限；上家（恶魔）那排不可点给 44px，
+   * 下家（你自己）给 48px。能用的实线框，不能用的点线框，空格虚线。
+   */
+  .eink-duel__items {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 4px;
+  }
 
-.eink-duel__slot {
-  position: relative;
-  height: var(--slot-top);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  padding: 0;
-  margin: 0;
-  border: 1.5px solid var(--ink-black);
-  border-radius: 2px;
-  background: var(--ink-white);
-  color: var(--ink-black);
-  font: inherit;
-  font-size: 0.6em;
-  line-height: 1.1;
-}
+  .eink-duel__slot {
+    position: relative;
+    height: var(--slot-top);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    padding: 0;
+    margin: 0;
+    border: 1.5px solid var(--ink-black);
+    border-radius: 2px;
+    background: var(--ink-white);
+    color: var(--ink-black);
+    font: inherit;
+    font-size: 0.5em;
+    line-height: 1.1;
+  }
 
-.eink-duel__items[data-position='bottom'] .eink-duel__slot {
-  height: var(--slot-bottom);
-  font-size: 0.72em;
-}
+  .eink-duel__items[data-position='bottom'] .eink-duel__slot {
+    height: var(--slot-bottom);
+    font-size: 0.56em;
+  }
 
-.eink-duel__slot > svg {
-  width: 52%;
-  height: 52%;
-  max-width: 34px;
-}
+  .eink-duel__slot > svg {
+    width: 42%;
+    height: 42%;
+    max-width: 26px;
+  }
 
 .eink-duel__slot[data-selectable='yes'] {
   border-width: 2.5px;
   cursor: pointer;
 }
+
+  /* 抢道具模式：对手那几件「可抢」的加粗成实线（1-bit 上没有颜色，只能靠线型与线宽区分） */
+  .eink-duel__items[data-steal='yes'] .eink-duel__slot[data-stealable='yes'] {
+    border-width: calc(var(--line) * 2);
+    border-style: solid;
+  }
 
 .eink-duel__slot:disabled {
   color: var(--ink-black);
@@ -3036,3 +3067,167 @@ html[data-font-scale='1.5'] .eink-tile__title {
 
 
 
+
+/*
+ * 开枪定格画面（恶魔轮盘赌）：刚打出的那一枪单独占一屏。
+ *
+ * 墨水屏上没有动画可用，打击感只能靠**对比度**与**停顿**（见 docs/eink-guidelines.md
+ * 「打击感：允许的第三种离散手段」）。这里刻意**不用黑带白字、也不用整块反色** ——
+ * 那两种做法在俄罗斯方块消行特效里已经做过一版，用户看过真机后都否掉了
+ * （同文档第 51 行），留下的口径是**白底黑字**。所以：
+ *   - 实弹 = 白底黑字 + **实线粗框** + 实心枪口爆闪；
+ *   - 空包 = 白底黑字 + **虚线框** + 空心空膛打叉。
+ * 两者靠「实心/空心」与「实线/虚线」区分，都是 1-bit 的原生手段，不依赖灰阶。
+ *
+ * 覆盖范围**只有枪 / 弹仓 / 说明那一段**（用户要求「不要把战斗日志挡住」）：
+ * `.eink-duel__stage` 只包着 `.eink-duel__table`，画面用绝对定位填满它，
+ * 战斗记录与两侧都留在外面。因此内容压成两行（主行 + 信息行），
+ * 真机上 table 实测 415×172，画面正好铺满、不顶动下面的记录。
+ */
+.eink-duel__stage {
+  position: relative;
+}
+
+.eink-duel__fire {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--ink-white);
+  border: calc(var(--line) * 1.5) solid var(--ink-black);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: min(5px, 0.9cqh);
+  padding: min(5px, 0.9cqh) min(8px, 1.6cqw);
+  overflow: hidden;
+}
+
+.eink-duel__firerow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: min(8px, 1.6cqw);
+}
+
+/* 主行：这一枪是什么 + 枪的图形 + 伤害，三样都放大 */
+.eink-duel__firerow--main {
+  gap: min(12px, 2.4cqw);
+}
+
+/* 信息行：谁打谁 / 血量 / 掉血 / 击倒 / 剩余，压小一档 */
+.eink-duel__firerow--info {
+  font-size: 0.82em;
+  row-gap: min(3px, 0.6cqh);
+}
+
+/* 标题：白底黑字（口径见上），靠框线区分实弹与空包 */
+.eink-duel__firetitle {
+  margin: 0;
+  padding: 0 min(12px, 2.4cqw) 2px;
+  font-size: 1.25em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  background: var(--ink-white);
+  color: var(--ink-black);
+}
+
+/* 实弹：实线粗框（线宽跟「粗线」设置走：默认 2px → 4px，关掉后 1px → 2px） */
+.eink-duel__fire[data-shell='live'] .eink-duel__firetitle {
+  border: calc(var(--line) * 2) solid var(--ink-black);
+}
+
+/* 空包：虚线框 —— 与实弹形成「实线 vs 虚线」的一眼可辨 */
+.eink-duel__fire[data-shell='blank'] .eink-duel__firetitle {
+  border: calc(var(--line) * 1.5) dashed var(--ink-black);
+}
+
+.eink-duel__firegun {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: min(6px, 1.2cqw);
+}
+
+/* 画面里的枪固定宽度（不再 flex 撑满），给标题与伤害让位 */
+.eink-duel__firegun .eink-duel__gun {
+  flex: 0 0 auto;
+  width: min(150px, 34cqw);
+  height: min(5.5cqh, 40px);
+}
+
+/* 枪口爆闪：实心多角星 —— 1-bit 下最醒目的「开火了」 */
+.eink-duel__blast {
+  flex: 0 0 auto;
+  width: min(10cqh, 44px);
+  height: min(10cqh, 44px);
+}
+
+/* 空膛：空心膛口 + 打叉（空包弹那一声「咔」） */
+.eink-duel__dud {
+  flex: 0 0 auto;
+  width: min(8cqh, 36px);
+  height: min(8cqh, 36px);
+}
+
+.eink-duel__firedmg {
+  font-size: 1.5em;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.eink-duel__firehit {
+  font-weight: 800;
+}
+
+.eink-duel__firehp {
+  display: flex;
+  align-items: center;
+  gap: min(6px, 1.2cqw);
+}
+
+/* 画面里的爱心跟着信息行缩小一档 */
+.eink-duel__fire .eink-duel__heart {
+  width: min(3.4cqh, 22px);
+  height: min(3.4cqh, 22px);
+}
+
+.eink-duel__firename {
+  font-weight: 800;
+}
+
+.eink-duel__firelost {
+  font-weight: 800;
+}
+
+/* 打倒：白底黑字 + 实线粗框（同样不用黑带白字） */
+.eink-duel__fireknock {
+  padding: 0 min(8px, 1.6cqw) 1px;
+  font-weight: 900;
+  background: var(--ink-white);
+  color: var(--ink-black);
+  border: calc(var(--line) * 1.5) solid var(--ink-black);
+}
+
+/*
+ * 「已打出」那一组常驻占位：还没开过枪时整组不画（visibility: hidden），
+ * 但它在弹仓行里占的宽度一直算数 —— 首次开枪时枪那一段的高度才不会变，
+ * 下面的战斗记录也才不会跟着缩水（真机实测差 33px）。
+ * 之后每打出一发，这一组多一枚、弹仓少一枚，宽度整体守恒，不会换行。
+ */
+.eink-duel__spent {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+}
+
+.eink-duel__spent[data-empty='yes'] {
+  visibility: hidden;
+}
+
+/* 画面里的「枪里还剩」：平时它在枪下面（属于被盖住的那一段），信息行里补一份 */
+.eink-duel__fireremaining {
+  font-weight: 700;
+}

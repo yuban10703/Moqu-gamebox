@@ -189,4 +189,11 @@ export const enUS: Dict = {
   'shell.duel.token.knownBlank': 'You know this one is blank',
   'shell.duel.token.spent-live': 'Spent live shell',
   'shell.duel.token.spent-blank': 'Spent blank shell',
+  'shell.duel.fire.live': 'LIVE ROUND!',
+  'shell.duel.fire.blank': 'BLANK',
+  'shell.duel.fire.self': '{subject} shoots themself',
+  'shell.duel.fire.at': '{subject} → {object}',
+  'shell.duel.fire.damage': '−{amount}',
+  'shell.duel.fire.lost': 'lost {amount} HP',
+  'shell.duel.fire.knockdown': 'KNOCKDOWN!',
 }

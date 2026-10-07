@@ -419,10 +419,11 @@ export function GameScreen({
               : {})}
           >
             {session.view.duel ? (
-              // 对决类玩法：对决面板代替棋盘；点道具同样交给游戏的 selectAction
+              // 对决类玩法：对决面板代替棋盘；点道具/抢道具同样交给游戏（selectAction / stealAction）
               <DuelPanel
                 duel={session.view.duel}
                 {...(session.selectCell ? { onItemSelect: session.selectCell } : {})}
+                {...(session.stealCell ? { onStealSelect: session.stealCell } : {})}
               />
             ) : session.view.table ? (
               // 扑克类玩法：牌桌代替格子棋盘；点手牌同样交给游戏的 selectAction

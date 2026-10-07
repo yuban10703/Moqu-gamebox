@@ -8,6 +8,7 @@ import { decideMove } from '../src/ai.js'
 import { observe } from '../src/observe.js'
 import {
   DEVIL_DELAY_MS,
+  FIRE_HOLD_MS,
   DIFFICULTY_IDS,
   ENDLESS_LEVEL_EVERY,
   devilLevelAt,
@@ -71,8 +72,10 @@ describe('真人与恶魔的回合', () => {
     let state = createState(5, 'skilled')
     for (let i = 0; i < 400 && statusOf(state) === 'playing'; i++) {
       const duel = duelOf(state)
-      const expected = duel.phase === 'turn' && duel.turn === 1 ? DEVIL_DELAY_MS : null
-      expect(tickMsOf(state)).toBe(expected)
+      // 恶魔回合必定起表；间隔取两个声明值之一（刚开枪会多停一拍，见 FIRE_HOLD_MS），
+      const tick = tickMsOf(state)
+      if (duel.phase === 'turn' && duel.turn === 1) expect([DEVIL_DELAY_MS, FIRE_HOLD_MS]).toContain(tick)
+      else expect(tick).toBeNull()
       state = step(state)
     }
     expect(tickMsOf(state)).toBeNull()
@@ -189,33 +192,71 @@ describe('展示模型', () => {
   })
 
   it('战斗记录：整场保留不截断；道具与效果合成一条；恶魔回合的记录高亮', () => {
-    const over = playOut(createState(31, 'challenging'))
-    const log = buildView(over).duel!.log
-    // 你能看到的事件里，紧跟在道具后面的效果事件都并进了道具那一条，其余一一对应
-    const visible = observe(duelOf(over), 0).events
-    const effects = visible.filter((e, i) => ['peek', 'eject', 'heal', 'hurt'].includes(e.type) && visible[i - 1]?.type === 'item')
-    expect(log.length).toBe(visible.length - effects.length)
-    expect(log.some((l) => l.key.startsWith('buckshot.log.use.'))).toBe(true)
-    expect(log.every((l) => !/log\.(item|peek|eject|heal|hurt)/.test(l.key))).toBe(true)
-    // 恶魔的开枪全部高亮、你的开枪全部不高亮
-    for (const line of log) {
-      if (line.key.startsWith('buckshot.log.shoot')) {
-        expect(line.highlight === true).toBe(line.subjectKey === 'buckshot.name.devil')
-      }
-    }
-    expect(log.some((l) => l.highlight)).toBe(true)
-  })
-
-  it('对手的放大镜：只记「偷看了」，不泄露结果', () => {
+    // 不钉死某个种子的结局（弹序/配比一改就会变）：扫种子，挑一局「恶魔开过枪也用
+    // 过道具」的来验记录规则；对照隔壁「对手的放大镜」那条的写法。
     for (let seed = 1; seed < 400; seed++) {
       const over = playOut(createState(seed, 'challenging'))
-      const lines = buildView(over).duel!.log.filter((l) => l.key.startsWith('buckshot.log.use.magnifier'))
-      const devil = lines.filter((l) => l.subjectKey === 'buckshot.name.devil')
-      if (devil.length === 0) continue
-      expect(devil.every((l) => l.key === 'buckshot.log.use.magnifier.hidden')).toBe(true)
+      const log = buildView(over).duel!.log
+      // 你能看到的事件里，紧跟在道具后面的效果事件都并进了道具那一条，其余一一对应
+      const visible = observe(duelOf(over), 0).events
+      const effects = visible.filter((e, i) => ['peek', 'eject', 'heal', 'hurt'].includes(e.type) && visible[i - 1]?.type === 'item')
+      expect(log.length).toBe(visible.length - effects.length)
+      if (!log.some((l) => l.key.startsWith('buckshot.log.shoot'))) continue
+      if (!log.some((l) => l.key.startsWith('buckshot.log.use.'))) continue
+      expect(log.every((l) => !/log\.(item|peek|eject|heal|hurt)/.test(l.key))).toBe(true)
+      // 恶魔的开枪全部高亮、你的开枪全部不高亮
+      for (const line of log) {
+        if (line.key.startsWith('buckshot.log.shoot')) {
+          expect(line.highlight === true).toBe(line.subjectKey === 'buckshot.name.devil')
+        }
+      }
+      expect(log.some((l) => l.highlight)).toBe(true)
       return
     }
-    throw new Error('400 场里恶魔一次放大镜都没用')
+    throw new Error('400 场里没有一局同时出现恶魔开枪与道具使用')
+  })
+
+  it('恶魔不再花道具去「看」：熟练/挑战已经能读到真实弹序', () => {
+    // 这是「Dealer 可以读到真实弹序」的直接后果：它不会再浪费放大镜与手机
+    for (let seed = 1; seed < 120; seed++) {
+      const over = playOut(createState(seed, 'challenging'))
+      const peek = buildView(over)
+        .duel!.log.filter((l) => l.key.startsWith('buckshot.log.use.magnifier') || l.key.startsWith('buckshot.log.use.phone'))
+        .filter((l) => l.subjectKey === 'buckshot.name.devil')
+      expect(peek).toHaveLength(0)
+    }
+  })
+
+  it('偷看的结果不外泄：双人同屏时另一个人看不到', () => {
+    let checked = 0
+    for (let seed = 1; seed < 300 && checked === 0; seed++) {
+      let state = reduceState(createState(seed, 'hotseat'), { type: 'begin' })
+      for (let guard = 0; guard < 400 && duelOf(state).phase !== 'matchOver'; guard++) {
+        const duel = duelOf(state)
+        if (duel.phase === 'load') {
+          state = reduceState(state, { type: 'begin' })
+          continue
+        }
+        if (duel.phase === 'roundOver') {
+          state = reduceState(state, { type: 'nextRound' })
+          continue
+        }
+        const actor = duel.turn
+        const slot = duel.items[actor].indexOf('magnifier')
+        if (slot >= 0) {
+          const otherSeat = actor === 0 ? 1 : 0
+          const next = reduceState(state, { type: 'item', slot })
+          const other = observe(duelOf(next), otherSeat)
+          // 另一个座位可见的事件里，绝不能出现这次偷看（连"偷看了"都不该有：那是私事）
+          expect(other.events.some((event) => event.type === 'peek' && event.user === actor)).toBe(false)
+          checked++
+          state = next
+          continue
+        }
+        state = reduceState(state, { type: 'shoot', target: 'opponent' })
+      }
+    }
+    expect(checked, '300 个种子里没有一局用上放大镜').toBeGreaterThan(0)
   })
 
   it('整场结束：结果面板给胜负与轮次比分', () => {
@@ -310,7 +351,7 @@ describe('无尽模式', () => {
   it('恶魔回合照常自动步进；存档里恶魔不能替你按「开始」', () => {
     let state = reduceState(createState(12, 'endless'), { type: 'begin' })
     for (let i = 0; i < 200 && !(duelOf(state).turn === 1 && duelOf(state).phase === 'turn'); i++) state = step(state)
-    expect(tickMsOf(state)).toBe(DEVIL_DELAY_MS)
+      expect([DEVIL_DELAY_MS, FIRE_HOLD_MS]).toContain(tickMsOf(state))
     const raw = JSON.parse(JSON.stringify(encodeState(state))) as { log: Array<{ seat: number }> }
     raw.log[0]!.seat = 1
     expect(() => decodeState(raw)).toThrow(IllegalActionError)

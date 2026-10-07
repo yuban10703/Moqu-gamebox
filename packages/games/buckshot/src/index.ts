@@ -23,6 +23,7 @@ import {
   reduceState,
   scoreOf,
   statusOf,
+  stealAction as stealActionOf,
   tickMsOf,
   type BuckshotAction,
   type BuckshotState,
@@ -65,6 +66,10 @@ export const buckshotGame: GameDef<BuckshotState, BuckshotAction> = {
     const duel = duelOf(state)
     if (actor === null || duel.phase !== 'turn' || !itemUsable(duel, actor, index)) return null
     return { type: 'item', slot: index }
+  },
+  // 肾上腺素：先点自己那件、再点对手那一格（引擎不认「直接用」，必须走这条路）
+  stealAction(state, slot) {
+    return stealActionOf(state, slot)
   },
 
   controlAction(_state, controlId) {

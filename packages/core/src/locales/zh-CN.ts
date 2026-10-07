@@ -191,4 +191,11 @@ export const zhCN: Dict = {
   'shell.duel.token.knownBlank': '你知道这一发是空包弹',
   'shell.duel.token.spent-live': '打出过的实弹',
   'shell.duel.token.spent-blank': '打出过的空包弹',
+  'shell.duel.fire.live': '实弹！',
+  'shell.duel.fire.blank': '空包',
+  'shell.duel.fire.self': '{subject} 朝自己开枪',
+  'shell.duel.fire.at': '{subject} → {object}',
+  'shell.duel.fire.damage': '−{amount}',
+  'shell.duel.fire.lost': '掉 {amount} 点血',
+  'shell.duel.fire.knockdown': '击倒！',
 }

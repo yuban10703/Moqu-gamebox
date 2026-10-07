@@ -168,6 +168,8 @@ export interface SessionApi<S, A> {
   dispatch(action: A): boolean
   /** 点格子：交给游戏自己映射成动作（数独/扫雷等格子玩法用）；不可点时为 undefined */
   selectCell?: (index: number) => void
+  /** 对决类：抢对手道具的选择（游戏声明了 stealAction 才有） */
+  stealCell?: (slot: number) => void
   /**
    * 点游戏自定义按钮（数独数字键、扫雷标记模式、方向键等）：交给游戏映射成动作。
    * 返回是否真的派发了动作 —— 壳层据此回退到默认约定（如方向键的 `{type:'move',dir}`）。
@@ -772,6 +774,18 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
     clockActive: ready && !paused && !finished && !corrupt,
     autoTickMs,
     dispatch,
+    // 同样只有声明了 stealAction 的游戏才有「抢道具」这条路
+    ...(game.stealAction
+      ? {
+          stealCell: (slot: number) => {
+            const action = game.stealAction?.(state, slot)
+            if (action) {
+              clearNotice()
+              dispatch(action)
+            }
+          },
+        }
+      : {}),
     // 只有声明了 selectAction 的游戏才把点格子接进来，其余游戏点击格子的行为完全不变
     ...(game.selectAction
       ? {

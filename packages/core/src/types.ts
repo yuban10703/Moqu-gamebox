@@ -219,6 +219,8 @@ export interface DuelLine {
   params?: Record<string, string | number>
   subjectKey?: string
   objectKey?: string
+  /** 被夺走/被使用的**道具名**（i18n key，壳层翻好后作为 {item} 传进 params） */
+  itemKey?: string
   /** 记录里要圈出来的一条（对手回合发生的事）；相邻的几条壳层合进同一个框 */
   highlight?: boolean
 }
@@ -232,6 +234,8 @@ export interface DuelItem {
   fresh?: boolean
   /** 现在能不能点（轮到这一方、且是真人在操作） */
   selectable: boolean
+  /** 现在能不能被对手用肾上腺素抢走（只在对方握着肾上腺素、且轮到他时亮） */
+  stealable?: boolean
 }
 
 export interface DuelSide {
@@ -271,6 +275,36 @@ export interface DuelView {
   sawn: boolean
   /** 整场的记录（旧 → 新）；壳层放进可滚动的框里、默认停在最新一条 */
   log: DuelLine[]
+  /**
+   * 开枪定格画面：刚打出的这一枪（画面停到下一次行动为止）。
+   *
+   * 为什么要单独一屏：墨水屏做不出枪口闪光那种逐帧动画（面板约 2 次整屏刷新/秒，
+   * 逐帧只会变成跳变与残影），能用的只有**对比度**与**停多久** —— 所以把这一枪的结果
+   * 单独占一屏：反转的「实弹」标题带 + 枪口爆闪（空包则是空膛打叉）+ 伤害与掉血。
+   * 没有新事件时一直停着；下一次行动（自己点按钮 / 对手 tick）自然把它顶掉。
+   */
+  fire?: DuelFireScene | null
+}
+
+/** 开枪定格画面（`DuelView.fire`）：一枪的结果，用一屏大字与图形交代 */
+export interface DuelFireScene {
+  /** 开枪的一方（按面板位置，与 DuelSide.position 同一套） */
+  shooter: 'top' | 'bottom'
+  /** 挨打的一方；朝自己开枪时与 shooter 相同 */
+  target: 'top' | 'bottom'
+  /** 这一发是实弹还是空包 */
+  shell: 'live' | 'blank'
+  /** 伤害（空包 0；手锯翻倍后是 2） */
+  damage: number
+  /** 枪管是否锯短（由伤害推得：这一枪打的是 2 点）—— 枪的图形按它画 */
+  sawn: boolean
+  /** 挨打方这一枪**之后**的血量（画面里画实心爱心） */
+  hp: number
+  /** 挨打方这一枪**之前**的血量（画面里标出掉了几格） */
+  hpBefore: number
+  maxHp: number
+  /** 这一枪把挨打方打倒了（血量归零） */
+  lethal: boolean
 }
 
 export interface GameView {
@@ -353,6 +387,11 @@ export interface GameDef<S, A> {
    * 数独、扫雷这类格子交互靠它接入，壳层因此不必知道任何具体玩法。
    */
   selectAction?(state: S, index: number): A | null
+  /**
+   * 对决类玩法专用：把「用肾上腺素抢对手哪一件」的选择变成动作（`slot` 含义由玩法定）。
+   * 与 selectAction 一样，规则层认为点不出动作时返回 null（壳层据此提示或静默）。
+   */
+  stealAction?(state: S, slot: number): A | null
   /**
    * 把「点了某个 role:'action' 的控件」映射成动作；返回 null 表示无动作。
    *

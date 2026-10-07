@@ -37,6 +37,7 @@ export const ITEM_IDS = [
   'phone',
   'inverter',
   'medicine',
+  'adrenaline',
 ] as const
 export type ItemId = (typeof ITEM_IDS)[number]
 
@@ -59,6 +60,7 @@ export function roundTier(round: number): number {
 export type Move =
   | { kind: 'begin' }
   | { kind: 'item'; slot: number }
+  | { kind: 'steal'; slot: number }
   | { kind: 'shoot'; target: 'self' | 'opponent' }
   | { kind: 'nextRound' }
 
@@ -72,6 +74,8 @@ export type DuelEvent =
   | { type: 'load'; total: number; live: number; blank: number }
   | { type: 'shoot'; shooter: Seat; target: Seat; live: boolean; damage: number }
   | { type: 'item'; user: Seat; item: ItemId }
+  /** 用肾上腺素抢走对手一件道具（随后紧跟这件道具自己的效果事件） */
+  | { type: 'steal'; user: Seat; item: ItemId }
   | { type: 'peek'; user: Seat; offset: number; live: boolean | null; privateTo: Seat }
   | { type: 'eject'; user: Seat; live: boolean }
   | { type: 'heal'; user: Seat; amount: number }
@@ -148,7 +152,15 @@ function reload(state: DuelState): DuelState {
   const rng = rngFor(state.seed, 0x51ed, state.loadNo)
   const [lo, hi] = SHELLS_BY_ROUND[roundTier(state.round)]!
   const total = lo + rng.int(hi - lo + 1)
-  const live = 1 + rng.int(total - 1)
+  /*
+   * 实弹/空包**尽量对半**：两者数量最多相差 1（原版规则）。
+   *
+   * 原来写的是 `live = 1 + rng.int(total - 1)`（1…total−1 均匀）——
+   * 管长 4 发时有 2/3 的局面是 1实3空 或 3实1空，8 发时甚至能出 1实7空，
+   * 与原版「先对半分、奇数才抛硬币决定哪边多一枚」的配比不符，也让局面极端化。
+   */
+  const half = Math.floor(total / 2)
+  const live = total % 2 === 0 ? half : half + rng.int(2)
   const load = rng.shuffle([...Array<boolean>(live).fill(true), ...Array<boolean>(total - live).fill(false)])
   const perLoad = ITEMS_PER_LOAD_BY_ROUND[roundTier(state.round)]!
   const items = [...state.items] as [ItemId[], ItemId[]]
@@ -267,17 +279,13 @@ function passTurn(state: DuelState, from: Seat): DuelState {
   return { ...state, turn: next }
 }
 
-function useItem(state: DuelState, seat: Seat, slot: number): DuelState {
-  const owned = state.items[seat]
-  if (!Number.isInteger(slot) || slot < 0 || slot >= owned.length) illegal('no item in that slot')
-  const item = owned[slot]!
-  const items = pair(state.items, seat, owned.filter((_, index) => index !== slot))
+/**
+ * 道具效果本体：不区分这件道具本来就在自己手里，还是用肾上腺素抢来的。
+ * 传入的 state 里**已经**带好了「用了哪件道具」的事件，效果事件由这里追加。
+ */
+function applyItemEffect(state: DuelState, seat: Seat, item: ItemId): DuelState {
   const other = opponent(seat)
-  let next: DuelState = {
-    ...state,
-    items,
-    events: [...state.events, { type: 'item', user: seat, item }],
-  }
+  let next: DuelState = state
   const cur = state.pos
   const rng = rngFor(state.seed, 0x1735, state.steps)
 
@@ -367,6 +375,54 @@ function useItem(state: DuelState, seat: Seat, slot: number): DuelState {
   return next
 }
 
+/**
+ * 肾上腺素能不能抢对手这一格：**效果用得上才算**（枪管已经锯过就不能再抢锯子、
+ * 对手已经铐住就不能再抢手铐），也不能抢肾上腺素本身（否则可以无限连锁）。
+ * 界面可选项、AI 决策、stealItem 校验共用这一处判据。
+ */
+export function canSteal(state: DuelState, seat: Seat, slot: number): boolean {
+  if (state.phase !== 'turn' || state.turn !== seat) return false
+  if (!state.items[seat].includes('adrenaline')) return false
+  const other = opponent(seat)
+  const item = state.items[other][slot]
+  if (item === undefined || item === 'adrenaline') return false
+  if (item === 'saw' && state.saw) return false
+  if (item === 'handcuffs' && state.cuffed[other]) return false
+  return true
+}
+
+/** 这一方用肾上腺素能抢的对手道具下标（界面可选项、AI、合法动作共用） */
+export function stealTargets(state: DuelState, seat: Seat): number[] {
+  return state.items[opponent(seat)].map((_, slot) => slot).filter((slot) => canSteal(state, seat, slot))
+}
+
+function useItem(state: DuelState, seat: Seat, slot: number): DuelState {
+  const owned = state.items[seat]
+  if (!Number.isInteger(slot) || slot < 0 || slot >= owned.length) illegal('no item in that slot')
+  const item = owned[slot]!
+  if (item === 'adrenaline') illegal('adrenaline must name a target item')
+  const items = pair(state.items, seat, owned.filter((_, index) => index !== slot))
+  const withEvent: DuelState = { ...state, items, events: [...state.events, { type: 'item', user: seat, item }] }
+  return applyItemEffect(withEvent, seat, item)
+}
+
+/** 肾上腺素：抢对手一件道具并立刻用掉（自己那件肾上腺素消耗掉） */
+function stealItem(state: DuelState, seat: Seat, slot: number): DuelState {
+  if (!canSteal(state, seat, slot)) illegal('cannot steal that item')
+  const mine = state.items[seat]
+  const own = mine.indexOf('adrenaline')
+  const other = opponent(seat)
+  const theirs = state.items[other]
+  const stolen = theirs[slot]!
+  const items = pair(
+    pair(state.items, seat, mine.filter((_, index) => index !== own)),
+    other,
+    theirs.filter((_, index) => index !== slot),
+  )
+  const withEvent: DuelState = { ...state, items, events: [...state.events, { type: 'steal', user: seat, item: stolen }] }
+  return applyItemEffect(withEvent, seat, stolen)
+}
+
 function shoot(state: DuelState, seat: Seat, at: 'self' | 'opponent'): DuelState {
   const target = at === 'self' ? seat : opponent(seat)
   const live = state.load[state.pos]!
@@ -404,6 +460,11 @@ export function applyMove(state: DuelState, seat: Seat, move: Move): DuelState {
       if (state.phase !== 'turn') illegal('items can only be used on your turn')
       if (seat !== state.turn) illegal(`not seat ${seat}'s turn`)
       next = useItem(state, seat, move.slot)
+      break
+    case 'steal':
+      if (state.phase !== 'turn') illegal('items can only be used on your turn')
+      if (seat !== state.turn) illegal(`not seat ${seat}'s turn`)
+      next = stealItem(state, seat, move.slot)
       break
     case 'shoot':
       if (state.phase !== 'turn') illegal('nothing to shoot yet')
