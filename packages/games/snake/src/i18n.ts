@@ -26,11 +26,12 @@ export const snakeZh: Dict = {
    * 不用点开折叠。改文案时按这个预算加，别把「阅读全部」又惹回来。
    */
   'snake.rules.body':
-    '蛇自己往前爬：三档都是 0.5 秒一格。方向键 / 滑动 = 立刻走一格，连点就连走；每次操作后重新计时。',
+    '蛇自己往前爬：三档都是 0.7 秒一格。方向键 / 滑动 = 立刻走一格，连点就连走；每次操作后重新计时。',
   'snake.rules.body2':
     '不能原地掉头。入门可穿墙、熟练实心墙、挑战有障碍且吃一个长两节；撞到即结束；填满即胜，「暂停」时不动。',
+  // 重开走的是「换一个种子重新摆盘」：食物与障碍都会重新随机
   'snake.rules.restart':
-    '重新开始会回到同一种子的初始局面并清空撤销记录，无法撤销回重开之前。',
+    '重新开始会重新摆一次食物与障碍、并清空撤销记录，无法撤销回重开之前。',
   'snake.stat.score': '分数',
   'snake.stat.length': '蛇长',
   'snake.stat.moves': '步数',
@@ -67,11 +68,11 @@ export const snakeZh: Dict = {
 export const snakeEn: Dict = {
   'snake.title': 'Snake',
   'snake.rules.body':
-    'Crawls on its own: 0.5s per cell. Keys or swipes step a cell; each input restarts the clock.',
+    'Crawls on its own: 0.7s per cell. Keys or swipes step a cell; each input restarts the clock.',
   'snake.rules.body2':
     'No turning back (that button dims). Starter wraps, Skilled has walls, Challenging adds obstacles; a crash ends the run. Pause freezes it.',
   'snake.rules.restart':
-    'Restarting returns to the opening position for the same seed and clears the undo history; you cannot undo back past a restart.',
+    'Restarting lays out new food and obstacles and clears the undo history; you cannot undo back past a restart.',
   'snake.stat.score': 'Score',
   'snake.stat.length': 'Length',
   'snake.stat.moves': 'Steps',

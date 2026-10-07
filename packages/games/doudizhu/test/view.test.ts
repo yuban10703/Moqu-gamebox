@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { compareDicts, coreDictEn, coreDictZh, createI18n } from '@eink/core'
 import { BIG_JOKER, SMALL_JOKER } from '../src/cards.js'
 import { doudizhuEn, doudizhuZh } from '../src/i18n.js'
-import { HUMAN_SEAT, createState, reduceState, statusOf, tableOf, type DoudizhuState } from '../src/rules.js'
+import { HUMAN_SEAT, createState, hintOptions, reduceState, statusOf, tableOf, type DoudizhuState } from '../src/rules.js'
 import { buildControls, buildView, cardFace } from '../src/view.js'
 import { doudizhuGame } from '../src/index.js'
 
@@ -67,6 +67,38 @@ describe('牌桌展示模型', () => {
       { id: 'next-level', labelKey: 'doudizhu.next', role: 'action', enabled: true, emphasis: 'primary' },
     ])
     expect(doudizhuGame.controlAction!(over, 'next-level')).toEqual({ type: 'nextLevel' })
+  })
+
+  it('提示按钮只在真的有牌可出时可点（压不过上家时为禁用，不再给可按的「提示 (0)」）', () => {
+    let enabled = 0
+    let disabled = 0
+    for (const seed of [1, 7, 12, 33, 99, 2026]) {
+      let state = createState(seed, 'skilled')
+      for (let step = 0; step < 120 && statusOf(state) === 'playing'; step++) {
+        const table = tableOf(state)
+        if (table.phase === 'playing' && table.turn === HUMAN_SEAT) {
+          const hint = buildControls(state).find((control) => control.id === 'hint')!
+          const options = hintOptions(table).length
+          expect(hint.labelParams!.count, `seed ${seed} step ${step}`).toBe(options)
+          expect(hint.enabled, `seed ${seed} step ${step}`).toBe(options > 0)
+          if (hint.enabled) enabled++
+          else disabled++
+        }
+        if (table.turn !== HUMAN_SEAT) {
+          state = reduceState(state, { type: 'tick' })
+          continue
+        }
+        if (table.phase === 'bidding') state = reduceState(state, { type: 'bid', value: 0 })
+        else if (table.top && table.top.seat !== HUMAN_SEAT) state = reduceState(state, { type: 'pass' })
+        else {
+          state = reduceState(state, { type: 'hint' })
+          state = reduceState(state, { type: 'play' })
+        }
+      }
+    }
+    // 两个分支都要真的被覆盖到，否则这条断言等于没测
+    expect(enabled).toBeGreaterThan(0)
+    expect(disabled).toBeGreaterThan(0)
   })
 
   it('结果面板：胜负标题 + 地主 / 农民获胜 + 底分倍数 + 本局得失 + 当前积分', () => {

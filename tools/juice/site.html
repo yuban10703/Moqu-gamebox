@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>墨趣 · 打击感实测</title>
+<!--
+  墨水屏「打击感」实测页（真机用）。
+  构建：tools/juice/render.mjs 把 tools/juice/scenes.js 注入到 __SCENES__ 处，
+  与 docs/juice/*.gif 共用同一份场景代码 —— 页面上逐格看到的图，与动图必然一致。
+
+  为什么要在真机上逐格点：
+    每点一次「下一格」= 只换一帧内容 = 面板做一次刷新。
+    于是能亲眼看「定格格（画面不变）面板到底刷不刷」「反色那一下够不够响」，
+    这是动图给不了的信息 —— 动图放的是浏览器定时器，不是面板。
+
+  本页自己守墨水屏规矩：纯黑白、无 transition/animation、触摸目标 ≥44px、首屏不滚动。
+  真机踩过的两个坑都写在下面 CSS 注释里（grid 具名区漏定义 / 系统字体放大）。
+-->
+<style>
+  :root { --ink: #000; --paper: #fff }
+  * { box-sizing: border-box }
+  /* 坑 ①：BOOX 上 Chrome 会做「字体放大」（font boosting），把正文撑到装不下。
+     主应用 packages/ui/src/styles.css 同样写了这一行，这里保持一致。 */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100% }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink) }
+  body {
+    font-family: "WenQuanYi Zen Hei", "Noto Sans CJK SC", system-ui, sans-serif;
+    padding: 6px 10px 8px;
+    display: grid;
+    gap: 6px;
+    /* 坑 ②：列必须写 minmax(0,1fr)。canvas 的固有宽度是 880px，
+       若列按 auto/最大内容算，整页会被它撑到 880 宽 → 横向溢出、右侧被切。
+       另外 .bar 必须真的出现在 grid-template-areas 里，否则它会另起一列（第一版就栽在这）。 */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "bar" "tabs" "stage" "status" "rows" "slots" "realtest" "note" "debug";
+  }
+  /* 演示"换一帧"，不是渐变：任何过渡/动画都必须关掉 */
+  * { animation: none !important; transition: none !important }
+
+  .bar { grid-area: bar; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap }
+  h1 { font-size: 19px; margin: 0; letter-spacing: .5px }
+  .meta { font-size: 11px; font-weight: 400 }
+
+  .tabs { grid-area: tabs; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px }
+  button {
+    font: inherit; font-weight: 700; color: var(--ink); background: var(--paper);
+    border: 2px solid var(--ink); border-radius: 0; padding: 4px 6px; min-height: 48px;
+    min-width: 0; overflow-wrap: anywhere; line-height: 1.15;
+  }
+  .tabs button { font-size: 13px; min-height: 46px }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--paper) }
+  button[disabled] { border-style: dotted; opacity: 1 }
+
+  .stage { grid-area: stage; display: flex; justify-content: center; align-items: center; min-width: 0 }
+  canvas {
+    max-width: 100%; max-height: 38vh; width: auto; height: auto;
+    /* 坑 ③：flex/grid 的 align-items 默认 stretch 会把 canvas **竖向拉长**，
+       宽高比就没了（并排布局下实测 402×384，应 402×289）。必须自己居中，不接受拉伸。 */
+    align-self: center;
+    border: 3px solid var(--ink); image-rendering: pixelated;
+  }
+
+  .status {
+    grid-area: status; border: 2px solid var(--ink); padding: 4px 8px;
+    min-height: 46px; display: flex; flex-direction: column; justify-content: center; min-width: 0;
+  }
+  .status b { font-size: 15px }
+  .status span { font-size: 12px; overflow-wrap: anywhere }
+
+  .rows { grid-area: rows; display: grid; gap: 5px; grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .slots { grid-area: slots; display: flex; gap: 4px }
+  .slots button { flex: 1; min-height: 44px; padding: 0; font-size: 12px }
+  .slots button[data-tag="impact"] { background: var(--ink); color: var(--paper) }
+  .slots button[data-tag="hold"] { background: repeating-linear-gradient(45deg, #000 0 3px, #fff 3px 6px) }
+  .slots button[data-tag="full"] { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 5px #fff }
+  .slots button[aria-current="true"] { outline: 3px solid var(--ink); outline-offset: 2px }
+
+  .realtest { grid-area: realtest; display: grid; gap: 5px; grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .realtest button { min-height: 48px; font-size: 14px }
+
+  .note { grid-area: note; font-size: 13px; line-height: 1.45; min-width: 0 }
+  .debug { grid-area: debug; border: 2px dashed var(--ink); padding: 4px 6px; font-size: 11px; white-space: pre-wrap; word-break: break-all }
+
+  /* 真机测试用的两个"整屏"效果：实心，不用 alpha（墨水屏做不出半透明） */
+  #blackout { position: fixed; inset: 0; background: #000; z-index: 9 }
+  html.inverted { filter: invert(1) }
+
+  /* 窄屏（6 寸竖屏 439）：标签两行内放得下 */
+  @media (max-width: 480px) {
+    h1 { font-size: 17px }
+    .tabs button { font-size: 12px; min-height: 44px }
+    .note { font-size: 12px }
+  }
+
+  /* 极矮横屏（P6Plus 879×407）：画布在左、控制在右 —— 与游戏页同一套办法 */
+  @media (orientation: landscape) and (max-height: 560px) {
+    body {
+      padding: 4px 8px;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      grid-template-areas:
+        "stage bar"
+        "stage tabs"
+        "stage status"
+        "stage rows"
+        "stage slots"
+        "stage realtest"
+        "stage note"
+        "stage debug";
+      align-content: start;
+    }
+    canvas { max-height: 90vh }
+    .meta { display: none }
+    .tabs button { min-height: 44px; font-size: 12px }
+    .note { font-size: 12px }
+  }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <h1>墨趣 · 打击感</h1>
+    <span class="meta" id="meta">每格 = 面板一次刷新（快刷 ≈250ms / 全刷 ≈500ms）</span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="stage"><canvas id="cv" width="880" height="632"></canvas></div>
+
+  <div class="status">
+    <b id="statusMain">—</b>
+    <span id="statusSub">—</span>
+  </div>
+
+  <div class="rows">
+    <button id="prev" type="button">◀ 上一格</button>
+    <button id="next" type="button">下一格 ▶</button>
+    <button id="play" type="button">▶ 自动播放</button>
+  </div>
+
+  <div class="slots" id="slots"></div>
+
+  <div class="realtest">
+    <button id="tryInvert" type="button">整页反色 1 格</button>
+    <button id="tryBlack" type="button">整屏闪黑 1 格</button>
+  </div>
+
+  <div class="note" id="note"></div>
+  <div class="debug" id="debug" hidden></div>
+
+<script>/*__SCENES__*/</script>
+<script>
+;(function () {
+  'use strict'
+  const SLOT_TAG = {
+    normal: ['普通格', '这一格只是内容变化，面板刷一次。'],
+    impact: ['撞击格', '这一格就是"打击"本身：对比度最大的一跳。'],
+    hold: ['定格格', '画面与上一格完全相同 —— 面板一次都不刷，可以随便停多久。'],
+    full: ['全刷格', '整屏纯黑（全刷的效果）。最响的一下，成本只是一次刷新。'],
+  }
+  const TIPS = {
+    'invert-flash': '点「下一格」走到第 3 格：整块棋盘黑白互换。1-bit 上对比度最大的一跳，代价 1 格。',
+    hold: '第 2~4 格画面完全一样：面板在这 750ms 里一次都没刷，但你会觉得"这一下很重"。',
+    slam: '第 2、3 格整体位移 ±8px 再归位：位移本身就是打击感，不需要过渡动画。',
+    'ghost-trail': '点第 1~4 格：被甩掉的格子留下网点残影（真机上是面板自己的残影，这里如实画出来）。第 6 格是全刷。',
+    'black-flash': '第 3 格整屏纯黑，第 4 格整块棋盘反色 —— 两下都只各花 1 格。',
+    compare: '左：一次状态变化就过去了。右：反色 + 定格 + 大数字，同一个事件。',
+  }
+  const scenes = window.__JUICE__.list()
+  const cv = document.getElementById('cv')
+  const tabs = document.getElementById('tabs')
+  const slots = document.getElementById('slots')
+  const statusMain = document.getElementById('statusMain')
+  const statusSub = document.getElementById('statusSub')
+  const note = document.getElementById('note')
+  const meta = document.getElementById('meta')
+  const btnPlay = document.getElementById('play')
+  const params = new URLSearchParams(location.search)
+
+  let si = Math.max(0, Math.min(scenes.length - 1, Number(params.get('s') ?? 0) || 0))
+  let fi = Math.max(0, Number(params.get('i') ?? 0) || 0)
+  const speed = Number(params.get('ms')) === 500 ? 500 : 250
+  let timer = 0 // 0 = 未播放；非 0 = setInterval 句柄
+  let fxTimer = 0
+
+  const scene = () => scenes[si]
+
+  function renderTabs() {
+    tabs.textContent = ''
+    scenes.forEach((s, k) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.textContent = s.title
+      b.setAttribute('aria-pressed', String(k === si))
+      b.addEventListener('click', () => {
+        si = k
+        fi = 0
+        stop()
+        renderAll()
+      })
+      tabs.append(b)
+    })
+  }
+
+  function renderSlots() {
+    const s = scene()
+    slots.textContent = ''
+    s.slots.forEach((slot, k) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.dataset.tag = slot.tag
+      b.textContent = String(k + 1)
+      b.setAttribute('aria-current', String(k === fi))
+      b.setAttribute('aria-label', `第 ${k + 1} 格：${SLOT_TAG[slot.tag][0]}`)
+      b.addEventListener('click', () => {
+        fi = k
+        stop()
+        renderAll()
+      })
+      slots.append(b)
+    })
+  }
+
+  function renderFrame() {
+    const s = scene()
+    fi = (fi + s.slots.length) % s.slots.length
+    window.__JUICE__.paint(s.id, fi, cv)
+    const [name, why] = SLOT_TAG[s.slots[fi].tag]
+    statusMain.textContent = `第 ${fi + 1}/${s.slots.length} 格 · ${name}`
+    statusSub.textContent = why
+    ;[...slots.children].forEach((b, k) => b.setAttribute('aria-current', String(k === fi)))
+  }
+
+  function renderAll() {
+    renderTabs()
+    renderSlots()
+    renderFrame()
+    note.textContent = TIPS[scene().id] ?? scene().note
+  }
+
+  function stop() {
+    if (timer) clearInterval(timer)
+    timer = 0
+    btnPlay.textContent = '▶ 自动播放'
+    btnPlay.setAttribute('aria-pressed', 'false')
+  }
+
+  function start() {
+    stop()
+    btnPlay.textContent = '■ 停'
+    btnPlay.setAttribute('aria-pressed', 'true')
+    timer = setInterval(() => {
+      fi += 1
+      renderFrame()
+    }, speed)
+  }
+
+  document.getElementById('next').addEventListener('click', () => {
+    stop()
+    fi += 1
+    renderFrame()
+  })
+  document.getElementById('prev').addEventListener('click', () => {
+    stop()
+    fi -= 1
+    renderFrame()
+  })
+  btnPlay.addEventListener('click', () => (timer ? stop() : start()))
+
+  /** 一次性的整屏效果：只保持"一格"的时间，然后立刻收回（不然看起来就是卡住了） */
+  function flashOnce(apply, undo) {
+    if (fxTimer) clearTimeout(fxTimer)
+    apply()
+    fxTimer = setTimeout(() => {
+      fxTimer = 0
+      undo()
+    }, speed)
+  }
+  document.getElementById('tryInvert').addEventListener('click', () =>
+    flashOnce(
+      () => document.documentElement.classList.add('inverted'),
+      () => document.documentElement.classList.remove('inverted'),
+    ),
+  )
+  document.getElementById('tryBlack').addEventListener('click', () =>
+    flashOnce(
+      () => {
+        const d = document.createElement('div')
+        d.id = 'blackout'
+        document.body.append(d)
+      },
+      () => document.getElementById('blackout')?.remove(),
+    ),
+  )
+  // 页面被切走时一定要收回效果，否则回来看到的是一张反色/全黑的页
+  const clearFx = () => {
+    document.documentElement.classList.remove('inverted')
+    document.getElementById('blackout')?.remove()
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearFx()
+      stop()
+    }
+  })
+  window.addEventListener('pagehide', clearFx)
+
+  /** 视口自检：真机排障用（`?debug=1`）——墨水屏上没有 DevTools 可用，
+      所以让页面自己把视口 / 文档尺寸 / 被放大的字号 / 溢出元素报出来。 */
+  function renderMeta() {
+    const vw = innerWidth
+    const vh = innerHeight
+    if (params.get('debug') !== '1') {
+      meta.textContent = `视口 ${vw}×${vh} · 每格 = 面板一次刷新（≈250ms）`
+      return
+    }
+    const dbg = document.getElementById('debug')
+    dbg.hidden = false
+    const r = (el) => el.getBoundingClientRect()
+    const wide = [...document.querySelectorAll('body *')].filter((el) => r(el).right > vw + 1 || r(el).left < -1)
+    const fs = getComputedStyle(document.body).fontSize
+    dbg.textContent =
+      `视口 ${vw}×${vh} · dpr ${devicePixelRatio.toFixed(2)} · 正文 ${fs}\n` +
+      `文档 ${document.documentElement.scrollWidth}×${document.documentElement.scrollHeight}（可滚动 ${document.documentElement.scrollHeight > vh}）\n` +
+      `画布 ${Math.round(r(cv).width)}×${Math.round(r(cv).height)} · 状态条 ${Math.round(r(statusMain.parentElement).height)}\n` +
+      `横向溢出元素 ${wide.length}：${wide.slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${e.className || '-'}→${Math.round(r(e).right)}`).join('  ')}`
+    meta.textContent = `视口 ${vw}×${vh}`
+  }
+
+  renderAll()
+  renderMeta()
+  addEventListener('resize', renderMeta)
+  if (params.get('play') === '1') start()
+})()
+</script>
+</body>
+</html>

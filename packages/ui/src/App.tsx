@@ -165,10 +165,12 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
 
   /**
    * 开局。`levelId` 有值表示「自由选关」：直接以该关开始（详情页点关卡）。
-   * 历史记录照旧继承；old 存档照旧先删（调用方负责先确认「替换并开始」）。
+   * 跨局战绩（历史记录 / 最高纪录 / 已通关 / 最佳步数）照旧继承；
+   * old 存档照旧先删（调用方负责先确认「替换并开始」）。
    */
   const startNew = async (gameId: string, difficulty: string, levelId?: string): Promise<void> => {
-    // 删档前先取出跨局战绩（历史记录、最高纪录）：它们不该被「开始新游戏」清掉
+    // 删档前先取出跨局战绩：它们不该被「开始新游戏」或「自由选关」清掉
+    // （实测：通关第 1 关后从关卡列表点第 5 关，进度 1/16 会直接回到 0/16）
     const carry = carriedProgress(saves[gameId]?.progress)
     await platform.storage.saves.remove(gameId)
     await refreshSaves()

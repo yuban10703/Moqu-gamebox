@@ -96,15 +96,21 @@ export function buildControls(state: DoudizhuState): ControlSpec[] {
     }))
   }
   const canPass = myTurn && table.top !== null && table.top.seat !== HUMAN_SEAT
+  /*
+   * 提示按钮：轮到自己、且**真的有牌可出**时才可点。
+   * 原先只判 `myTurn`，于是「提示 (0)」仍然是个可按的按钮 —— 点下去没反应，
+   * 玩家会以为是卡住了（压不过上家时正是 0 个候选）。
+   */
+  const hints = myTurn ? hintOptions(table) : []
   return [
     { id: 'pass', labelKey: 'doudizhu.action.pass', role: 'action', enabled: canPass, emphasis: 'normal' },
     { id: 'clear', labelKey: 'doudizhu.action.clear', role: 'action', enabled: state.selected.length > 0, emphasis: 'normal' },
     {
       id: 'hint',
       labelKey: 'doudizhu.action.hint',
-      labelParams: { count: myTurn ? hintOptions(table).length : 0 },
+      labelParams: { count: hints.length },
       role: 'action',
-      enabled: myTurn,
+      enabled: hints.length > 0,
       emphasis: 'normal',
     },
     {

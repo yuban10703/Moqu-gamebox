@@ -15,8 +15,10 @@ export const fifteenZh: Dict = {
     '把数字块按 1、2、3……的顺序排好，右下角留给空白格。点与空白格相邻的数字块，它就会滑进空白；也可以按方向键，让空白格朝那个方向移动。',
   'fifteen.rules.body2':
     '步数越少越好，撤销可以退回上一次滑动。没有失败状态：排好后还可以继续滑动练习，再排好一次仍会记录更好的成绩。',
-  'fifteen.rules.restart': '重新开始会回到同一种子下的初始局面，且无法撤销回重开之前。',
-  'fifteen.illegal.notice': '那个方向贴边了',
+  // 重开走的是「换一个种子重新打乱」：不再声称同一种子（实测 20/20 次都是新盘面）
+  'fifteen.rules.restart': '重新开始会换一道新题重新打乱，且无法撤销回重开之前。',
+  // 这一条同时要解释两种走不通：点不相邻的数字块、以及空白格已经贴在那个方向的边上
+  'fifteen.illegal.notice': '点不动：贴边或隔着一格',
   'fifteen.difficulty.starter': '入门 3×3',
   'fifteen.difficulty.skilled': '熟练 4×4',
   'fifteen.difficulty.challenging': '挑战 5×5',
@@ -44,8 +46,8 @@ export const fifteenEn: Dict = {
   'fifteen.rules.body2':
     "Arrow buttons move the blank. Undo and restart are counted in this puzzle's stats.",
   'fifteen.rules.restart':
-    'Restarting returns to the opening position for the same seed; you cannot undo back past a restart.',
-  'fifteen.illegal.notice': 'Blank is at that edge',
+    'Restarting deals a new puzzle; you cannot undo back past a restart.',
+  'fifteen.illegal.notice': 'Edge or not adjacent',
   'fifteen.difficulty.starter': 'Starter 3×3',
   'fifteen.difficulty.skilled': 'Skilled 4×4',
   'fifteen.difficulty.challenging': 'Challenging 5×5',

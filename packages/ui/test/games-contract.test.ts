@@ -18,6 +18,8 @@ import { match3Game } from '@eink/match3'
 import { doudizhuGame } from '@eink/doudizhu'
 import { buckshotGame } from '@eink/buckshot'
 import { xiangqiGame } from '@eink/xiangqi'
+import { chessGame } from '@eink/chess'
+import { reversiGame } from '@eink/reversi'
 import { memoryGame } from '@eink/memory'
 import { minesweeperGame } from '@eink/minesweeper'
 import { snakeGame } from '@eink/snake'
@@ -48,6 +50,8 @@ const GAMES: Array<GameDef<any, any>> = [
   tetrisGame as GameDef<any, any>,
   match3Game as GameDef<any, any>,
   doudizhuGame as GameDef<any, any>,
+  chessGame as GameDef<any, any>,
+  reversiGame as GameDef<any, any>,
   buckshotGame as GameDef<any, any>,
   xiangqiGame as GameDef<any, any>,
 ]
@@ -158,7 +162,7 @@ describe('自动步进的声明（tickMs）', () => {
     const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
       .map((game) => game.id)
       .sort()
-    expect(withTick).toEqual(['buckshot', 'doudizhu', 'snake', 'tetris', 'xiangqi'])
+    expect(withTick).toEqual(['buckshot', 'chess', 'doudizhu', 'gomoku', 'reversi', 'snake', 'tetris', 'xiangqi'])
   })
 
   it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {

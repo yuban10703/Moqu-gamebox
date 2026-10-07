@@ -36,6 +36,8 @@ import {
   xiangqiGame,
   xiangqiZh,
 } from '@eink/xiangqi'
+import { chessEn, chessGame, chessZh, cellLabelKey as chessCellLabelKey, progressFor as chessProgressFor } from '@eink/chess'
+import { cellLabelKey as reversiCellLabelKey, progressFor as reversiProgressFor, reversiEn, reversiGame, reversiZh } from '@eink/reversi'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -211,9 +213,23 @@ export const library: GameLibrary = {
       defaultDifficulty: 'starter',
       progressFor: xiangqiProgressFor,
     }),
+    defineGame({
+      game: chessGame,
+      cellLabelKey: chessCellLabelKey,
+      rulesKeys: ['chess.rules.body', 'chess.rules.body2', 'chess.rules.body3'],
+      defaultDifficulty: 'starter',
+      progressFor: chessProgressFor,
+    }),
+    defineGame({
+      game: reversiGame,
+      cellLabelKey: reversiCellLabelKey,
+      rulesKeys: ['reversi.rules.body', 'reversi.rules.body2'],
+      defaultDifficulty: 'starter',
+      progressFor: reversiProgressFor,
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh, ...xiangqiZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn, ...xiangqiEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh, ...xiangqiZh, ...chessZh, ...reversiZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn, ...xiangqiEn, ...chessEn, ...reversiEn },
   },
 }

@@ -49,6 +49,46 @@ export const LINE_SCORES: readonly number[] = [0, 100, 300, 500, 800]
 /** 一次固化最多能消掉的行数（同时填满 4 行的极限情况） */
 export const MAX_LINE_CLEAR = 4
 
+/**
+ * 消行「定格」一拍的时长（毫秒）—— 这一拍里满行**先不消失**，整盘反色，下一拍才真正消掉。
+ *
+ * 为什么是固定 500ms 而不是跟难度走：它不是难度旋钮，而是**面板的物理时间**。
+ * 真机实测一次整屏刷新约 500ms（docs/refresh-adaptation.md），所以定格正好等于一帧 ——
+ * 短于它，反色那一帧还没画完就被下一帧覆盖，看上去只是脏了一下。
+ * 上限也由壳层保证：任何 tickMs 都会被钳到 ≥ MIN_TICK_MS（400ms）。
+ */
+export const CLEAR_HOLD_MS = 500
+
+/**
+ * 消行定格：满行**先留一拍**再消失。
+ *
+ * 为什么要有这一拍（而不是直接消掉）：
+ * 墨水屏做不出消行动画（面板约 2 次全屏刷新/秒，逐帧动画只会变成跳变加残影），
+ * 能做的只有「离散状态之间的对比度」和「这个状态停多久」。于是：
+ *   固化 → 【满行还在 + 整盘反色】停一拍 → 行消失、分数跳、下一块落下。
+ * 这一拍不花任何额外的重绘：它就是一个 tick，壳层本来就要派发。
+ *
+ * 这一拍里的状态口径（三条不变式都保持不变，存档才能继续用同一套校验）：
+ *   - 棋盘 = 已并进方块的棋盘（满行还在），当前块 = **刚固化那一块**（已并入棋盘、不再听指挥）；
+ *   - `cursor` 与 `pieces` 都还没加 —— 所以 `cursor === pieces + 1` 与
+ *     `piece.id === pieceAt(seed, cursor-1)` 依旧成立（这两个不变式是存档校验的核心）；
+ *   - 分数与消行数也还没加：它们和满行一起在定格结束的那一刻跳。
+ */
+export interface PendingClear {
+  /** 要消掉的行号（升序） */
+  readonly rows: readonly number[]
+  /** 定格结束时应加的分（消掉的那一刻才计入 score） */
+  readonly points: number
+  /**
+   * 定格分两拍（用户要求「消的那几行反色，然后出文字」）：
+   *   `flash` → 这几行**反色**（黑格变白条、留粗描边），还没写字；
+   *   `label` → 文字出现在这条带上（左「消行」右分数）；
+   * 再下一个 tick 才真正消掉（`commitClear`）。
+   * 两拍都用 CLEAR_HOLD_MS —— 一格就是面板的一次刷新，短了会看到没画完的半帧。
+   */
+  readonly phase: 'flash' | 'label'
+}
+
 /** 每消这么多行升一级 */
 export const LINES_PER_LEVEL = 10
 
@@ -164,6 +204,8 @@ export interface TetrisState {
   readonly lines: number
   /** 已固化的块数（结果面板与战绩里的「步数」口径） */
   readonly pieces: number
+  /** 消行定格（见 PendingClear）：null = 没有待消的行 */
+  readonly clearing: PendingClear | null
   readonly history: readonly HistoryEntry[]
 }
 
@@ -272,6 +314,7 @@ export function createState(seed: number, difficultyId: string): TetrisState {
     score: 0,
     lines: 0,
     pieces: 0,
+    clearing: null,
     history: [],
   }
 }
@@ -280,8 +323,12 @@ export function createState(seed: number, difficultyId: string): TetrisState {
  * 胜负：只有「堆到顶部」这一种结束方式 —— 新块在井口放不下即失败。
  * 本玩法**没有胜利条件**，所以 status 不会返回 'won'（不编造一个「消满 N 行算赢」的目标）。
  * 其余动作都被碰撞检查挡住，因此方块「放不下」只可能发生在出块瞬间。
+ *
+ * 例外：消行定格那一拍（`clearing` 非空）里，刚固化的方块已经并进棋盘了，
+ * 按 `fits` 判会立刻误报失败 —— 这一拍固定报 playing。
  */
 export function statusOf(state: TetrisState): GameStatus {
+  if (state.clearing) return 'playing'
   return fits(state.board, difficultyOf(state.difficulty), state.piece) ? 'playing' : 'lost'
 }
 
@@ -442,7 +489,6 @@ function lockPiece(state: TetrisState, spec: DifficultyTetris, auto = false): Te
     merged[cellIndex(spec.cols, cell.row, cell.col)] = CELL_FILLED
   }
   const cleared = fullRows(merged, spec)
-  const board = cleared.length > 0 ? clearRows(merged, spec, cleared) : merged
   const entry: HistoryEntry = {
     kind: 'lock',
     piece: state.piece,
@@ -454,15 +500,63 @@ function lockPiece(state: TetrisState, spec: DifficultyTetris, auto = false): Te
     ...(auto ? { auto: true as const } : {}),
   }
   const next = withEntry(state, entry)
+  // 没填满任何一行：照旧立刻出下一块（`piece` 保持刚固化那一块的位置，见下面注释）
+  if (cleared.length === 0) {
+    return {
+      ...next,
+      board: merged,
+      // 下一块：cursor 指向的那一块；放不下就是失败局面（status 会报 lost）
+      piece: spawnPiece(pieceAt(state.seed, state.cursor), spec.cols),
+      cursor: state.cursor + 1,
+      pieces: state.pieces + 1,
+    }
+  }
+  /*
+   * 填满了：进入「消行定格」一拍（见 PendingClear）。
+   * 注意这里**只并盘、不消行、不加分、不出下一块、不动 cursor/pieces**：
+   * 这一拍里当前块仍是刚固化那一块（它已经在棋盘里了，不再听指挥），
+   * 于是 `cursor === pieces + 1` 与 `piece.id === pieceAt(seed, cursor-1)` 两条存档不变式原样成立。
+   * 消行、加分、出下一块全部推迟到下一个 tick（commitClear）。
+   */
   return {
     ...next,
-    board,
-    // 下一块：cursor 指向的那一块；放不下就是失败局面（status 会报 lost）
+    board: merged,
+    clearing: { rows: cleared, points: scoreForLines(cleared.length, levelOf(state.lines)), phase: 'flash' },
+  }
+}
+
+/**
+ * 定格到点：先走完两拍（反色 → 出文字），第二拍结束时才真正消行。
+ *
+ * 「反色 → 出文字」分两拍而不是一拍做齐：1-bit 上一帧只能有一个状态，
+ * 两件事挤在同一帧里就只剩"一下子全变了"，没有节奏（这正是用户看过真机后的要求）。
+ */
+function advanceClear(state: TetrisState, spec: DifficultyTetris): TetrisState {
+  const pending = state.clearing
+  if (!pending) return state
+  if (pending.phase === 'flash') return { ...state, clearing: { ...pending, phase: 'label' } }
+  return commitClear(state, spec)
+}
+
+/**
+ * 定格结束：真正消行 + 加分 + 出下一块。
+ *
+ * 由**下一个 tick** 触发（间隔见 CLEAR_HOLD_MS），因此不引入任何时间引用；
+ * 也**不压撤销记录** —— 这一整段（固化 + 消行）在撤销栈里就是固化那一条，
+ * 按一次撤销直接回到「方块还没落下来」之前，不会出现"退一半"。
+ */
+function commitClear(state: TetrisState, spec: DifficultyTetris): TetrisState {
+  const pending = state.clearing
+  if (!pending) return state
+  return {
+    ...state,
+    board: clearRows(state.board, spec, pending.rows),
     piece: spawnPiece(pieceAt(state.seed, state.cursor), spec.cols),
     cursor: state.cursor + 1,
-    score: state.score + scoreForLines(cleared.length, levelOf(state.lines)),
-    lines: state.lines + cleared.length,
+    score: state.score + pending.points,
+    lines: state.lines + pending.rows.length,
     pieces: state.pieces + 1,
+    clearing: null,
   }
 }
 
@@ -477,9 +571,15 @@ function undoOne(state: TetrisState, spec: DifficultyTetris): TetrisState {
   if (entry.kind === 'piece') {
     return { ...state, piece: entry.piece, history }
   }
-  // 逆序：先把被消掉的整行插回去（还原出「刚固化、还没消行」的棋盘），
-  // 再抹掉这一块自己占的格子 —— 固化前那些格子本来就是空的。
-  const board = restoreRows(state.board, spec, entry.cleared)
+  /*
+   * 逆序：先把被消掉的整行插回去（还原出「刚固化、还没消行」的棋盘），
+   * 再抹掉这一块自己占的格子 —— 固化前那些格子本来就是空的。
+   *
+   * 例外：**消行定格那一拍里撤销**。这时棋盘是"已并盘、满行还在"的样子
+   * （行还没被消掉），再插一次行就会多出一整行。判据是 `state.clearing` 非空 ——
+   * 定格期间除了 tick 没有别的动作能压栈，所以栈顶那条 lock 记录一定就是它。
+   */
+  const board = state.clearing ? state.board.slice() : restoreRows(state.board, spec, entry.cleared)
   for (const cell of pieceCells(entry.piece)) {
     board[cellIndex(spec.cols, cell.row, cell.col)] = CELL_EMPTY
   }
@@ -491,6 +591,7 @@ function undoOne(state: TetrisState, spec: DifficultyTetris): TetrisState {
     score: entry.score,
     lines: entry.lines,
     pieces: entry.pieces,
+    clearing: null,
     history,
   }
 }
@@ -530,7 +631,16 @@ export function reduceState(state: TetrisState, action: TetrisAction): TetrisSta
   // 已经堆到顶：除撤销/重开外一律拒绝（结果面板上的撤销按钮仍然可用，见 undoTetris）
   if (statusOf(state) !== 'playing') throw new IllegalActionError(GAME_TETRIS_ID, 'game over')
 
-  if (action.type === 'tick') return stepDown(state, spec, true)
+  // 消行定格那一拍：到点的 tick 用来**结清**这一拍，然后才继续下落
+  if (action.type === 'tick') return state.clearing ? advanceClear(state, spec) : stepDown(state, spec, true)
+
+  /*
+   * 定格期间不接受移动/旋转/落：方块已经并进棋盘、下一块还没出，
+   * 这时任何方向都没有意义。**明确抛错**而不是静默返回原状态 ——
+   * 静默会让玩家觉得"按了没反应"（规范 5：输入被接受就必须产生状态变化；
+   * 拒绝的输入由会话统一给出「走不通」的文字反馈）。
+   */
+  if (state.clearing) throw new IllegalActionError(GAME_TETRIS_ID, 'clearing')
 
   if (action.dir === 'left' || action.dir === 'right') return shiftPiece(state, spec, action.dir)
   if (action.dir === 'up') return rotatePiece(state, spec)
@@ -591,6 +701,8 @@ export interface EncodedState {
   score: number
   lines: number
   pieces: number
+  /** 消行定格（缺字段 = 没有待消的行；老存档因此天然兼容） */
+  clearing?: { rows: number[]; points: number; phase?: 'flash' | 'label' }
   history: EncodedHistoryEntry[]
 }
 
@@ -609,6 +721,7 @@ export function encodeState(state: TetrisState): EncodedState {
     score: state.score,
     lines: state.lines,
     pieces: state.pieces,
+    ...(state.clearing ? { clearing: { rows: [...state.clearing.rows], points: state.clearing.points, phase: state.clearing.phase } } : {}),
     history: state.history.map((entry): EncodedHistoryEntry => {
       if (entry.kind === 'piece') {
         return {
@@ -737,10 +850,58 @@ function asHistoryEntry(value: unknown, spec: DifficultyTetris): HistoryEntry {
 }
 
 /**
+ * 消行定格字段的校验。
+ *
+ * 这里能查的比"类型对不对"多得多，而且都是**结构性**的（不依赖计分公式，改分数表不会误伤老存档）：
+ *   - 行号在盘内、升序、不重复、不超过一次能消的上限；
+ *   - 这些行在棋盘上**确实是满的**（定格的定义就是"满行还没消失"）；
+ *   - 当前块**确实已经并进棋盘**（定格那一拍里方块已经固化）。
+ * 少了这几条，一个坏存档能让玩家在"定格"里看到半盘不存在的行。
+ */
+function asClearing(value: unknown, spec: DifficultyTetris, board: readonly number[], piece: ActivePiece): PendingClear | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new IllegalActionError(GAME_TETRIS_ID, 'bad clearing')
+  }
+  const raw = value as { rows?: unknown; points?: unknown; phase?: unknown }
+  const rowsRaw = raw.rows
+  if (!Array.isArray(rowsRaw) || rowsRaw.length === 0 || rowsRaw.length > MAX_LINE_CLEAR) {
+    throw new IllegalActionError(GAME_TETRIS_ID, 'bad clearing rows')
+  }
+  const rows: number[] = []
+  for (const item of rowsRaw) {
+    const row = asCount(item, 'clearing row')
+    if (row >= spec.rows) throw new IllegalActionError(GAME_TETRIS_ID, 'clearing row outside board')
+    if (rows.includes(row)) throw new IllegalActionError(GAME_TETRIS_ID, 'duplicate clearing row')
+    rows.push(row)
+  }
+  rows.sort((a, b) => a - b)
+  for (const row of rows) {
+    for (let col = 0; col < spec.cols; col++) {
+      if (board[cellIndex(spec.cols, row, col)] !== CELL_FILLED) {
+        throw new IllegalActionError(GAME_TETRIS_ID, 'clearing row is not full')
+      }
+    }
+  }
+  for (const cell of pieceCells(piece)) {
+    if (board[cellIndex(spec.cols, cell.row, cell.col)] !== CELL_FILLED) {
+      throw new IllegalActionError(GAME_TETRIS_ID, 'clearing piece is not merged')
+    }
+  }
+  // 相位缺字段按 'flash' 处理：上一版（还没分两拍）写下的存档仍然能读
+  const phase = raw.phase === undefined ? 'flash' : raw.phase
+  if (phase !== 'flash' && phase !== 'label') {
+    throw new IllegalActionError(GAME_TETRIS_ID, 'bad clearing phase')
+  }
+  return { rows, points: asCount(raw.points, 'clearing points'), phase }
+}
+
+/**
  * 存档解码：任何缺字段 / 类型不对 / 数值非法都抛 IllegalActionError，
  * 让壳层把「存档损坏」明确告诉用户，而不是带着半个局面继续玩。
  *
- * 唯一的例外是 `history` 缺失 —— 那按空撤销栈处理（老存档不判损坏）。
+ * 唯一的例外是 `history` 缺失 —— 那按空撤销栈处理（老存档不判损坏）；
+ * `clearing` 缺失同理（老存档里没有消行定格，按 null 处理）。
  */
 export function decodeState(raw: unknown): TetrisState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -755,6 +916,7 @@ export function decodeState(raw: unknown): TetrisState {
   const pieces = asCount(value.pieces, 'pieces')
   // 不变式：每固化一块正好出新一块，所以「已出块数 = 已固化块数 + 1」。
   // 不满足说明存档被截断或篡改，宁可拒绝也不要让撤销栈错位。
+  // （消行定格那一拍两者都还没加，因此这条在定格中同样成立 —— 见 PendingClear。）
   if (cursor !== pieces + 1) {
     throw new IllegalActionError(GAME_TETRIS_ID, 'cursor does not match locked pieces')
   }
@@ -780,6 +942,7 @@ export function decodeState(raw: unknown): TetrisState {
     score: asCount(value.score, 'score'),
     lines: asCount(value.lines, 'lines'),
     pieces,
+    clearing: asClearing(value.clearing, spec, board, piece),
     history,
   }
 }

@@ -13,6 +13,8 @@ import {
   CELLS,
   EMPTY,
   WHITE,
+  legalActions,
+  reduceGomoku,
   createEmptyBoard,
   indexOf,
   isFull,
@@ -180,6 +182,7 @@ export function stateOf(turns: readonly GomokuTurn[], extra: Partial<GomokuState
     moves: turns.length,
     rngCursor: whiteCount,
     lastMove,
+    opponentPick: extra.opponentPick ?? null,
     history: turns,
     ...extra,
   }
@@ -231,6 +234,22 @@ export function crowdedState(turns: number, difficulty: DifficultyId = 'starter'
     log.push({ black: blacks[position]!, white: whites[position]! })
   }
   return stateOf(log, { difficulty })
+}
+
+/**
+ * 把「白方待应手」的中间态推进到落定。
+ *
+ * 应手是**两拍**（先亮出目标格、500ms 后落子），测试里不能只发一次 tick ——
+ * 循环发到 legal() 里没有 tick 为止，将来加拍数也不用改测试。
+ */
+export function settle(state: GomokuState): GomokuState {
+  let current = state
+  for (let guard = 0; guard < 8; guard++) {
+    const tick = legalActions(current).find((action) => action.type === 'tick')
+    if (!tick) break
+    current = reduceGomoku(current, tick)
+  }
+  return current
 }
 
 export { BLACK, BOARD_SIZE, CELLS, EMPTY, WHITE, createEmptyBoard, indexOf, isFull }

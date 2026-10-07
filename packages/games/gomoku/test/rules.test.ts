@@ -33,6 +33,7 @@ import {
   playerMoves,
   stateOf,
   winnerOf,
+  settle,
 } from './helpers.js'
 
 /** 横、竖、斜（↘）、反斜（↗）四条轴上的五连坐标 */
@@ -177,30 +178,45 @@ describe('reduce 真实路径下的终局', () => {
 })
 
 describe('落子后自动应手', () => {
-  it('玩家落子后白方立刻应手：同一次 reduce 内盘面多出黑白各一子', () => {
+  it('玩家落子只落黑方；白方应手分两拍（先亮目标格、再落子）', () => {
     const before = createState(1234, 'starter')
-    const after = reduceGomoku(before, { type: 'place', index: 112 })
-    expect(after.board[112]).toBe(BLACK)
-    expect(countOf(after.board, BLACK)).toBe(1)
-    expect(countOf(after.board, WHITE)).toBe(1)
-    expect(after.moves).toBe(1)
-    expect(after.rngCursor).toBe(1)
-    const white = after.board.findIndex((stone) => stone === WHITE)
-    expect(after.lastMove).toBe(white)
-    expect(after.history).toEqual([{ black: 112, white }])
+    const afterPlace = reduceGomoku(before, { type: 'place', index: 112 })
+    expect(afterPlace.board[112]).toBe(BLACK)
+    expect(countOf(afterPlace.board, BLACK)).toBe(1)
+    expect(countOf(afterPlace.board, WHITE)).toBe(0)
+    expect(afterPlace.moves).toBe(1)
+    expect(afterPlace.rngCursor).toBe(0)
+    expect(afterPlace.lastMove).toBe(112)
+    expect(afterPlace.opponentPick).toBeNull()
+    expect(afterPlace.history).toEqual([{ black: 112, white: null }])
+  
+    // 第一拍：只亮出目标格 —— 盘面一格不动，但记下了 AI 挑中的落点
+    const picked = reduceGomoku(afterPlace, { type: 'tick' })
+    expect(picked.opponentPick).not.toBeNull()
+    expect(picked.board).toEqual(afterPlace.board)
+    expect(picked.history[0]!.white).toBeNull()
+  
+    // 第二拍：白子真正落下，回合补上白方那一手
+    const landed = reduceGomoku(picked, { type: 'tick' })
+    const turn = landed.history[0]!
+    expect(turn.white).toBe(picked.opponentPick)
+    expect(landed.opponentPick).toBeNull()
+    expect(landed.rngCursor).toBe(1)
+    expect(landed.lastMove).toBe(turn.white)
+    expect(countOf(landed.board, WHITE)).toBe(1)
   })
 
   it('连续多手后：黑子数 = 步数、白子数 = 游标、最后高亮落在最后一手上', () => {
     let state = createState(99, 'skilled')
     for (let ply = 0; ply < 6 && gameStatus(state) === 'playing'; ply++) {
-      state = reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! })
+      state = settle(reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! }))
     }
     expect(countOf(state.board, BLACK)).toBe(state.moves)
     expect(countOf(state.board, WHITE)).toBe(state.rngCursor)
     expect(state.rngCursor).toBe(state.moves)
     const highlighted = gomokuGame
       .view(state)
-      .board!.cells.filter((cell) => cell.kind === 'given' || cell.selected)
+      .board!.cells.filter((cell) => cell.lastTo !== undefined)
     expect(highlighted.map((cell) => cell.index)).toEqual([state.lastMove])
   })
 })
@@ -253,8 +269,8 @@ describe('非法落子与点选映射', () => {
 describe('撤销一整回合与重开', () => {
   it('撤销把玩家落子与白方应手一起退回', () => {
     const start = createState(2024, 'skilled')
-    const first = reduceGomoku(start, { type: 'place', index: playerMoves(start)[0]! })
-    const second = reduceGomoku(first, { type: 'place', index: playerMoves(first)[0]! })
+    const first = settle(reduceGomoku(start, { type: 'place', index: playerMoves(start)[0]! }))
+    const second = settle(reduceGomoku(first, { type: 'place', index: playerMoves(first)[0]! }))
     const undone = reduceGomoku(second, { type: 'undo' })
     expect(encodeState(undone)).toEqual(encodeState(first))
     expect(undone.moves).toBe(1)
@@ -267,7 +283,7 @@ describe('撤销一整回合与重开', () => {
   it('连撤到开局等于初始状态', () => {
     let state = createState(77, 'starter')
     for (let ply = 0; ply < 3; ply++) {
-      state = reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! })
+      state = settle(reduceGomoku(state, { type: 'place', index: playerMoves(state)[0]! }))
     }
     while (state.history.length > 0) state = reduceGomoku(state, { type: 'undo' })
     expect(encodeState(state)).toEqual(encodeState(createState(77, 'starter')))
@@ -315,8 +331,10 @@ describe('合法动作集合', () => {
     expect(actions.filter((action) => action.type === 'restart')).toHaveLength(1)
   })
 
-  it('落子后 place 只覆盖空格，且出现 undo', () => {
-    const state = reduceGomoku(createState(1, 'starter'), { type: 'place', index: 112 })
+  it('落子后待应手只有 tick/undo/restart；落定后 place 覆盖其余空格', () => {
+    const pending = reduceGomoku(createState(1, 'starter'), { type: 'place', index: 112 })
+    expect(legalActions(pending).map((action) => action.type)).toEqual(['tick', 'undo', 'restart'])
+    const state = settle(pending)
     const places = legalActions(state).filter(
       (action): action is { type: 'place'; index: number } => action.type === 'place',
     )

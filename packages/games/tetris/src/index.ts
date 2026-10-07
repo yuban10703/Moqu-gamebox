@@ -11,6 +11,7 @@
  */
 import { type GameDef, type GameStatus } from '@eink/core'
 import {
+  CLEAR_HOLD_MS,
   DIFFICULTIES,
   DIFFICULTY_IDS,
   GAME_TETRIS_ID,
@@ -88,6 +89,12 @@ export {
   type Rotation,
 } from './pieces.js'
 
+/**
+ * 规则版本。**加消行定格（打击感）时刻意没有 +1**：那一版是向后兼容的 ——
+ * 老存档没有 `clearing` 字段，decode 按 null 处理，局面照常继续玩；
+ * 已消掉的行不会"补一次定格"（那只是少看了一拍特效，不是规则不一致）。
+ * 升版本会让所有进行中的存档被判成「旧版本存档」并要求重开，代价远大于收益。
+ */
 export const GAME_TETRIS_RULES_VERSION = 1
 /** 本玩法没有关卡 / 题库，内容版本恒为 1（难度档是规则的一部分，见 DIFFICULTIES） */
 export const GAME_TETRIS_CONTENT_VERSION = 1
@@ -133,9 +140,14 @@ export const tetrisGame: GameDef<TetrisState, TetrisAction> = {
    * 自动下落的间隔：由难度声明（入门 1050ms / 熟练 800ms / 挑战 600ms，依据见 rules.ts）。
    * 已经堆到顶就返回 null（壳层据此停表，不留空转的定时器）。
    * 想更快就用「落」手动软降 —— 玩家操作即时生效，不受这个间隔限制。
+   *
+   * 例外：**消行定格那一拍**返回 CLEAR_HOLD_MS（500ms）。它不是难度旋钮而是面板的物理时间
+   * （一次整屏刷新 ≈500ms，见 rules.ts 的 CLEAR_HOLD_MS）：到点的那个 tick 用来结清这一拍、
+   * 真正消行，然后计时重新回到难度间隔。因此"定格"在三个难度上都是同样长的一下。
    */
   tickMs(state: TetrisState): number | null {
     if (statusOf(state) !== 'playing') return null
+    if (state.clearing) return CLEAR_HOLD_MS
     return difficultyOf(state.difficulty).tickMs
   },
 

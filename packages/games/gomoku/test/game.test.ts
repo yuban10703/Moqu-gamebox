@@ -35,7 +35,7 @@ import {
   type GomokuState,
 } from '../src/index.js'
 import { CELL_LABEL_KEYS } from '../src/view.js'
-import { at, crowdedState, fillNoFiveBoard, playerMoves, stateOf } from './helpers.js'
+import { at, crowdedState, fillNoFiveBoard, playerMoves, settle, stateOf } from './helpers.js'
 
 const zh: Dict = { ...coreDictZh, ...gomokuZh }
 const en: Dict = { ...coreDictEn, ...gomokuEn }
@@ -50,13 +50,14 @@ function fresh(): GomokuState {
 function advance(state: GomokuState, plies: number): GomokuState {
   let current = state
   for (let ply = 0; ply < plies; ply++) {
+    current = settle(current)
     const move = legalActions(current).find(
       (action): action is { type: 'place'; index: number } => action.type === 'place',
     )
     if (!move) break
     current = gomokuGame.reduce(current, move)
   }
-  return current
+  return settle(current)
 }
 
 /** 一直走到终局（玩家每手取第一个合法点） */
@@ -68,7 +69,7 @@ function playToEnd(state: GomokuState): GomokuState {
       (action): action is { type: 'place'; index: number } => action.type === 'place',
     )
     if (!move) break
-    current = gomokuGame.reduce(current, move)
+    current = settle(gomokuGame.reduce(current, move))
   }
   return current
 }
@@ -111,43 +112,56 @@ describe('view / 1-bit 呈现约定', () => {
         expect(cells[index]!.glyph).toBe('')
         expect(cells[index]!.selected).toBeUndefined()
       } else {
-        // 最后一手借 'given'（壳层里是"白底 + 加粗文字"），其余子是 'tile'
-        expect(cells[index]!.kind).toBe(index === state.lastMove ? 'given' : 'tile')
+        // 所有棋子都是 tile：末手不再借 'given'（玩家的放大效果已按用户要求去掉）
+        expect(cells[index]!.kind).toBe('tile')
         expect(cells[index]!.glyph).toBe(stone === BLACK ? '●' : '○')
       }
     }
     expect(cells.filter((cell) => cell.glyph === '●')).toHaveLength(countStones(state.board).black)
     expect(cells.filter((cell) => cell.glyph === '○')).toHaveLength(countStones(state.board).white)
-    expect(cellKindAt(state, state.lastMove!)).toBe('given')
+    expect(cellKindAt(state, state.lastMove!)).toBe('tile')
     expect(cellGlyphAt(state, state.lastMove!)).not.toBe('')
   })
 
-  it('最后一手**不反白**：加粗 + 放大一档，全盘只有它一个标记', () => {
+  it('末手标记：只有 AI 的末手带内框，玩家末手与其余棋子完全一致', () => {
     /*
-     * 用户报的缺陷：AI 的白子在被"选中"的格子里看着像黑子 ——
-     * 因为原先最后一手用 `selected: true`（壳层会把整格反白），
-     * 反白连棋子本体一起翻转，实心/空心互换观感。
-     * 现在改成 kind 'given'（白底加粗）+ textScale 放大：实心仍实心、空心仍空心。
+     * 演进：最初末手用「加粗 + 放大一档」（kind 'given'），用户后来要求去掉放大
+     * （棋子大小不一看起来像"这颗子有问题"，且 ●/○ 是几何字形，加粗也看不出差异），
+     * 于是玩家末手不做任何特殊标记；AI（白方）末手改用内框描边（data-last-to）。
+     * 全程不反白：反白会把棋子本体一起翻转（AI 白子在黑底上看着像黑块，用户报过）。
      */
-    const state = advance(fresh(), 3)
+    const state = advance(fresh(), 4)
     expect(state.lastMove).not.toBeNull()
     const board = gomokuGame.view(state).board!
-    const marked = board.cells.filter((cell) => cell.selected || cell.kind === 'given')
+    const marked = board.cells.filter((cell) => cell.lastTo !== undefined)
     expect(marked.map((cell) => cell.index)).toEqual([state.lastMove])
     expect(board.cells.every((cell) => cell.selected === undefined)).toBe(true)
-    expect(marked[0]!.textScale).toBeGreaterThan(1)
+    // 全盘棋子大小一致、没有 given 放大：玩家末手与其它子完全一样
+    for (const cell of board.cells) {
+      expect(cell.kind).not.toBe('given')
+      expect(cell.textScale).toBeUndefined()
+    }
+    // advance 走 4 手 → 末手是 AI 的白子 → 带双线内框
+    expect(marked[0]!.kind).toBe('tile')
+    expect(marked[0]!.lastTo).toBe(1)
     // 开局没有历史也没有最后一手
     expect(gomokuGame.view(fresh()).board!.cells.some((cell) => cell.kind === 'given')).toBe(false)
   })
 
-  it('棋子不靠灰阶区分：只用两种字形；只有最后一手带 textScale', () => {
+  it('棋子不靠灰阶区分：只用两种字形；玩家末手无标记、AI 末手内框', () => {
     const state = advance(fresh(), 4)
     const board = gomokuGame.view(state).board!
     const glyphs = new Set(board.cells.map((cell) => cell.glyph))
     expect([...glyphs].sort()).toEqual(['', '○', '●'])
     for (const cell of board.cells) {
-      if (cell.index === state.lastMove) expect(cell.textScale).toBeGreaterThan(1)
-      else expect(cell.textScale).toBeUndefined()
+      if (cell.index === state.lastMove) {
+        // AI（白方）的末手：内框描边（双线框），不放大
+        expect(cell.lastTo).toBe(1)
+        expect(cell.textScale).toBeUndefined()
+      } else {
+        expect(cell.textScale).toBeUndefined()
+        expect(cell.lastTo).toBeUndefined()
+      }
     }
   })
 
@@ -204,6 +218,36 @@ describe('view / 1-bit 呈现约定', () => {
       { key: 'gomoku.result.moves', params: { count: 113 } },
       { key: 'gomoku.result.draw' },
     ])
+    // 但**战绩**要知道真相：平局不是通关，壳层据此不写 completed / bestMoves
+    // （审计实测：满盘平局被记成 completed:['starter'] + bestMoves + history.won=true）
+    expect(gomokuGame.outcomeOf!(state)).toBe('draw')
+  })
+
+  it('outcomeOf 与 status 的分工：胜/负/平局三态都如实', () => {
+    const beforeWin = stateOf([
+      { black: at(7, 3), white: at(0, 0) },
+      { black: at(7, 4), white: at(0, 1) },
+      { black: at(7, 5), white: at(0, 2) },
+      { black: at(7, 6), white: at(0, 3) },
+    ])
+    const won = reduceGomoku(beforeWin, { type: 'place', index: at(7, 7) })
+    expect(gomokuGame.status(won)).toBe('won')
+    expect(gomokuGame.outcomeOf!(won)).toBe('won')
+
+    const lost = stateOf([
+      { black: at(0, 0), white: at(3, 3) },
+      { black: at(0, 2), white: at(3, 4) },
+      { black: at(0, 4), white: at(3, 5) },
+      { black: at(0, 6), white: at(3, 6) },
+      { black: at(6, 6), white: at(3, 7) },
+    ])
+    expect(gomokuGame.status(lost)).toBe('lost')
+    expect(gomokuGame.outcomeOf!(lost)).toBe('lost')
+  })
+
+  it("tickActor 是 'opponent'：应手计时不该被玩家的选点重置", () => {
+    // 与 session.ts 的输入延迟补偿配套：等待白方应手期间连点棋盘不能把白方无限拖住
+    expect(gomokuGame.tickActor).toBe('opponent')
   })
 })
 
@@ -262,8 +306,11 @@ describe('encode / decode', () => {
   })
 
   it('随机对局中途的状态也能往返一致，并且解码后可以接着下', () => {
-    const trail = walkRandom(fresh(), 8, 4242)
-    const state = trail.find((item) => gomokuGame.status(item) === 'playing' && item.moves >= 3)!
+    // 从 3 手的中盘开始随机走：undo/restart 会回退，从空盘走 14 步不保证到中盘
+    const trail = walkRandom(advance(fresh(), 3), 14, 4242)
+    const found = trail.find((item) => gomokuGame.status(item) === 'playing' && item.moves >= 3)
+    expect(found).toBeDefined()
+    const state = settle(found!)
     expect(state).toBeDefined()
     const decoded = gomokuGame.decode(gomokuGame.encode(state))
     expect(decoded).toEqual(state)
@@ -306,15 +353,15 @@ describe('encode / decode', () => {
           expect(gomokuGame.encode(decoded)).toEqual(raw)
         }
         // 解码后的状态继续对局：与原始状态分头走同样的玩家动作，结果必须一致
-        let restored = gomokuGame.decode(gomokuGame.encode(trail[trail.length - 1]!))
-        let original = trail[trail.length - 1]!
+        let restored = settle(gomokuGame.decode(gomokuGame.encode(trail[trail.length - 1]!)))
+        let original = settle(trail[trail.length - 1]!)
         const rng = createRng(seed)
         for (let step = 0; step < 6 && gomokuGame.status(original) === 'playing'; step++) {
           const moves = playerMoves(original)
           if (moves.length === 0) break
           const index = moves[rng.int(moves.length)]!
-          restored = reduceGomoku(restored, { type: 'place', index })
-          original = reduceGomoku(original, { type: 'place', index })
+          restored = settle(reduceGomoku(restored, { type: 'place', index }))
+          original = settle(reduceGomoku(original, { type: 'place', index }))
           expect(gomokuGame.encode(restored)).toEqual(gomokuGame.encode(original))
         }
       }
@@ -372,6 +419,12 @@ describe('encode / decode', () => {
       { ...raw, lastMove: raw.lastMove === 7 ? 8 : 7 },
       // lastMove 越界
       { ...raw, lastMove: CELLS },
+      // 中间回合白方不应手（两拍式只允许最后一回合待应手）
+      { ...raw, history: raw.history.map((entry, index) => (index === 0 ? { ...entry, white: null } : entry)) },
+      // 没有待应手时却带 opponentPick
+      { ...raw, opponentPick: 0 },
+      // 待应手但 opponentPick 越界
+      { ...raw, history: raw.history.map((entry, index) => (index === raw.history.length - 1 ? { ...entry, white: null } : entry)), opponentPick: CELLS },
     ]
     for (const candidate of bad) {
       expect(() => gomokuGame.decode(candidate), JSON.stringify(candidate)?.slice(0, 90)).toThrow(

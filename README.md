@@ -9,7 +9,7 @@
 *An offline game collection designed for e-ink screens*
 
 <p>
-  <img alt="games" src="https://img.shields.io/badge/games-15-111111?style=flat-square">
+  <img alt="games" src="https://img.shields.io/badge/games-17-111111?style=flat-square">
   <img alt="platform" src="https://img.shields.io/badge/platform-Web%20PWA%20%7C%20Android%206.0%2B-111111?style=flat-square">
   <img alt="offline" src="https://img.shields.io/badge/offline-100%25-111111?style=flat-square">
   <img alt="permissions" src="https://img.shields.io/badge/Android%20permissions-0-111111?style=flat-square">
@@ -25,7 +25,7 @@
 
 ---
 
-15 款游戏，中文 / 英文，**完全离线、不要任何权限**。
+17 款游戏，中文 / 英文，**完全离线、不要任何权限**。
 
 不是把手机游戏搬到墨水屏上，而是围绕墨水屏从头设计：纯黑白、没有动画、点按优先、分页代替滚动、断电不丢进度。
 
@@ -50,6 +50,9 @@
 - **五子棋** —— 你执黑先手，对战三档电脑
 - **斗地主** —— 标准三人局，叫分制，炸弹和春天翻倍，积分跨局累计
 - **恶魔轮盘赌** —— 实弹与空包弹的心理博弈，8 种道具、共 3 轮；可对战三档恶魔，也可**双人同屏**，还有**无尽模式**记最高纪录
+- **中国象棋** —— 你执红先行，标准规则（马腿 / 象眼 / 炮架 / 将帅照面都算数），对战三档电脑
+- **国际象棋** —— 你执白先行，标准规则（易位 / 吃过路兵 / 升变自动变后），对战三档电脑
+- **黑白棋** —— 你执黑先手，落子夹住的白子全翻黑；子多者胜，对战三档电脑
 
 **动作街机**
 

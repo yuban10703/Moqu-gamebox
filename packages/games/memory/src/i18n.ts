@@ -16,7 +16,9 @@ export const memoryZh: Dict = {
   'memory.rules.body2':
     '不匹配的牌不会自动翻回：下一次点击先盖回它们，并算作新一次翻牌。',
   'memory.rules.restart': '重开会清空当前进度并重新洗牌；同一难度与同一开局种子依然完全可复现。',
-  'memory.illegal.notice': '这里不能这样点',
+  // 点「待盖回」或「已配对」的牌时，玩家真正需要的是**下一步该点哪**：
+  // 用引导语而不是泛化的「这里不能这样点」（后者会把界面上的有效引导顶掉）
+  'memory.illegal.notice': '再点一张扣着的牌',
   'memory.notice.cover': '再点一张扣着的牌',
   'memory.difficulty.starter': '入门',
   'memory.difficulty.skilled': '熟练',
@@ -39,7 +41,7 @@ export const memoryEn: Dict = {
     'Mismatched cards stay until your next tap, which counts as a new flip.',
   'memory.rules.restart':
     'Restarting clears the current progress and deals a new layout; the same difficulty and starting seed stay fully reproducible.',
-  'memory.illegal.notice': 'Cannot tap that tile',
+  'memory.illegal.notice': 'Tap another hidden tile',
   'memory.notice.cover': 'Tap another hidden tile',
   'memory.difficulty.starter': 'Starter',
   'memory.difficulty.skilled': 'Skilled',

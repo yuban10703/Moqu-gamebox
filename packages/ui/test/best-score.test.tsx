@@ -6,7 +6,7 @@
  */
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { carriedProgress, createMemoryKv, readBestScore, type GameDef, type KvBackend } from '@eink/core'
+import { carriedProgress, createMemoryKv, readBestMoves, readBestScore, readCompleted, type GameDef, type KvBackend } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import { useSession } from '../src/session.js'
 
@@ -102,19 +102,25 @@ describe('最高纪录', () => {
   })
 })
 
-describe('跨局继承（开始新游戏）', () => {
-  it('历史记录与最高纪录都带过去，其它进度不带；坏数据丢掉', () => {
+describe('跨局继承（开始新游戏 / 重新开始 / 自由选关）', () => {
+  it('历史记录、最高纪录、已通关记录、每关最佳步数都带过去；坏数据丢掉', () => {
     const carry = carriedProgress({
-      completed: ['a'],
-      bestMoves: { a: 3 },
+      completed: ['a', 'b', '', 3, 'a'],
+      bestMoves: { a: 3, b: 0, bad: -1, worse: 'x' },
       history: [{ difficulty: 'endless', moves: 0, seconds: 1, won: false, at: 1 }],
       bestScore: { endless: 4, bad: -1, worse: 'x' },
     })
     expect(carry).toEqual({
       history: [{ difficulty: 'endless', moves: 0, seconds: 1, won: false, at: 1 }],
       bestScore: { endless: 4 },
+      // 已通关记录与最佳步数是**跨局成绩**，不该被「开始新游戏 / 自由选关」清掉
+      // （实测缺陷：通关第 1 关后从关卡列表点第 5 关，详情页进度 1/16 直接回到 0/16）
+      completed: ['a', 'b'],
+      bestMoves: { a: 3, b: 0 },
     })
     expect(carriedProgress(undefined)).toEqual({})
     expect(readBestScore([1, 2])).toEqual({})
+    expect(readCompleted('nope')).toEqual([])
+    expect(readBestMoves(null)).toEqual({})
   })
 })

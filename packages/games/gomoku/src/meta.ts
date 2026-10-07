@@ -8,7 +8,7 @@ import { IllegalActionError } from '@eink/core'
 
 export const GOMOKU_ID = 'gomoku'
 /** 规则版本：规则语义变化时 +1，旧存档据此判定兼容性 */
-export const GOMOKU_RULES_VERSION = 1
+export const GOMOKU_RULES_VERSION = 2
 /** 内容版本：本作没有题库/关卡包，随规则一起走 */
 export const GOMOKU_CONTENT_VERSION = 1
 

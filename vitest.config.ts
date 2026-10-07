@@ -22,6 +22,8 @@ export default defineConfig({
       '@eink/doudizhu': pkg('games/doudizhu/src/index.ts'),
       '@eink/buckshot': pkg('games/buckshot/src/index.ts'),
       '@eink/xiangqi': pkg('games/xiangqi/src/index.ts'),
+      '@eink/chess': pkg('games/chess/src/index.ts'),
+      '@eink/reversi': pkg('games/reversi/src/index.ts'),
     },
   },
   test: {

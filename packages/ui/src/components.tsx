@@ -316,6 +316,21 @@ export interface BoardProps {
 }
 
 /**
+ * 把格子里的**文案 key** 翻成最终文字（`CellView.glyphKey` → `glyph`）。
+ *
+ * 为什么由壳层做、而不是让 Board 自己调 i18n：Board 是纯展示组件（不依赖 UiProvider），
+ * 而"游戏只给 key、壳层负责翻译"本来就是本项目的分工（牌桌、对决面板、统计栏都是这么走的）。
+ * 没有 key 的棋盘原样返回（同一个对象），不产生额外渲染。
+ */
+export function localizeBoard(board: BoardView, t: (key: string) => string): BoardView {
+  if (!board.cells.some((cell) => cell.glyphKey)) return board
+  return {
+    ...board,
+    cells: board.cells.map((cell) => (cell.glyphKey ? { ...cell, glyph: t(cell.glyphKey) } : cell)),
+  }
+}
+
+/**
  * 棋盘：DOM 网格渲染。
  * 选择 DOM 而不是 Canvas 的原因：网页侧无法承诺像素级局部刷新，
  * 而 DOM 让系统自己做最小重绘；文字用系统字体，中文不会缺字。
@@ -391,6 +406,8 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
           {...(cellView.wrong ? { 'data-wrong': 'yes' } : {})}
           {...(cellView.facing ? { 'data-facing': cellView.facing } : {})}
           {...(cellView.links?.length ? { 'data-links': cellView.links.join(' ') } : {})}
+          {...(cellView.flash ? { 'data-flash': 'yes' } : {})}
+          {...(cellView.banner ? { 'data-banner': 'yes' } : {})}
           {...(cellView.mergeRight ? { 'data-merge-right': 'yes' } : {})}
           {...(cellView.mergeBottom ? { 'data-merge-bottom': 'yes' } : {})}
           {...(mergeLeft(cellView.index) ? { 'data-merge-left': 'yes' } : {})}

@@ -92,11 +92,8 @@ export function appendHistory(
   return { ...base, history: pushHistory(base.history, entry) }
 }
 
-/**
- * 最高纪录（内容 id → 成绩，越大越好；无尽类玩法用，见 GameDef.scoreOf）。
- * 与历史记录同样宽容：不是对象、值不是非负有限数的条目一律丢掉，绝不抛错。
- */
-export function readBestScore(value: unknown): Record<string, number> {
+/** 内容 id → 成绩 的宽容解析（最高纪录与最佳步数共用同一套：坏条目丢掉，绝不抛错） */
+function readScoreMap(value: unknown): Record<string, number> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   const out: Record<string, number> = {}
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
@@ -106,14 +103,50 @@ export function readBestScore(value: unknown): Record<string, number> {
 }
 
 /**
- * 开新局时从旧存档继承的**跨局战绩**：历史记录与最高纪录。
- * 局面本身与本局进度不继承；「开始新游戏」「重新开始」都走这里，免得战绩跟着旧局面一起被删掉。
+ * 最高纪录（内容 id → 成绩，越大越好；无尽类玩法用，见 GameDef.scoreOf）。
+ * 与历史记录同样宽容：不是对象、值不是非负有限数的条目一律丢掉，绝不抛错。
+ */
+export function readBestScore(value: unknown): Record<string, number> {
+  return readScoreMap(value)
+}
+
+/**
+ * 每关最佳步数（内容 id → 步数，越小越好）。解析口径与 readBestScore 相同 —— 这里**不排序也不比较**，
+ * 只负责把存档里的数字安全读出来；比较留给会话层。
+ */
+export function readBestMoves(value: unknown): Record<string, number> {
+  return readScoreMap(value)
+}
+
+/**
+ * 已通关记录（内容 id 列表）。与历史记录同样宽容：非数组当空、非字符串条目丢掉、去重、保序。
+ */
+export function readCompleted(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const out: string[] = []
+  for (const item of value) {
+    if (typeof item === 'string' && item !== '' && !out.includes(item)) out.push(item)
+  }
+  return out
+}
+
+/**
+ * 开新局时从旧存档继承的**跨局战绩**：历史记录、最高纪录、已通关记录、每关最佳步数。
+ *
+ * 这四样都是「跨局成绩」而不是「这一局的局面」：开始新游戏 / 重新开始 / 自由选关
+ * 会替换当前局面，但不该把玩家已经拿到的成绩一起抹掉
+ * （实测：通关第 1 关后从关卡列表点第 5 关，详情页「进度 1/16」直接回到 0/16）。
+ * 真正的「清空全部进度」在设置页，走 storage.clearAll，与这里无关。
  */
 export function carriedProgress(progress: Record<string, unknown> | undefined): Record<string, unknown> {
   const history = readHistory(progress?.history)
   const bestScore = readBestScore(progress?.bestScore)
+  const completed = readCompleted(progress?.completed)
+  const bestMoves = readBestMoves(progress?.bestMoves)
   return {
     ...(history.length > 0 ? { history } : {}),
     ...(Object.keys(bestScore).length > 0 ? { bestScore } : {}),
+    ...(completed.length > 0 ? { completed } : {}),
+    ...(Object.keys(bestMoves).length > 0 ? { bestMoves } : {}),
   }
 }

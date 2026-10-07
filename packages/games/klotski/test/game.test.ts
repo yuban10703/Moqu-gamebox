@@ -66,12 +66,28 @@ describe('元信息与注册表接口', () => {
     expect(klotskiGame.movesOf!(slid)).toBe(1)
   })
 
-  it('controlAction 只映射撤销/重开（关卡选择与下一关由壳层渲染）', () => {
+  it('controlAction 映射撤销/重开/下一关（下一关必须与 view 声明的控件成对）', () => {
     const state = createState('level-1')
     expect(klotskiGame.controlAction!(state, 'undo')).toEqual({ type: 'undo' })
     expect(klotskiGame.controlAction!(state, 'restart')).toEqual({ type: 'restart' })
-    expect(klotskiGame.controlAction!(state, 'next-level')).toBeNull()
+    // view.ts 声明了 next-level 控件（壳层据此渲染结果面板的「下一关」），
+    // 因此这里必须能映射出同名动作，reduce 也必须接得住 —— 否则就是死按钮
+    expect(klotskiGame.controlAction!(state, 'next-level')).toEqual({ type: 'nextLevel' })
     expect(klotskiGame.controlAction!(state, 'hint')).toBeNull()
+  })
+
+  it('过关后「下一关」真的能进下一关，最后一关明确报错', () => {
+    // 用求解器给出的完整解法构造真实的 won 局面（见 playOptimal / solve.test.ts）
+    const solved = playOptimal('level-1')
+    expect(klotskiGame.status(solved)).toBe('won')
+    const next = klotskiGame.reduce(solved, { type: 'nextLevel' })
+    expect(next.levelId).toBe('level-2')
+    expect(next.moves).toBe(0)
+    expect(klotskiGame.status(next)).toBe('playing')
+
+    const last = playOptimal('level-4')
+    expect(klotskiGame.status(last)).toBe('won')
+    expect(() => klotskiGame.reduce(last, { type: 'nextLevel' })).toThrow(IllegalActionError)
   })
 
   it('create 忽略 seed：同难度永远同一关同一摆法', () => {

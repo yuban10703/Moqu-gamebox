@@ -307,6 +307,12 @@ describe('元信息与注册表接口', () => {
     expect((memoryGame as { levels?: unknown }).levels).toBeUndefined()
   })
 
+  it('点不动的提示就是「该点哪」的引导语（审计回归：泛化错误会顶掉有效引导）', () => {
+    // 点已配对 / 待盖回的牌时，玩家需要的是下一步该点哪 —— 两条 key 的文案必须一致
+    expect(zh['memory.illegal.notice']).toBe(zh['memory.notice.cover'])
+    expect(en['memory.illegal.notice']).toBe(en['memory.notice.cover'])
+  })
+
   it('contentId = 难度，movesOf = 尝试次数', () => {
     const state = midGame(1, 'challenging')
     expect(memoryGame.contentId!(state)).toBe('challenging')

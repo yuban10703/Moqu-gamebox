@@ -360,6 +360,53 @@ describe('view / 1-bit 呈现约定', () => {
       { key: 'xiangqi.result.moves', params: { count: 4 } },
       { key: 'xiangqi.result.repetition' },
     ])
+    // 但**战绩**要知道真相：和棋不是通关，壳层据此不写 completed / bestMoves
+    expect(xiangqiGame.outcomeOf!(state)).toBe('draw')
+  })
+
+  it('outcomeOf：将死判胜、困毙判负，与 status 的三态口径对齐', () => {
+    // 红车 (1,7) → (0,7) 将死黑方（与上一条同一个局面）
+    const mateBoard = boardOf([
+      '...a.k...',
+      'R......R.',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '...K.....',
+    ])
+    const wonState = reduceXiangqi(positionState(mateBoard), {
+      type: 'move',
+      from: at(1, 7),
+      to: at(0, 7),
+    })
+    expect(gameStatus(wonState)).toBe('won')
+    expect(xiangqiGame.outcomeOf!(wonState)).toBe('won') // 将死 ≠ 和棋，必须记成胜局
+
+    // 红方困毙（无子可动）→ status 判 lost，outcomeOf 必须跟着判负
+    const stuckBoard = boardOf([
+      '...k.....',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.........',
+      '.....r...',
+      '...r.....',
+      '....K....',
+    ])
+    const lostState = positionState(stuckBoard)
+    expect(gameStatus(lostState)).toBe('lost')
+    expect(xiangqiGame.outcomeOf!(lostState)).toBe('lost')
+  })
+
+  it("tickActor 是 'opponent'：应手计时不该被玩家的选子重置", () => {
+    // 与 session.ts 的输入延迟补偿配套：等待黑方应手期间连点自己的棋子不能把黑方无限拖住
+    expect(xiangqiGame.tickActor).toBe('opponent')
   })
 })
 

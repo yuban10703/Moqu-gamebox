@@ -37,6 +37,7 @@ function manual(board: readonly number[], piece: ActivePiece, overrides: Partial
     score: 0,
     lines: 0,
     pieces,
+    clearing: null,
     history: [],
     ...overrides,
   }
@@ -86,6 +87,89 @@ describe('棋盘展示', () => {
     expect(cellLabelKey('boxOnGoal')).toBe('tetris.cell.boxOnGoal')
     expect(cellLabelKey('wall' as CellKind)).toBeUndefined()
     expect(Object.keys(CELL_LABEL_KEYS)).toHaveLength(3)
+  })
+
+  /**
+   * 消行定格那一拍（打击感）：黑带上左边写「消行」、右边写这一下拿到的分，
+   * 并且**不再画"当前块"** —— 那时方块已经并进棋盘了，再画成黑底白叉的活动块，
+   * 玩家会以为它还能动。
+   */
+  it('第一拍整行变白、第二拍白底黑字、第三拍才消失', () => {
+    const rows = 18
+    const board = emptyBoard(COLS, rows)
+    for (let col = 0; col < COLS; col++) {
+      if (col !== 4 && col !== 5) board[cellIndex(COLS, rows - 1, col)] = CELL_FILLED
+    }
+    let state = manual(board, { id: 'O', row: rows - 2, col: 4, rot: 0 })
+    while (!state.clearing) state = reduceState(state, { type: 'move', dir: 'down' })
+
+    // 第一拍：整行标成反色格，且一个字都没有
+    const flash = buildBoard(state)
+    expect(state.clearing?.phase).toBe('flash')
+    for (let col = 0; col < COLS; col++) {
+      expect(flash.cells[cellIndex(COLS, rows - 1, col)]!.flash).toBe(true)
+    }
+    expect(flash.cells.filter((cell) => cell.glyph || cell.glyphKey)).toHaveLength(0)
+    expect(flash.cells.filter((cell) => cell.kind === 'boxOnGoal')).toHaveLength(0)
+
+    // 第二拍：文字出现，而且仍然压在反色带上
+    state = reduceState(state, { type: 'tick' })
+    expect(state.clearing?.phase).toBe('label')
+    const hold = buildBoard(state)
+    // 定格时不画活动块：只剩 empty 与 mine
+    expect(new Set(hold.cells.map((cell) => cell.kind))).toEqual(new Set(['empty', 'mine']))
+    // 满行还在棋盘上（这就是"定格"看得见的那一拍），整行都是黑格 → 连成一条黑带
+    for (let col = 0; col < COLS; col++) {
+      expect(hold.cells[cellIndex(COLS, rows - 1, col)]!.kind).toBe('mine')
+    }
+    // 左「消行」（文案走 i18n key，不在源码里写中文）、右分数（数字，语言无关）
+    const label = hold.cells[cellIndex(COLS, rows - 1, 2)]!
+    // 文案只给 key（源码里不写中文），翻译由壳层做；分数是字面量
+    expect(label.glyphKey).toBe('tetris.fx.clear')
+    expect(label.glyph).toBe('')
+    // 第二拍白带保持白、字是黑的（flash 与 banner 同时在）
+    expect(label.flash).toBe(true)
+    expect(hold.cells.filter((cell) => cell.flash)).toHaveLength(COLS)
+    // 两处标注都是"横幅"：文字比一个格子宽，壳层要让它压过相邻格
+    expect(label.banner).toBe(true)
+    expect(hold.cells[cellIndex(COLS, rows - 1, COLS - 3)]!.banner).toBe(true)
+    const points = hold.cells[cellIndex(COLS, rows - 1, COLS - 3)]!
+    expect(points.glyph).toBe('+100')
+    expect(points.glyphKey).toBeUndefined()
+    // 其余格子没有文字：黑带只有这两处标注
+    const withText = hold.cells.filter((cell) => cell.glyph || cell.glyphKey)
+    expect(withText).toHaveLength(2)
+
+    // 真的消掉之后：反色与标注都消失、下一块重新画成活动块
+    const after = buildBoard(reduceState(state, { type: 'tick' }))
+    expect(after.cells.filter((cell) => cell.glyph || cell.glyphKey)).toHaveLength(0)
+    expect(after.cells.filter((cell) => cell.flash)).toHaveLength(0)
+    expect(after.cells.filter((cell) => cell.kind === 'boxOnGoal')).toHaveLength(4)
+  })
+
+  it('一次消多行：只在黑带中间那一行写标注（不是每行都写一遍）', () => {
+    const rows = 18
+    const board = emptyBoard(COLS, rows)
+    // 底下两行只缺最右一列
+    for (const row of [rows - 2, rows - 1]) {
+      for (let col = 0; col < COLS - 1; col++) board[cellIndex(COLS, row, col)] = CELL_FILLED
+    }
+    // 竖直的 I 插进最右一列（方框左上角 col=COLS-3 时占的才是第 COLS-1 列）：一次消两行
+    let state = manual(board, { id: 'I', row: rows - 4, col: COLS - 3, rot: 1 })
+    while (!state.clearing) state = reduceState(state, { type: 'move', dir: 'down' })
+    expect(state.clearing?.rows).toEqual([rows - 2, rows - 1])
+    // 两行都反色；文字要等第二拍
+    const flash = buildBoard(state)
+    const flashedRows = new Set(flash.cells.filter((cell) => cell.flash).map((cell) => Math.floor(cell.index / COLS)))
+    expect([...flashedRows].sort()).toEqual([rows - 2, rows - 1])
+    expect(flash.cells.filter((cell) => cell.glyph || cell.glyphKey)).toHaveLength(0)
+    state = reduceState(state, { type: 'tick' })
+    const hold = buildBoard(state)
+    const textRows = new Set(
+      hold.cells.filter((cell) => cell.glyph || cell.glyphKey).map((cell) => Math.floor(cell.index / COLS)),
+    )
+    expect([...textRows]).toEqual([rows - 2])
+    expect(hold.cells[cellIndex(COLS, rows - 2, COLS - 3)]!.glyph).toBe('+300')
   })
 })
 
