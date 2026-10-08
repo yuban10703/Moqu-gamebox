@@ -70,3 +70,18 @@ describe('对决道具栏：单行 8 格', () => {
     expect(label).toMatch(/text-overflow:\s*ellipsis/)
   })
 })
+
+describe('开枪标记：不许再变成覆盖层', () => {
+  it('.eink-duel__fire 是行内小块（不是 absolute / 不铺满）', () => {
+    // 用户要求「画面在原本的基础上改，不要挡住原来的枪和子弹」：
+    // 覆盖层那版会把枪、弹仓、说明整段盖住，这里钉住它必须留在文档流里。
+    const index = css.lastIndexOf('.eink-duel__fire {')
+    expect(index, 'styles.css 里找不到 .eink-duel__fire').toBeGreaterThanOrEqual(0)
+    const body = css.slice(css.indexOf('{', index) + 1, css.indexOf('}', index))
+    expect(body).toMatch(/position:\s*static/)
+    expect(body).not.toMatch(/position:\s*absolute/)
+    // 中和旧规则用的 inset: auto 是允许的；不许出现真的定位值（0 / 百分比 / px）
+    expect(body).not.toMatch(/inset:\s*(0|\d|100%|[\d.]+px)/)
+  })
+})
+

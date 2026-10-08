@@ -30,6 +30,7 @@ const dicts = {
     'buckshot.item.magnifier': 'Magnifier',
     'buckshot.item.beer': 'Beer',
     'buckshot.steal.pick': 'Tap an opponent item to snatch',
+    'buckshot.log.steal': '{subject} snatches {object}\u2019s {item} with adrenaline',
   },
 }
 
@@ -111,6 +112,31 @@ describe('肾上腺素：点自己那件 → 点对手那一格', () => {
     expect(onSteal).toHaveBeenCalledTimes(1)
     expect(onSteal).toHaveBeenCalledWith(0)
     expect(container.querySelector(".eink-duel__items[data-position='top']")!.getAttribute('data-steal')).toBeNull()
+  })
+
+  it('记录里的道具名要翻好再填进去（真机抓到过 {item} 原样漏出来）', async () => {
+    const view = duelView()
+    view.log = [
+      {
+        key: 'buckshot.log.steal',
+        subjectKey: 'test.name.you',
+        objectKey: 'test.name.devil',
+        itemKey: 'buckshot.item.magnifier',
+      },
+    ]
+    const platform = await createPlatform({ kv: createMemoryKv() })
+    const { container } = render(
+      <UiProvider
+        platform={platform}
+        dicts={dicts}
+        initialSettings={{ locale: 'en-US', fontScale: 1, timer: true, dpad: false, boldLines: true, perGame: {} }}
+      >
+        <DuelPanel duel={view} />
+      </UiProvider>,
+    )
+    const text = container.querySelector('.eink-duel__log')!.textContent ?? ''
+    expect(text).toContain('Magnifier') // itemKey 被翻译成道具名并作为 {item} 填进去
+    expect(text).not.toContain('{item}') // 不能把占位符原样漏到界面上
   })
 
   it('再点一次肾上腺素可以取消（不进入也不上报）', async () => {

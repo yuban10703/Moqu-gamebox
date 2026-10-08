@@ -22,10 +22,7 @@ import {
   observe,
   reduceState,
   type BuckshotState,
-  type SeatView,
 } from '../src/index.js'
-import { decideMove } from '../src/ai.js'
-import type { Move } from '../src/engine.js'
 
 function step(state: BuckshotState): BuckshotState {
   const duel = duelOf(state)
@@ -102,49 +99,5 @@ describe('肾上腺素：抢对手一件道具并立刻用掉', () => {
     const revived = decodeState(encodeState(next))
     expect(encodeState(revived)).toEqual(encodeState(next))
     expect(buildView(revived).duel!.log.length).toBe(buildView(next).duel!.log.length)
-  })
-})
-
-describe('恶魔拿到真实弹序（按难度给多少）', () => {
-  const base = (over: Partial<SeatView>): SeatView =>
-    ({
-      seat: 1,
-      mode: 'vs',
-      phase: 'turn',
-      round: 1,
-      roundWins: [0, 0],
-      maxHp: 4,
-      hp: [4, 4],
-      items: [[], []],
-      fresh: [0, 0],
-      turn: 1,
-      saw: false,
-      cuffed: [false, false],
-      loadTotal: 3,
-      loadLive: 2,
-      loadBlank: 1,
-      left: 3,
-      spent: [],
-      inverted: false,
-      revealed: null,
-      known: [null, null, null],
-      events: [],
-      ...over,
-    }) as unknown as SeatView
-
-  const truth = (order: boolean[]) => ({ order, pos: 0, stealable: [] as number[] })
-
-  it('挑战档：当前是实弹时不会对自己开枪；当前是空包时不会打对手', () => {
-    const live = decideMove(base({}), 'challenging', { next: () => 0.5, int: () => 0 } as never, truth([true, false, false]))
-    expect(live.kind === 'shoot' && live.target === 'self').toBe(false)
-    const blank = decideMove(base({}), 'challenging', { next: () => 0.5, int: () => 0 } as never, truth([false, true, true]))
-    expect(blank.kind === 'shoot' && blank.target === 'opponent').toBe(false)
-  })
-
-  it('入门档拿到的真实弹序不生效（仍然是概率决策）', () => {
-    const view = base({ loadLive: 2, loadBlank: 1 })
-    const move: Move = decideMove(view, 'starter', { next: () => 0.9, int: () => 0 } as never, truth([false, false, false]))
-    // 入门只看 liveChance 与随机数，不读 order：这里随机数偏向对手，于是打你
-    expect(move.kind).toBe('shoot')
   })
 })

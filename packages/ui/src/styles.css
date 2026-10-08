@@ -3231,3 +3231,48 @@ html[data-font-scale='1.5'] .eink-tile__title {
 .eink-duel__fireremaining {
   font-weight: 700;
 }
+
+  /*
+   * 开枪标记（改版）：**不再铺满、不再盖住枪与子弹**。
+   *
+   * 用户要求「画面在原本的基础上改，不要挡住原来的枪和子弹」——上面那版「整块覆盖」
+   * 的规则保留（看得出当初为什么那么做），这里用同优先级、更靠后的声明把它改回行内小块：
+   * 标记就在枪右边，枪、弹仓、说明照旧显示；说明行换成这一枪的结果。
+   */
+  .eink-duel__fire {
+    position: static;
+    inset: auto;
+    display: inline-flex;
+    flex-direction: row; /* 旧规则是 column（上下两行），不改回来就会把枪那一行撑高 */
+    align-items: center;
+    justify-content: flex-start;
+    gap: min(6px, 1cqh);
+    flex: 0 0 auto;
+    margin-left: min(8px, 1.4cqw);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .eink-duel__fire > svg {
+    width: min(4.6cqh, 34px);
+    height: min(4.6cqh, 34px);
+    max-width: none;
+    margin: 0;
+  }
+
+  .eink-duel__firetitle {
+    font-size: 0.8em;
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 1px 4px;
+    border: calc(var(--line) * 2) solid var(--ink-black);
+    border-radius: 2px;
+  }
+
+  /* 空包：虚线细一档（1-bit 上没有颜色，只能靠线型与线宽区分实弹/空包） */
+  .eink-duel__fire[data-shell='blank'] .eink-duel__firetitle {
+    border-style: dashed;
+    border-width: calc(var(--line) * 1.5);
+  }

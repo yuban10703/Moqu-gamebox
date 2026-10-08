@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { IllegalActionError, compareDicts, coreDictEn, coreDictZh, createI18n, createRng } from '@eink/core'
 import { decideMove } from '../src/ai.js'
 import { observe } from '../src/observe.js'
+import { stealTargets } from '../src/engine.js'
 import {
   DEVIL_DELAY_MS,
   FIRE_HOLD_MS,
@@ -37,7 +38,14 @@ function step(state: BuckshotState): BuckshotState {
   const actor = humanActor(state)
   if (actor === null) return reduceState(state, { type: 'tick' })
   const move = decideMove(observe(duel, actor), 'skilled', createRng(state.log.length + 11))
-  const action: BuckshotAction = move.kind === 'item' ? { type: 'item', slot: move.slot } : { type: 'shoot', target: (move as { target: 'self' | 'opponent' }).target }
+  const action: BuckshotAction =
+    move.kind === 'item'
+      ? { type: 'item', slot: move.slot }
+      : move.kind === 'steal'
+        ? { type: 'steal', slot: move.slot }
+        : move.kind === 'shoot'
+          ? { type: 'shoot', target: move.target }
+          : { type: 'begin' } // decideMove 不会走到这里（只返回 item / steal / shoot）
   return reduceState(state, action)
 }
 
@@ -175,8 +183,14 @@ describe('展示模型', () => {
     expect(ready(state)).toBe(true)
     const bottom = buildView(state).duel!.sides[1]!
     expect(bottom.items.some((i) => i.selectable)).toBe(true)
-    const slot = bottom.items.find((i) => i.selectable)!.id
-    expect(buckshotGame.selectAction!(state, slot)).toEqual({ type: 'item', slot })
+    // 肾上腺素**不是**普通道具：它可点，但走 stealAction（selectAction 对它返回 null）
+    const adrenaline = bottom.items.find((i) => i.labelKey === 'buckshot.item.adrenaline')
+    if (adrenaline) expect(buckshotGame.selectAction!(state, adrenaline.id)).toBeNull()
+    const plain = bottom.items.find((i) => i.selectable && i.labelKey !== 'buckshot.item.adrenaline')
+    if (plain) expect(buckshotGame.selectAction!(state, plain.id)).toEqual({ type: 'item', slot: plain.id })
+    for (const slot of stealTargets(duelOf(state), 0)) {
+      expect(buckshotGame.stealAction!(state, slot)).toEqual({ type: 'steal', slot })
+    }
     const top = buildView(state).duel!.sides[0]!
     expect(top.items.every((i) => !i.selectable)).toBe(true)
   })
@@ -216,15 +230,18 @@ describe('展示模型', () => {
     throw new Error('400 场里没有一局同时出现恶魔开枪与道具使用')
   })
 
-  it('恶魔不再花道具去「看」：熟练/挑战已经能读到真实弹序', () => {
-    // 这是「Dealer 可以读到真实弹序」的直接后果：它不会再浪费放大镜与手机
-    for (let seed = 1; seed < 120; seed++) {
+  it('对手的放大镜：只记「偷看了」，不泄露结果', () => {
+    // 恶魔和玩家一样不知道弹序（用户明确「恶魔不该知道子弹」）：它得自己花放大镜去看，
+    // 而它看到的结果不能在玩家的记录里泄露。
+    for (let seed = 1; seed < 400; seed++) {
       const over = playOut(createState(seed, 'challenging'))
-      const peek = buildView(over)
-        .duel!.log.filter((l) => l.key.startsWith('buckshot.log.use.magnifier') || l.key.startsWith('buckshot.log.use.phone'))
-        .filter((l) => l.subjectKey === 'buckshot.name.devil')
-      expect(peek).toHaveLength(0)
+      const lines = buildView(over).duel!.log.filter((l) => l.key.startsWith('buckshot.log.use.magnifier'))
+      const devil = lines.filter((l) => l.subjectKey === 'buckshot.name.devil')
+      if (devil.length === 0) continue
+      expect(devil.every((l) => l.key === 'buckshot.log.use.magnifier.hidden')).toBe(true)
+      return
     }
+    throw new Error('400 场里恶魔一次放大镜都没用')
   })
 
   it('偷看的结果不外泄：双人同屏时另一个人看不到', () => {
@@ -286,7 +303,8 @@ describe('文案', () => {
           for (const line of lines) {
             const subject = line.subjectKey ? i18n.t(line.subjectKey) : ''
             const object = line.objectKey ? i18n.t(line.objectKey) : ''
-            expect(i18n.t(line.key, { ...line.params, subject, object })).not.toMatch(/\{\w+\}/)
+            const item = line.itemKey ? i18n.t(line.itemKey) : ''
+            expect(i18n.t(line.key, { ...line.params, subject, object, item })).not.toMatch(/\{\w+\}/)
           }
           for (const side of duel.sides) {
             i18n.t(side.nameKey)

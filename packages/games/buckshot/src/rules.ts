@@ -159,9 +159,8 @@ export function reduceState(state: BuckshotState, action: BuckshotAction): Bucks
       const level = devilLevelAt(state.difficulty, duel.round)
       if (level === null || duel.phase !== 'turn' || duel.turn !== 1) illegal('the devil is not due to act')
       const rng = createRng((state.seed ^ Math.imul(state.log.length + 1, 0x27d4eb2f)) >>> 0)
-      // 真实弹序交给 AI（用多少由难度决定）：原版 Dealer 的「作弊感」就来自这里
-      const truth = { order: duel.load, pos: duel.pos, stealable: stealTargets(duel, 1) }
-      return commit(state, duel, { seat: 1, move: decideMove(observe(duel, 1), level, rng, truth) })
+      // 恶魔**不知道弹序**：只把它自己座位能看到的信息交出去（与玩家同等信息）
+      return commit(state, duel, { seat: 1, move: decideMove(observe(duel, 1), level, rng) })
     }
     default:
       illegal(`unknown action ${JSON.stringify(action)}`)

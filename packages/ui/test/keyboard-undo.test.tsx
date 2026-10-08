@@ -164,21 +164,23 @@ async function gameMoves(platform: Awaited<ReturnType<typeof createPlatform>>): 
   return (result.envelope.state as FakeState).moves
 }
 
+// 注：这些 waitFor 等的是**存档落盘**（壳层有防抖）。全量并行跑时 1 秒默认超时偶尔不够，
+// 会偶发 `expected -1 to be 1`（gameMoves 读不到存档）——与玩法无关，这里给足 5 秒。
 describe('U 键与「撤销」按钮的开关一致', () => {
   it('未声明隐藏撤销：U 键照常撤销', async () => {
     const platform = await mount(makeLibrary(false))
     await enterGame()
     move()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(1))
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
     pressUndoKey()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(0))
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(0), { timeout: 5000 })
   })
 
   it('声明 hideShellControls: [undo]：U 键不再撤销（数独/斗地主/恶魔轮盘赌）', async () => {
     const platform = await mount(makeLibrary(true))
     await enterGame()
     move()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(1))
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
     pressUndoKey()
     // 按键被忽略：局面一动不动（旧行为会退回 0）
     await new Promise((resolve) => setTimeout(resolve, 30))

@@ -144,6 +144,8 @@ function useLine(): (line: DuelLine) => string {
       ...line.params,
       ...(line.subjectKey ? { subject: i18n.t(line.subjectKey) } : {}),
       ...(line.objectKey ? { object: i18n.t(line.objectKey) } : {}),
+      // 道具名（如「抢走了恶魔的放大镜」里的那件）：i18n key 也要先翻好再当参数传进去
+      ...(line.itemKey ? { item: i18n.t(line.itemKey) } : {}),
     })
 }
 
@@ -378,66 +380,47 @@ function Dud(): ReactNode {
  * 而且记录里就有这一枪的那一条，翻得到才安心。为此画面压成两行（主行 + 信息行），
  * 高度对齐 table（真机实测 415×172），出现/消失都不会顶动下面的记录。
  */
-function FireScene({
-  fire,
-  top,
-  bottom,
-  remaining,
-}: {
-  fire: DuelFireScene
-  top?: DuelSide | undefined
-  bottom?: DuelSide | undefined
-  remaining?: DuelLine | null | undefined
-}): ReactNode {
+/**
+ * 开枪标记：**加在原来的枪旁边，不盖住任何东西**。
+ *
+ * 用户要求「画面在原本的基础上改，不要挡住原来的枪和子弹」——所以这里不再是铺满整块的
+ * 覆盖层：枪、弹仓、说明照旧显示，标记只是枪右边的一个行内小块。
+ * 打击感依旧靠三样东西给（墨水屏没有动画）：**对比度**（白底黑字 + 粗框）、
+ * **图形**（实心爆闪 / 空心打叉）、**停多久**（对手回合多停一拍，见 FIRE_HOLD_MS）。
+ * 谁打谁、掉几格血、是否击倒都写进下面那行说明里（说明行本来就占着位置，高度不会跳）。
+ */
+function FireScene({ fire }: { fire: DuelFireScene }): ReactNode {
   const { i18n } = useUi()
-  const line = useLine()
-  const nameOf = (pos: 'top' | 'bottom'): string => {
-    const side = pos === 'top' ? top : bottom
-    return side ? i18n.t(side.nameKey) : ''
-  }
-  const self = fire.shooter === fire.target
   return (
-    <div className="eink-duel__fire" data-shell={fire.shell} data-lethal={fire.lethal ? 'yes' : 'no'} role="status">
-      {/* 主行：这一枪是什么 + 枪的图形 + 伤害（三样都放大，一眼扫到） */}
-      <div className="eink-duel__firerow eink-duel__firerow--main">
-        <p className="eink-duel__firetitle">
-          {i18n.t(fire.shell === 'live' ? 'shell.duel.fire.live' : 'shell.duel.fire.blank')}
-        </p>
-        <span className="eink-duel__firegun">
-          <Gun sawn={fire.sawn} />
-          {fire.shell === 'live' ? <Blast /> : <Dud />}
-        </span>
-        {fire.damage > 0 ? (
-          <span className="eink-duel__firedmg">{i18n.t('shell.duel.fire.damage', { amount: fire.damage })}</span>
-        ) : null}
-      </div>
-      {/* 信息行：谁打谁、挨打方的血量与掉血、击倒，以及枪里还剩什么 */}
-      <div className="eink-duel__firerow eink-duel__firerow--info">
-        <span className="eink-duel__firehit">
-          {self
-            ? i18n.t('shell.duel.fire.self', { subject: nameOf(fire.shooter) })
-            : i18n.t('shell.duel.fire.at', { subject: nameOf(fire.shooter), object: nameOf(fire.target) })}
-        </span>
-        <span className="eink-duel__firehp">
-          <span className="eink-duel__firename">{nameOf(fire.target)}</span>
-          <Hp hp={fire.hp} max={fire.maxHp} />
-        </span>
-        {fire.hpBefore > fire.hp ? (
-          <span className="eink-duel__firelost">
-            {i18n.t('shell.duel.fire.lost', { amount: fire.hpBefore - fire.hp })}
-          </span>
-        ) : null}
-        {fire.lethal ? <span className="eink-duel__fireknock">{i18n.t('shell.duel.fire.knockdown')}</span> : null}
-        {/* 枪里还剩什么：平时它在枪下面（属于被盖住的那一段），信息行里补一份 */}
-        {remaining ? <span className="eink-duel__fireremaining">{line(remaining)}</span> : null}
-      </div>
-    </div>
+    <span className="eink-duel__fire" data-shell={fire.shell} data-lethal={fire.lethal ? 'yes' : 'no'} role="status">
+      {fire.shell === 'live' ? <Blast /> : <Dud />}
+      <span className="eink-duel__firetitle">
+        {i18n.t(fire.shell === 'live' ? 'shell.duel.fire.live' : 'shell.duel.fire.blank')}
+        {fire.damage > 0 ? ` ${i18n.t('shell.duel.fire.damage', { amount: fire.damage })}` : ''}
+      </span>
+    </span>
   )
+}
+
+/** 开枪那一下的说明行：击倒 · 谁打谁 · 掉几格（替换掉平时的说明） */
+function fireCaption(
+  fire: DuelFireScene,
+  i18n: { t: (key: string, params?: Record<string, string | number>) => string },
+  nameOf: (pos: 'top' | 'bottom') => string,
+): string {
+  const parts: string[] = []
+  if (fire.lethal) parts.push(i18n.t('shell.duel.fire.knockdown'))
+  parts.push(
+    fire.shooter === fire.target
+      ? i18n.t('shell.duel.fire.self', { subject: nameOf(fire.shooter) })
+      : i18n.t('shell.duel.fire.at', { subject: nameOf(fire.shooter), object: nameOf(fire.target) }),
+  )
+  if (fire.damage > 0) parts.push(i18n.t('shell.duel.fire.lost', { amount: fire.damage }))
+  return parts.join(' · ')
 }
 
 export interface DuelPanelProps {
   duel: DuelView
-  /** 点道具：交给游戏的 selectAction（编号由游戏给） */
   onItemSelect?: (id: number) => void
   /** 肾上腺素选目标：壳层把它接到游戏的 stealAction 上 */
   onStealSelect?: (slot: number) => void
@@ -476,9 +459,10 @@ export function DuelPanel({ duel, onItemSelect, onStealSelect }: DuelPanelProps)
 
       <div className="eink-duel__stage">
         {/* 定格画面盖住这一段时对读屏隐藏：内容由画面负责播报，免得同一枪念两遍 */}
-        <section className="eink-duel__table" {...(duel.fire ? { 'aria-hidden': true } : {})}>
+        <section className="eink-duel__table">
           <div className="eink-duel__gunrow">
             <Gun sawn={duel.sawn} />
+            {duel.fire ? <FireScene fire={duel.fire} /> : null}
             {duel.tags.length > 0 ? (
               <span className="eink-duel__tags">
                 {duel.tags.map((tag) => (
@@ -515,11 +499,14 @@ export function DuelPanel({ duel, onItemSelect, onStealSelect }: DuelPanelProps)
             {duel.remaining ? line(duel.remaining) : '\u00a0'}
           </p>
           <p className="eink-duel__caption" role="status">
-            {armed ? i18n.t('buckshot.steal.pick') : line(duel.caption)}
+            {armed
+              ? i18n.t('buckshot.steal.pick')
+              : duel.fire
+                ? fireCaption(duel.fire, i18n, (pos) => i18n.t((pos === 'top' ? top : bottom)?.nameKey ?? ''))
+                : line(duel.caption)}
           </p>
         </section>
 
-        {duel.fire ? <FireScene fire={duel.fire} top={top} bottom={bottom} remaining={duel.remaining} /> : null}
       </div>
 
       <Log log={duel.log} />
