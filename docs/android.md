@@ -116,8 +116,8 @@ Windows PowerShell（不借 WSL 时）：
 
 # 4) 触发一次正式签名的发布：**必须改版本号** —— 已经发过的版本号（例如 v0.1.0）
 #    因为 tag 已存在会被 workflow 直接跳过，不会重新构建：
-#      apps/android/app/build.gradle.kts：versionName = "0.1.4"、versionCode = 5
-#      package.json：version = "0.1.4"（两者不一致 workflow 会直接失败）
+#      apps/android/app/build.gradle.kts：versionName = "0.1.5"、versionCode = 6
+#      package.json：version = "0.1.5"（两者不一致 workflow 会直接失败）
 ```
 
 配好之后下次发布就会用正式签名（工作流会打印签名者与有效期，可据此确认不再是 Debug）。

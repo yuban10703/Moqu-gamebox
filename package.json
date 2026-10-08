@@ -1,7 +1,7 @@
 {
   "name": "moqu",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "墨趣（Moqu）：Web(PWA) 与 Android(BOOX) 双端的离线游戏合集",
   "workspaces": [
