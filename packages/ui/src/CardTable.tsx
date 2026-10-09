@@ -1,18 +1,26 @@
 /**
  * 牌桌：扑克类玩法（斗地主）的呈现层，与格子棋盘（Board）平级。
  *
- * 布局（styles.css 的 .eink-cardtable，一张网格）：
+ * 两套布局，由 `CardTableView.piles` 选（**可选**，缺省还是老样子）：
+ *
+ * 1) 老布局 —— 手牌制（斗地主等）：
  *   [左家]   [底牌]    [右家]
  *   [左家出的牌] [提示] [右家出的牌]
  *   [      自己出的牌 / 状态       ]
  *   [            手牌             ]
  *
+ * 2) 牌堆布局 —— 一桌多个可点牌堆（空当接龙；见下面的 Piles）：
+ *   [            提示             ]
+ *   [ 横排牌堆: 抽牌堆 弃牌堆 基础堆… ]   ← layout:'row'
+ *   [ 竖排牌列 × 7（各自可点）        ]   ← layout:'stack'
+ *
  * 1-bit 约定：牌面只有黑白 —— 黑桃 / 梅花实心符号、红桃 / 方块空心符号，王用 ★（大）/ ☆（小）区分；
- * 选中的手牌**抬高一截**（没有动画，位置直接变）；正在出牌的那家头像框加粗；没有任何灰度。
- * 尺寸全部由 CSS 按棋盘区（容器查询）算，JS 只给「每排几张」这种形状信息。
+ * 选中的手牌**抬高一截**（没有动画，位置直接变）；正在出牌的那家头像框加粗；牌背是斜纹不是字符；
+ * 选中的牌堆靠线型 / 线宽 / 反白，不靠灰度。没有任何灰度。
+ * 尺寸全部由 CSS 按棋盘区（容器查询）算，JS 只给「每排几张」「这一堆第几张」这种形状信息。
  */
 import type { CSSProperties, ReactNode } from 'react'
-import type { CardFace, CardTableSeat, CardTableView } from '@eink/core'
+import type { CardFace, CardPileView, CardTableSeat, CardTableView } from '@eink/core'
 import { useUi } from './contexts.js'
 
 const SUIT_GLYPHS: Record<NonNullable<CardFace['suit']>, string> = {
@@ -153,6 +161,140 @@ export interface CardTableProps {
   onCardSelect?: (id: number) => void
 }
 
+/**
+ * 一个牌堆（`CardTableView.piles` 里的一项）：小标题 + 张数 + 这一堆的牌。
+ *
+ * 画法（1-bit：靠形状与线宽，不靠灰度）：
+ *   - `row`（横排牌堆：抽牌堆 / 弃牌堆 / 基础堆）：一排 6 个堆**均分**这一行的宽度
+ *     （不会因为"这堆 24 张、那堆 1 张"就忽宽忽窄），牌宽取「均分宽 × 0.78」并夹 48px 触摸下限；
+ *     省下来的那截宽度就是同一堆里后面几张露出来的部分 —— 439 竖屏每个堆 64.7px、牌 49px，
+ *     弃牌堆的 3 张各露约 5px；1248 横屏每个堆 191px、牌 84px（封顶），各露约 38px。
+ *     张数另外写在小标题下面（窄屏上牌缝可能只有几像素，张数是唯一的"这一堆有多厚"）。
+ *   - `stack`（竖排牌列：7 个牌列）：牌自上而下叠，每一步的位移由 CSS 算
+ *     `min(牌高 × 0.34, (可用高 − 牌高) / (槽位数 − 1))` 再夹 0 —— 牌再多也只会越叠越紧，
+ *     绝不会把牌顶出棋盘区（19 张的长列也一样）。
+ *   - **数组第一张在最上层**（用 z-index，后画的先被压住）：这与空当接龙 `clickTargets()`
+ *     的顺序一致 —— 牌列按「从列顶往里」排，第一张就是那张能拿走的明牌，它必须完整可见、可点；
+ *     其余每张露在下方的那一截就是它的可点区域（点它 = 从这一张开始提起来）。
+ *   - 牌背（`faceDown` 的牌 + `hidden` 那几张）只画斜纹（styles.css 的 .eink-card--back），
+ *     不画点数花色，也**不用字符冒充**（`▨` 在 1-bit 上会被读成「这张牌面就是 ▨」）。
+ *   - `hidden` 那几张没有 id、点不动：它们是 `<span>`（本来也没有事件），
+ *     CSS 里再补一条 pointer-events: none，免得盖在底下的可点牌上把点击吃掉。
+ *   - **空堆**（`cards: []`）给了 `id` 时，空位本身渲染成一个 `<button>`（虚线、整块牌区），
+ *     点击回传这个 id —— 空当接龙「把 K 放到空列」「把 A 放进空基础堆」靠它才有下手的地方；
+ *     没给 `id` 的空堆保持原来的虚线占位（不可点）。
+ */
+function Pile({ pile, onCardSelect }: { pile: CardPileView; onCardSelect?: (id: number) => void }): ReactNode {
+  const { i18n } = useUi()
+  const label = useCardLabel()
+  const slots = pile.cards.length + pile.hidden
+  // 空堆的空位编号：这一堆**一张牌都没画**（cards 为空）时才可能有空位 ——
+  // 与其他堆一样，`hidden` 那几张只是画出来的牌背，不参与「有没有空位」这个判断。
+  const emptyId = pile.cards.length === 0 ? pile.id : undefined
+  return (
+    <div
+      className="eink-pile"
+      data-layout={pile.layout}
+      data-selected={pile.selected ? 'yes' : 'no'}
+      data-empty={slots === 0 ? 'yes' : 'no'}
+      role="group"
+      aria-label={i18n.t(pile.labelKey)}
+      // CSS 只拿「这一堆有几个槽位」算叠合步长；张数 − 1 至少为 1，免得出现除以 0 的 calc
+      style={{ ['--pile-slots-1' as string]: Math.max(1, slots - 1) } as CSSProperties}
+    >
+      <span className="eink-pile__head">
+        <span className="eink-pile__label">{i18n.t(pile.labelKey)}</span>
+        <span className="eink-pile__count">{i18n.plural('shell.cards.count', slots)}</span>
+      </span>
+      <div className="eink-pile__cards">
+        {/*
+          空堆的空位（游戏给了 id）：整块牌区是一个可点按钮，点击回传这个 id。
+          画在牌与牌背**之前**：万一这一堆还有 hidden 张牌背，它们（pointer-events: none、z-index 更高）
+          会盖在空位上面，点击照样落到这个按钮上。
+          无障碍名用「堆名 · 张数」—— 与堆名同名的空按钮读起来等于没说，加上「0 张」才知道这是个空位。
+        */}
+        {emptyId !== undefined ? (
+          <button
+            type="button"
+            className="eink-card eink-card--pile"
+            data-empty="yes"
+            aria-label={`${i18n.t(pile.labelKey)} · ${i18n.plural('shell.cards.count', slots)}`}
+            style={{ zIndex: 0 } as CSSProperties}
+            {...(onCardSelect ? { onClick: () => onCardSelect(emptyId) } : {})}
+          />
+        ) : null}
+        {pile.cards.map((card, index) => (
+          <button
+            key={card.id}
+            type="button"
+            className={card.faceDown ? 'eink-card eink-card--pile eink-card--back' : 'eink-card eink-card--pile'}
+            data-selected={card.selected ? 'yes' : 'no'}
+            data-face-down={card.faceDown ? 'yes' : undefined}
+            data-joker={card.joker ?? undefined}
+            aria-pressed={card.selected ? 'true' : 'false'}
+            aria-label={card.faceDown ? i18n.t('shell.cards.hidden') : label(card)}
+            // --i = 这一堆里的第几个槽位（CSS 用它乘出叠合位移）；z-index 让第一张压在最上面
+            style={{ ['--i' as string]: index, zIndex: slots - index } as CSSProperties}
+            {...(onCardSelect ? { onClick: () => onCardSelect(card.id) } : {})}
+          >
+            {card.faceDown ? null : <Face card={card} />}
+          </button>
+        ))}
+        {Array.from({ length: pile.hidden }, (_, index) => (
+          <span
+            key={`back-${index}`}
+            className="eink-card eink-card--pile eink-card--back"
+            data-face-down="yes"
+            role="img"
+            aria-label={i18n.t('shell.cards.hidden')}
+            style={
+              {
+                ['--i' as string]: pile.cards.length + index,
+                zIndex: pile.hidden - index,
+              } as CSSProperties
+            }
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 牌堆布局（只在游戏给了 `CardTableView.piles` 时走这条路）：
+ *   上排 = `layout:'row'` 的牌堆横排；下排 = `layout:'stack'` 的牌堆按 7 列网格竖排。
+ *
+ * 提示行（「点一张牌 / 再点目标牌堆」）**常驻占位**：没有提示时它是空的、由 CSS 的 :empty 收掉高度，
+ * 但网格行永远在同一位置 —— 提示出现 / 消失时下面两排不会跳一下（墨水屏上跳动很显眼）。
+ */
+function Piles({ table, onCardSelect }: CardTableProps): ReactNode {
+  const { i18n } = useUi()
+  const piles = table.piles ?? []
+  const rows = piles.filter((pile) => pile.layout === 'row')
+  const stacks = piles.filter((pile) => pile.layout !== 'row')
+  return (
+    <div className="eink-cardtable eink-cardtable--piles" data-piles={piles.length}>
+      <div className="eink-cardpiles__hint-slot">
+        {table.bannerKey ? (
+          <span className="eink-cardpiles__hint" role="status">
+            {i18n.t(table.bannerKey, table.bannerParams)}
+          </span>
+        ) : null}
+      </div>
+      <div className="eink-cardpiles__row">
+        {rows.map((pile, index) => (
+          <Pile key={`row-${index}-${pile.labelKey}`} pile={pile} {...(onCardSelect ? { onCardSelect } : {})} />
+        ))}
+      </div>
+      <div className="eink-cardpiles__grid">
+        {stacks.map((pile, index) => (
+          <Pile key={`stack-${index}-${pile.labelKey}`} pile={pile} {...(onCardSelect ? { onCardSelect } : {})} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CardTable({ table, onCardSelect }: CardTableProps): ReactNode {
   const { i18n } = useUi()
   const label = useCardLabel()
@@ -161,6 +303,12 @@ export function CardTable({ table, onCardSelect }: CardTableProps): ReactNode {
   const left = seat('left')
   const right = seat('right')
   const self = seat('bottom')
+
+  /*
+   * 牌堆布局：**只有给了 piles 且非空**才走这条路。
+   * 不给（其余玩法）时下面那段手牌布局一个字节都没变 —— 这条分支就是「缺省行为不变」的保证。
+   */
+  if (table.piles && table.piles.length > 0) return <Piles table={table} {...(onCardSelect ? { onCardSelect } : {})} />
 
   // 手牌超过 10 张分两排（前一排是大牌），两排叠压：上一排露出点数与花色那一截，
   // 并给下一排的选中牌留出抬高的余量（选中的牌不能压住上一排）

@@ -377,7 +377,7 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
     return (row + 1) % groups.rows === 0 && row + 1 < board.rows
   }
 
-  return (
+  const grid = (
     <div
       className="eink-board"
       {...(hasCovered ? { 'data-cover': 'yes' } : {})}
@@ -430,6 +430,71 @@ export function Board({ board, labelFor, onCellSelect, bold = false }: BoardProp
         </div>
       ))}
 
+    </div>
+  )
+
+  /*
+   * 线索带（数织用）：线索画在**棋盘外侧**，不画在格子里。
+   *
+   * 为什么不能画进格子：10×10 的一行最多 5 个数字、每格约 30px —— 塞进一格连一个字都看不清；
+   * 纸面数织本来就把线索印在棋盘外面（左=行线索、上=列线索）。
+   *
+   * 线索带的厚度**必须从格子尺寸里扣掉**（否则整块会比可用区宽/高，边缘被裁），
+   * 所以这一层把棋盘的形状变量与"线索最多几段"一起交给 CSS 算
+   * （见 styles.css 的 .eink-board-clues：先算不含线索带的格子，再据此定带厚，最后扣掉带厚定格子）。
+   * 只给数字（形状数据），不给任何像素 —— 与棋盘本身同一套约定。
+   *
+   * **没有线索时下面这段一行都不执行**：DOM 与几何与从前完全一致，其余玩法零影响。
+   */
+  const rowClues = board.rowClues
+  const colClues = board.colClues
+  if (!rowClues && !colClues) return grid
+
+  /** 线索带要放得下几个数字：取最长的一条线索（全空时按 1 算） */
+  const clueCount = (clues: string[][] | undefined): number => {
+    if (!clues || clues.length === 0) return 1
+    let max = 1
+    for (const clue of clues) max = Math.max(max, clue.length)
+    return max
+  }
+  const clueStyle = {
+    ['--board-cols' as string]: board.cols,
+    ['--board-rows' as string]: board.rows,
+    ['--clue-left-count' as string]: clueCount(rowClues),
+    ['--clue-top-count' as string]: clueCount(colClues),
+  } as CSSProperties
+
+  return (
+    <div className="eink-board-clues" style={clueStyle}>
+      {colClues ? (
+        /* 顶部：每列一组数字，竖着从下往上贴着棋盘排（纸面数织的印法） */
+        <div className="eink-board-clues__top">
+          {colClues.map((clue, col) => (
+            <span key={col} className="eink-board-clues__stack">
+              {clue.map((text, line) => (
+                <span key={line} className="eink-board-clues__num">
+                  {text}
+                </span>
+              ))}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {rowClues ? (
+        /* 左侧：每行一组数字，单行右对齐（数字紧贴棋盘的左边） */
+        <div className="eink-board-clues__left">
+          {rowClues.map((clue, row) => (
+            <span key={row} className="eink-board-clues__line">
+              {clue.map((text, index) => (
+                <span key={index} className="eink-board-clues__num">
+                  {text}
+                </span>
+              ))}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {grid}
     </div>
   )
 }

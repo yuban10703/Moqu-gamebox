@@ -9,7 +9,7 @@
 *An offline game collection designed for e-ink screens*
 
 <p>
-  <img alt="games" src="https://img.shields.io/badge/games-17-111111?style=flat-square">
+  <img alt="games" src="https://img.shields.io/badge/games-20-111111?style=flat-square">
   <img alt="platform" src="https://img.shields.io/badge/platform-Web%20PWA%20%7C%20Android%206.0%2B-111111?style=flat-square">
   <img alt="offline" src="https://img.shields.io/badge/offline-100%25-111111?style=flat-square">
   <img alt="permissions" src="https://img.shields.io/badge/Android%20permissions-0-111111?style=flat-square">
@@ -25,19 +25,20 @@
 
 ---
 
-17 款游戏，中文 / 英文，**完全离线、不要任何权限**。
+20 款游戏，中文 / 英文，**完全离线、不要任何权限**。
 
 不是把手机游戏搬到墨水屏上，而是围绕墨水屏从头设计：纯黑白、没有动画、点按优先、分页代替滚动、断电不丢进度。
 
 ## 游戏一览
 
-每款都有 *入门 / 熟练 / 挑战* 三档。
+难度从 *入门* 起：多数玩法是 *入门 / 熟练 / 挑战* 三档；空当接龙分「抽 1 张 / 抽 3 张」，井字棋另有「双人同屏」。
 
 **益智解谜**
 
 - **推箱子** —— 自制关卡，求解器校验过，保证可解
 - **华容道** —— 把曹操挪到出口，并显示最少步数
 - **数独** —— 9×9，先点格子再点数字键
+- **数织** —— 5×5 / 10×10 共 16 道题，行列外侧的数字就是线索
 - **扫雷** —— 点格子翻开，可切换标记模式
 - **关灯游戏** —— 5×5 / 6×6，一次翻转十字范围内的灯
 - **数字华容道** —— 3×3 / 4×4 / 5×5，直接点数字块滑动
@@ -48,6 +49,8 @@
 **棋牌对战**
 
 - **五子棋** —— 你执黑先手，对战三档电脑
+- **井字棋** —— 三档电脑（应手分两拍亮出）+ 双人同屏
+- **空当接龙** —— 抽 1 张 / 抽 3 张两档，每步都能撤销
 - **斗地主** —— 标准三人局，叫分制，炸弹和春天翻倍，积分跨局累计
 - **恶魔轮盘赌** —— 实弹与空包弹的心理博弈，8 种道具、共 3 轮；可对战三档恶魔，也可**双人同屏**，还有**无尽模式**记最高纪录
 - **中国象棋** —— 你执红先行，标准规则（马腿 / 象眼 / 炮架 / 将帅照面都算数），对战三档电脑
@@ -112,4 +115,10 @@ Android APK：`npm run setup:android` 装构建链，再 `npm run build:apk`。
 <div align="center">
 <br>
 <sub>墨趣 · 在墨水屏上，慢慢玩。</sub>
+</div>
+
+<div align="center">
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+
 </div>

@@ -162,6 +162,41 @@ const SHAPES: Record<string, ReactNode> = {
       </text>
     </>
   ),
+  // 井字棋：只画「井」字（不画外框）+ 左上格一个 ✕、中心格一个空心 ○
+  tictactoe: (
+    <>
+      <path d="M9 3v18M15 3v18M3 9h18M3 15h18" strokeWidth="1" />
+      <path d="M4.7 4.7l2.6 2.6M7.3 4.7L4.7 7.3" strokeWidth="1.4" />
+      <circle cx="12" cy="12" r="1.5" strokeWidth="1.4" />
+    </>
+  ),
+  /*
+   * 空当接龙：三张牌错开叠成**斜向牌列**（与记忆配对的两张并排牌、斗地主的双牌都不同）。
+   * 后两张填白把下面的牌压住 —— 三张全描边会互相穿线，26px 下糊成一团。
+   */
+  klondike: (
+    <>
+      <rect x="3" y="3" width="8" height="11" rx="1.2" />
+      <rect x="6.5" y="7" width="8" height="11" rx="1.2" fill="#fff" />
+      <rect x="10" y="11" width="8" height="11" rx="1.2" fill="#fff" />
+    </>
+  ),
+  /*
+   * 数织：4×4 小方格阵（其中 5 格实心）+ 上方一列 / 左侧一行短横线（棋盘外侧的线索带）。
+   * 线索带只画短划线：真实线索是数字，24px 里塞数字必然糊，短划线足以表达"线索在棋盘外面"。
+   */
+  nonogram: (
+    <>
+      <rect x="7.5" y="7.5" width="12" height="12" />
+      <path d="M10.5 7.5v12M13.5 7.5v12M16.5 7.5v12M7.5 10.5h12M7.5 13.5h12M7.5 16.5h12" strokeWidth="1" />
+      <path d="M8 5.5h2M11 5.5h2M14 5.5h2M17 5.5h2M5.5 8v2M5.5 11v2M5.5 14v2M5.5 17v2" strokeWidth="1" />
+      <path
+        d="M7.5 7.5h3v3h-3zM7.5 10.5h3v3h-3zM10.5 10.5h3v3h-3zM13.5 13.5h3v3h-3zM13.5 16.5h3v3h-3z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </>
+  ),
 }
 
 /** 未知命名空间回退到一个中性方块，绝不返回空（空图标比通用图标更糟） */

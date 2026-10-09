@@ -1221,6 +1221,137 @@ html[data-font-scale='1.5'] .eink-tile__title {
   }
 }
 
+/*
+ * 线索带（数织 / Nonogram 用）：棋盘**外侧**的左（行线索）与上（列线索）两条带子。
+ *
+ * 为什么需要它：数织的线索不能画在格子里 —— 10×10 的一行最多 5 个数字，
+ * 而一格只有约 30px，塞进去连一个字都读不清；纸面数织本来就把线索印在棋盘外面。
+ *
+ * 尺寸仍然全部由 CSS 算（JS 只给"形状"：列数 / 行数 / 线索最多几段），分两段算：
+ *   1) 先按**不含线索带**的可用区算一次格子边长（--clue-cell0）—— 它只用来推线索带要多厚；
+ *   2) 扣掉带厚与外框，再算最终格子边长（--clue-cell），并把它交给棋盘当 --cell。
+ * 为什么必须分两段：带厚依赖格子、格子又依赖带厚，写成一条链在 CSS 里是自定义属性的
+ * **循环引用**（整条声明直接失效）。先算一次"不带带子"的格子就把这个环断开了。
+ *
+ * 拟合保证：带厚按线索字号线性留，而线索字号按第一段的格子算（比最终格子略大），
+ * 所以线索永远放得进带子；又因为最终格子是"抠掉带厚之后再取宽高较小者"，
+ * 整块（带 + 棋盘）恒等于可用区之内 —— 439×847 竖屏与极矮横屏都放得下。
+ * 宽向还多留了一个数字的余量：线索里唯一的两位数（10）只会出现在"整行几乎全黑"的行，
+ * 那种行的线索个数必然很少。
+ *
+ * 只在游戏传了 BoardView.rowClues / colClues 时才渲染这些元素：
+ * 其余玩法的 DOM 与几何像素不变。
+ */
+.eink-board-clues {
+  --clue-cell0-w: calc((100cqw - 2 * var(--board-frame-line)) / var(--board-cols, 1));
+  --clue-cell0-h: calc((100cqh - 2 * var(--board-frame-line)) / var(--board-rows, 1));
+  --clue-cell0: max(0px, min(var(--clue-cell0-w), var(--clue-cell0-h)));
+  /*
+   * 线索字号 = 格子字号的 0.5em：格子文字是 0.66 格，因此线索约 0.33 格。
+   * 线索是配角，不能抢格子的视觉重量（黑白屏上字号就是层级）。
+   */
+  --clue-font: calc(var(--clue-cell0) * 0.33);
+  /* 一位数字的占位、两个数字之间的空隙、顶部线索一层的高度 */
+  --clue-digit: calc(var(--clue-font) * 0.66);
+  --clue-space: calc(var(--clue-font) * 0.45);
+  --clue-line: calc(var(--clue-font) * 1.12);
+  /* 线索带与棋盘之间的缝（由带子的内边距让出来，不额外占宽高） */
+  --clue-gap: 4px;
+  --clue-band-w: calc(
+    var(--clue-left-count, 1) * (var(--clue-digit) + var(--clue-space)) + var(--clue-digit) +
+      var(--clue-gap)
+  );
+  --clue-band-h: calc(var(--clue-top-count, 1) * var(--clue-line) + var(--clue-gap));
+  --clue-cells-w: calc(
+    (100cqw - var(--clue-band-w) - 2 * var(--board-frame-line)) / var(--board-cols, 1)
+  );
+  --clue-cells-h: calc(
+    (100cqh - var(--clue-band-h) - 2 * var(--board-frame-line)) / var(--board-rows, 1)
+  );
+  /* 最终格子边长：与 .eink-board 的原公式只差"扣掉线索带" */
+  --clue-cell: max(0px, min(var(--clue-cells-w), var(--clue-cells-h)));
+
+  display: grid;
+  grid-template-columns: var(--clue-band-w) auto;
+  grid-template-rows: var(--clue-band-h) auto;
+}
+
+/*
+ * 格子取整 px（与 .eink-board 的同一条规则）。线索带的行高/列宽必须**跟着一起取整**：
+ * 不取整的话线索会逐行偏离格子（10 行累计最多偏 10px，最后一行明显对不上）。
+ * 也正因为两边用同一个 --clue-cell，对齐是"同一个值"，不是"两次分别算出来的近似值"。
+ */
+@supports (width: round(down, 1px, 1px)) {
+  .eink-board-clues {
+    --clue-cell: max(0px, round(down, min(var(--clue-cells-w), var(--clue-cells-h)), 1px));
+  }
+}
+
+/*
+ * 线索带里的棋盘直接用那一个 --clue-cell。
+ * 选择器比 `.eink-board` 与上面 @supports 里的 `.eink-board` 都更具体（0,2,0 > 0,1,0），
+ * 所以无论文件顺序如何都生效 —— 对齐不靠"两个公式算出同一个数"，而是同一个数。
+ */
+.eink-board-clues > .eink-board {
+  --cell: var(--clue-cell);
+  grid-area: 2 / 2 / 3 / 3;
+}
+
+/* 顶部：每列一组数字，竖着排、贴着棋盘的下沿（纸面数织的印法） */
+.eink-board-clues__top {
+  grid-area: 1 / 2 / 2 / 3;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--clue-cell);
+  align-items: end;
+  justify-items: center;
+  /*
+   * 内容要让出棋盘的外框：线索带的格子列必须与棋盘的**格子列**对齐，
+   * 而棋盘那一列的起点在它的外框之内（外框 5px）。少了这段内边距，整条线索带会偏 5px。
+   */
+  padding: 0 var(--board-frame-line) var(--clue-gap) var(--board-frame-line);
+  box-sizing: border-box;
+  font-size: var(--clue-font);
+  line-height: 1;
+}
+
+/* 左侧：每行一组数字，单行、右对齐（紧贴棋盘的左沿） */
+.eink-board-clues__left {
+  grid-area: 2 / 1 / 3 / 2;
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: var(--clue-cell);
+  align-items: center;
+  justify-items: end;
+  padding: var(--board-frame-line) var(--clue-gap) var(--board-frame-line) 0;
+  box-sizing: border-box;
+  font-size: var(--clue-font);
+  line-height: 1;
+}
+
+/* 顶部一列里的数字：竖着排、居中在自己的列里 */
+.eink-board-clues__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 左侧一行里的数字：横着排、右对齐（两位数也不会把单数位推离棋盘） */
+.eink-board-clues__line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--clue-space);
+}
+
+.eink-board-clues__num {
+  min-width: var(--clue-digit);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .eink-board__cell {
   display: flex;
   align-items: center;
@@ -2009,6 +2140,293 @@ html[data-font-scale='1.5'] .eink-tile__title {
   .eink-cardtable__handrow {
     display: contents;
   }
+}
+
+/* ------------------------------------------------------------------ 6b-2 牌堆布局（一桌多个可点的牌堆） */
+
+/*
+ * 谁用：`CardTableView.piles`（空当接龙 —— 抽牌堆 / 弃牌堆 / 4 个基础堆 / 7 个牌列，13 个堆各自可点）。
+ * 只有游戏给了 piles，CardTable 才渲染这些元素；没给就走上面 6b 的手牌布局，
+ * 其余玩法（斗地主等）的 DOM 与几何像素一个都不变。
+ *
+ * 结构（CardTable.tsx 的 Piles）：
+ *   [提示行]          常驻占位（没有提示时 :empty 收掉高度），下面两排因此不会跳
+ *   [上排 · 横排堆]    layout:'row' 的堆横着一字排开（抽牌堆 / 弃牌堆 / 基础堆）
+ *   [下排 · 7 列牌列]  layout:'stack' 的堆按 7 列网格竖排，吃掉剩下的高度
+ *   空堆给了 `id` 时，那一堆的**空位本身**也是一个可点按钮（放 K / 放 A 的入口，见下）。
+ *
+ * 尺寸全部由 CSS 从棋盘区（.eink-board-area 是 size 尺寸查询容器）算出来，
+ * JS 只给形状：每张牌在本堆里的序号 --i、本堆的槽位数 --pile-slots-1。
+ *
+ * 「放得下」是算出来的，不靠裁切：
+ *   1) 牌宽 = min(按可用宽均分, 按容器高算的上限, 像素上限)，再夹 48px 触摸下限（放得下时）：
+ *      439×847 竖屏（棋盘区 415×519）横排 49px、竖排 48px；极矮横屏 879×407
+ *      （棋盘区实测约 547×270）两者都是 48×67px —— 都够 48px 触摸下限；
+ *      更窄的屏（360 宽）由 max-width:100% 兜住 —— 宁可窄一点，也不横向溢出。
+ *   2) 每一步的位移 = min(牌宽/高 × 0.34~0.45, (可用宽/高 − 牌宽/高) / (槽位数 − 1)) 再夹 0：
+ *      槽位越多叠得越紧（19 张的长牌列：竖屏每张露 14.8px、极矮横屏 2.8px、宽横屏 15.9px），
+ *      再挤也只会压扁、不会把牌顶出棋盘区。
+ *   3) 下排那一行是 minmax(0, 1fr)：上排与提示行都是 auto，剩余高度全给牌列。
+ *
+ * 1-bit 约定：牌堆框跟 --line（「加粗线条」设置）走；选中的堆用**外圈再加一道粗框**
+ * （outline，不占布局、选不选都不动一格）+ 堆名反白；张数用小字给出。没有灰度、没有动画。
+ */
+.eink-cardtable.eink-cardtable--piles {
+  display: grid;
+  /* 三行：提示 / 横排堆 / 竖排牌列（吃掉剩余高度）。必须清掉上面 .eink-cardtable 的
+     3 列 4 行与 grid-template-areas —— 那是给手牌布局用的，留着会把这里排成三列。 */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas: none;
+  gap: min(5px, 1cqh);
+  font-size: min(1em, 3.6cqh);
+  /* 堆与堆之间的缝：跟着容器宽缩，宽屏也不超过 6px */
+  --pile-gap: min(6px, 1.3cqw);
+  /* 触摸下限：只在放得下时用它兜底（见下面两个牌宽公式的 max(min(...)) 那一段） */
+  --pile-tap: 48px;
+  /* 上排按 6 个堆均分、下排按 7 列均分（空当接龙正是 6 + 7） */
+  --pile-share-w: calc((100cqw - 7 * var(--pile-gap)) / 6);
+  --pile-col-w: calc((100cqw - 8 * var(--pile-gap)) / 7);
+  /*
+   * 牌宽：0.78 / 0.86 是给「同一堆里后面几张露出来的那一截」留的缝 ——
+   * 占满整格时同一堆的牌完全重叠、看不出是几张；留太多则牌本身太小、点不准。
+   * 16cqh / 15cqh 是「牌不能把容器高度吃光」（横排不需要留竖向叠合，所以放宽一点）。
+   * max(min(48px, 均分宽), …) 的写法：48px 只在与「均分宽」取小之后才生效 ——
+   * 360 宽的窄屏上均分宽本来就不足 48px，这时不会硬撑到 48px 把牌挤出屏幕。
+   */
+  --pile-card-w-row: max(min(var(--pile-tap), var(--pile-share-w)), min(calc(var(--pile-share-w) * 0.78), 16cqh, 84px));
+  --pile-card-w-stack: max(min(var(--pile-tap), var(--pile-col-w)), min(calc(var(--pile-col-w) * 0.86), 15cqh, 84px));
+  --pile-card-h-row: calc(var(--pile-card-w-row) * 1.4);
+  --pile-card-h-stack: calc(var(--pile-card-w-stack) * 1.4);
+}
+
+/* 提示行：常驻占位，空的时候不占高度（网格行号是显式给的，display:none 不会挪动下面两排） */
+.eink-cardpiles__hint-slot {
+  grid-row: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+}
+
+.eink-cardpiles__hint-slot:empty {
+  display: none;
+}
+
+/* 提示（你的回合 / 再点目标牌堆）：与手牌布局的 .eink-cardtable__banner 同一套画法（粗边 + 右下加厚） */
+.eink-cardpiles__hint {
+  border: var(--line) solid var(--ink-black);
+  border-right-width: calc(var(--line) * 2);
+  border-bottom-width: calc(var(--line) * 2);
+  padding: 1px 10px;
+  font-weight: 700;
+  /* 10px 下限：极矮横屏下根字号会被 3.6cqh 压到 9.7px，这条提示不能跟着变成 8px */
+  font-size: max(10px, min(0.9em, 3.2cqh));
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 上排：横排牌堆一字排开、均分宽度（个数少于 6 时也不会摊成一整条） */
+.eink-cardpiles__row {
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--pile-gap);
+  min-height: 0;
+}
+
+.eink-cardpiles__row > .eink-pile {
+  /*
+   * 宽度先按堆数**均分**（flex-basis 0 + grow 相等）—— 6 个横排堆永远一样宽，
+   * 不会因为"这堆有 24 张、那堆只有 1 张"就忽宽忽窄（一排宽度不齐在 1-bit 上很难看）。
+   * 上限 = 一张牌 + 最多 3 条「露出来的那一截」（45%）：再往里本来就完全重叠，宽了也没用。
+   */
+  flex: 1 1 0;
+  max-width: calc(var(--pile-card-w-row) * 2.35 + 6px);
+}
+
+/* 下排：竖排牌列，固定 7 列（空当接龙的 7 个牌列；多出来的堆会自己折到下一行） */
+.eink-cardpiles__grid {
+  grid-row: 3;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--pile-gap);
+  min-height: 0;
+}
+
+/* 一个牌堆：小标题 + 张数 / 牌 / （下排的牌列把剩余高度全给牌） */
+.eink-pile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: min(3px, 0.6cqh);
+  min-width: 0;
+  min-height: 0;
+  /* 1px：牌堆格本来就窄（439 竖屏 7 列每格 54.7px），边框 + 内边距每省 1px，
+     牌就多 1px —— 正好把牌宽从 46.7 顶到 48.7（48px 触摸下限） */
+  padding: 1px;
+  border: var(--line) solid var(--ink-black);
+  border-radius: 4px;
+  background: var(--ink-white);
+}
+
+/* 空堆：虚线框（1-bit 上「这儿是个空位」靠线型说，不靠灰） */
+.eink-pile[data-empty='yes'] {
+  border-style: dashed;
+}
+
+/*
+ * 选中的堆（正在等目标）：外圈再加一道粗框 + 堆名反白。
+ * 用 outline 而不是加粗 border：outline 不参与布局，选中 / 取消都不会让牌挪一像素
+ * （墨水屏上"点一下整体跳一下"比少一条提示更让人迷惑）；负 offset 让它贴着原边框，不侵入堆间缝。
+ */
+.eink-pile[data-selected='yes'] {
+  outline: calc(var(--line) * 2) solid var(--ink-black);
+  outline-offset: calc(var(--line) * -1);
+}
+
+.eink-pile[data-selected='yes'] > .eink-pile__head > .eink-pile__label {
+  background: var(--ink-black);
+  color: var(--ink-white);
+}
+
+/*
+ * 堆名 + 张数：**分两行**，不是一行挤着放。
+ * 由来（439×847 实测截图）：一行放时张数小胶囊要占 ~40px，而 7 列每格只有 54.7px、牌堆内宽 48.7px ——
+ * 「抽牌堆」被省略成「抽」、三列基础堆全变成「基」，堆名等于没有。分两行后每行都能用满这一格的宽，
+ * 中文名字完整、英文长名字各自省略；代价是每堆多约 11~16px 高，由牌列的 1fr 吸收（见文件头注释）。
+ */
+.eink-pile__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  font-size: max(10px, min(0.8em, 3cqh));
+  line-height: 1.1;
+}
+
+.eink-pile__label {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 1px;
+}
+
+/*
+ * 张数：细线小胶囊（线宽用 min(1px, --line) —— 这一格本来就窄，不跟着「加粗线条」变粗）。
+ * 不做省略号：数字必须完整，实在放不下时宁可压住旁边 1~2px 的缝（1-bit 上数字被截断比越界更难读）。
+ */
+.eink-pile__count {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  white-space: nowrap;
+  border: min(1px, var(--line)) solid var(--ink-black);
+  border-radius: 999px;
+  padding: 0 3px;
+}
+
+/* 牌堆里的牌：绝对定位，靠 --i 与 CSS 算出的步长摆位（见文件头的注释） */
+.eink-pile__cards {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 横排牌堆：牌高固定，宽度方向叠合 */
+.eink-pile[data-layout='row'] .eink-pile__cards {
+  height: var(--pile-card-h-row);
+}
+
+/* 竖排牌列：牌区吃掉牌堆剩下的全部高度（100% 的百分比基准必须是确定高度，才有 top 的百分比可用） */
+.eink-pile[data-layout='stack'] .eink-pile__cards {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.eink-card--pile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  cursor: pointer;
+  /* 线宽跟 --line 走（「加粗线条」关掉时是 1px，开了是 2px）；选中的牌再翻一倍，见下 */
+  border: var(--line) solid var(--ink-black);
+  touch-action: manipulation;
+}
+
+/*
+ * 横排：每一步 = min(牌宽 × 0.45, (可用宽 − 牌宽) / (槽位数 − 1))，夹 0。
+ * --pile-slots-1 由 JS 给（至少 1，不可能除以 0）；除法与百分比都在 calc 里完成，JS 不掺和尺寸。
+ */
+.eink-pile[data-layout='row'] .eink-card--pile {
+  width: var(--pile-card-w-row);
+  max-width: 100%;
+  height: var(--pile-card-h-row);
+  font-size: calc(var(--pile-card-w-row) * 0.34);
+  --pile-step: max(
+    0px,
+    min(calc(var(--pile-card-w-row) * 0.45), calc((100% - var(--pile-card-w-row)) / var(--pile-slots-1, 1)))
+  );
+  left: calc(var(--i, 0) * var(--pile-step));
+}
+
+/* 竖排：每一步 = min(牌高 × 0.34, (可用高 − 牌高) / (槽位数 − 1))，夹 0 */
+.eink-pile[data-layout='stack'] .eink-card--pile {
+  width: var(--pile-card-w-stack);
+  max-width: 100%;
+  height: var(--pile-card-h-stack);
+  font-size: calc(var(--pile-card-w-stack) * 0.34);
+  --pile-step: max(
+    0px,
+    min(calc(var(--pile-card-h-stack) * 0.34), calc((100% - var(--pile-card-h-stack)) / var(--pile-slots-1, 1)))
+  );
+  top: calc(var(--i, 0) * var(--pile-step));
+}
+
+/* 选中的牌（提起来的那几张 / 已选中那一张）：框加粗一倍（border-box，外廓不变、不挤动邻牌） */
+.eink-card--pile[data-selected='yes'] {
+  border-width: calc(var(--line) * 2.5);
+}
+
+/*
+ * 空堆的**空位按钮**（游戏给了 `CardPileView.id` 才渲染 —— 见 CardTable.tsx 的 Pile）：
+ * 空当接龙「把 K 放到空列」「把 A 放进空基础堆」在界面上唯一的入口，没有它空堆就没有可点元素。
+ *
+ * 画法沿用空位的虚线（与上面 .eink-pile[data-empty='yes'] 同一套「空位靠线型说」的约定），
+ * 但尺寸**不跟牌走**（空位里没有牌，跟着牌走会是一块没有内容的窄条，而且 --pile-step 那套
+ * 「第几张露多少」对空位没有意义）：
+ *   - 宽度：left / right 都是 0 —— 撑满这一堆的牌区。牌列那一格本来就窄（439 竖屏 7 列每格
+ *     54.7px、牌堆内宽 48.7px），空位必须把这一格用满才够得着触摸下限；
+ *   - 高度：48px（--pile-tap，牌堆布局根上给的触摸下限），min() 里再夹一次 100% ——
+ *     牌区本身不足 48px 的极窄 / 极矮屏上以牌区为准：宁可空位矮一点，也绝不让它顶出牌堆、溢出容器。
+ * 放在两条「按 layout 定牌宽牌高」的规则**后面**，并且带上 button 类型选择器提高权重：
+ * 不这样写会被上面 .eink-pile[data-layout='row'|'stack'] .eink-card--pile 的 width / height 盖掉。
+ */
+.eink-pile__cards > button.eink-card--pile[data-empty='yes'] {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  min-height: min(var(--pile-tap), 100%);
+  border-style: dashed;
+}
+
+/* hidden 的那几张牌背没有 id、点不动：不许挡住底下可点的牌 */
+.eink-pile__cards > span.eink-card--pile {
+  pointer-events: none;
 }
 
 /* ------------------------------------------------------------------ 6c 对决面板（恶魔轮盘赌） */

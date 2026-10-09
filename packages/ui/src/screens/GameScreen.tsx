@@ -267,6 +267,13 @@ export function GameScreen({
       : '',
   ].filter(Boolean)
   const best = (session.progress.bestMoves ?? {})[contentId]
+  /*
+   * 「最佳 N 步」那一行取的是玩法字典里的 `<ns>.solved.best`。
+   * 这个 key 不是每个玩法都有（历史遗留 6 款就缺），缺词时 i18n 会返回 `⟦key⟧` ——
+   * 结果面板上直接印出原始 key（实测：数织入门 5×5 通关后底部写着 `⟦nonogram.solved.best⟧`）。
+   * 因此渲染前先问一句 key 在不在：不在就少这一行，绝不把 key 漏给玩家。
+   */
+  const bestKey = `${entry.game.i18nNamespace}.solved.best`
   // 无尽类玩法的最高纪录（声明了 scoreOf 才有；还没有成绩时不显示）
   const bestScore = entry.game.scoreOf ? readBestScore(session.progress.bestScore)[contentId] : undefined
   /**
@@ -493,8 +500,8 @@ export function GameScreen({
                       : i18n.t(detail.key)}
                   </li>
                 ))}
-                {best !== undefined ? (
-                  <li>{i18n.t(`${entry.game.i18nNamespace}.solved.best`, { count: best })}</li>
+                {best !== undefined && i18n.has(bestKey) ? (
+                  <li>{i18n.t(bestKey, { count: best })}</li>
                 ) : null}
                 {bestScore !== undefined ? (
                   <li>

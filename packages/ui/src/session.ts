@@ -706,7 +706,19 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
 
   const status = ready && !corrupt ? game.status(state) : 'playing'
 
-  const solved = status === 'won'
+  /**
+   * 「是否算通关」：**优先用玩法如实上报的 `outcomeOf`**，而不是只认 `status()`。
+   *
+   * 棋类为了让结果面板出现，把「和局」并进了 `status() === 'won'`（tictactoe / chess /
+   * reversi / gomoku / xiangqi 的注释都写明了这一点），而 `outcomeOf` 才是有和局玩法的真实结果。
+   * 只看 `status` 的后果：井字棋和局被当成通关，结果面板里那个「输局 / 和局才给」的撤销按钮
+   * （GameScreen 的 `!session.solved`）被挡掉 —— 和局玩家想退回去重下最后一手却无处可退。
+   * 因此只有 `outcomeOf` 明说 `'won'` 才算通关；**没声明这个钩子的玩法行为与以前完全一致**
+   * （仍然看 `status === 'won'`）。终局入账那一边（runAction 里的 finalizeLevel / finalizeLoss）
+   * 早就是同一个口径，这里只是把界面这一侧对齐。
+   */
+  const outcome = ready && !corrupt ? game.outcomeOf?.(state) : undefined
+  const solved = outcome === undefined ? status === 'won' : outcome === 'won'
 
   const finished = status !== 'playing'
 

@@ -26,6 +26,9 @@ import { snakeGame } from '@eink/snake'
 import { sokobanGame } from '@eink/sokoban'
 import { sudokuGame } from '@eink/sudoku'
 import { tetrisGame } from '@eink/tetris'
+import { tictactoeGame } from '@eink/tictactoe'
+import { klondikeGame } from '@eink/klondike'
+import { nonogramGame } from '@eink/nonogram'
 import {
   BOARD_FRAME_PX,
   DEFAULT_LAYOUT,
@@ -54,6 +57,9 @@ const GAMES: Array<GameDef<any, any>> = [
   reversiGame as GameDef<any, any>,
   buckshotGame as GameDef<any, any>,
   xiangqiGame as GameDef<any, any>,
+  tictactoeGame as GameDef<any, any>,
+  klondikeGame as GameDef<any, any>,
+  nonogramGame as GameDef<any, any>,
 ]
 
 describe('所有游戏的存档契约', () => {
@@ -158,11 +164,11 @@ describe('所有游戏的存档契约', () => {
 const ALWAYS_TICKING = new Set(['snake', 'tetris'])
 
 describe('自动步进的声明（tickMs）', () => {
-  it('只有贪吃蛇、俄罗斯方块与斗地主 / 恶魔轮盘赌（电脑回合）声明 tickMs，其余玩法一个定时器都不起', () => {
+  it('只有贪吃蛇、俄罗斯方块与斗地主 / 恶魔轮盘赌 / 井字棋（电脑回合）等声明 tickMs，其余玩法一个定时器都不起', () => {
     const withTick = GAMES.filter((game) => typeof game.tickMs === 'function')
       .map((game) => game.id)
       .sort()
-    expect(withTick).toEqual(['buckshot', 'chess', 'doudizhu', 'gomoku', 'reversi', 'snake', 'tetris', 'xiangqi'])
+    expect(withTick).toEqual(['buckshot', 'chess', 'doudizhu', 'gomoku', 'reversi', 'snake', 'tetris', 'tictactoe', 'xiangqi'])
   })
 
   it('声明出来的间隔都不低于 MIN_TICK_MS，且是"同状态同结果"的纯函数', () => {

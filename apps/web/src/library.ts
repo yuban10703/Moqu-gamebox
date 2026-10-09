@@ -38,6 +38,21 @@ import {
 } from '@eink/xiangqi'
 import { chessEn, chessGame, chessZh, cellLabelKey as chessCellLabelKey, progressFor as chessProgressFor } from '@eink/chess'
 import { cellLabelKey as reversiCellLabelKey, progressFor as reversiProgressFor, reversiEn, reversiGame, reversiZh } from '@eink/reversi'
+import {
+  cellLabelKey as tictactoeCellLabelKey,
+  progressFor as tictactoeProgressFor,
+  tictactoeEn,
+  tictactoeGame,
+  tictactoeZh,
+} from '@eink/tictactoe'
+import { klondikeEn, klondikeGame, klondikeZh } from '@eink/klondike'
+import {
+  CELL_LABEL_KEYS as NONOGRAM_CELL_LABEL_KEYS,
+  nonogramEn,
+  nonogramGame,
+  nonogramZh,
+  progressFor as nonogramProgressFor,
+} from '@eink/nonogram'
 import { defineGame, type GameLibrary } from '@eink/ui'
 
 export const library: GameLibrary = {
@@ -227,9 +242,44 @@ export const library: GameLibrary = {
       defaultDifficulty: 'starter',
       progressFor: reversiProgressFor,
     }),
+    defineGame({
+      game: tictactoeGame,
+      // 包自己导出的 kind → 字典键映射（与其它游戏内联写 lambda 等价）
+      cellLabelKey: tictactoeCellLabelKey,
+      rulesKeys: ['tictactoe.rules.body', 'tictactoe.rules.body2', 'tictactoe.rules.body3'],
+      defaultDifficulty: 'starter',
+      // 无关卡：内容 id 就是难度档。双人同屏不计进度（包内 progressFor 只数三档对手强度）
+      progressFor: tictactoeProgressFor,
+      // 对手应手由壳层按包内的 tickMs 分两拍派发 { type: 'tick' }，这里不需要额外登记
+    }),
+    defineGame({
+      game: klondikeGame,
+      /*
+       * 撤销由游戏自己的 controls 给出（`{ id: 'undo' }`，壳层认识这个固定 id），
+       * 因此**不设** hideShellControls —— 那是「这个玩法没有这个能力」时才用的。
+       */
+      rulesKeys: ['klondike.rules.body', 'klondike.rules.body2', 'klondike.rules.body3'],
+      defaultDifficulty: 'starter',
+      // 无关卡：内容 id 就是难度（入门抽 1 张 / 熟练抽 3 张），进度按「已通关难度 / 2」算
+      progressFor: (completed) => ({
+        done: klondikeGame.difficulties.filter((item) => completed.includes(item.id)).length,
+        total: klondikeGame.difficulties.length,
+      }),
+    }),
+    defineGame({
+      game: nonogramGame,
+      // 状态里只存「题号 + 每格标记」、没有动作日志 → 壳层的撤销按钮永远点不动，直接不渲染
+      hideShellControls: ['undo'],
+      // 数织没导出 kind → key 的函数，只有一个映射表（CELL_LABEL_KEYS），这里就地取用
+      cellLabelKey: (kind) => NONOGRAM_CELL_LABEL_KEYS[kind],
+      rulesKeys: ['nonogram.rules.body', 'nonogram.rules.body2'],
+      defaultDifficulty: 'starter',
+      // 进度按**题号**计（包内 progressFor：16 道题各自算一项，全解出即 100%）
+      progressFor: nonogramProgressFor,
+    }),
   ],
   dicts: {
-    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh, ...xiangqiZh, ...chessZh, ...reversiZh },
-    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn, ...xiangqiEn, ...chessEn, ...reversiEn },
+    'zh-CN': { ...coreDictZh, ...sokobanZh, ...sudokuZh, ...minesweeperZh, ...game2048Zh, ...fifteenZh, ...gomokuZh, ...memoryZh, ...lightsoutZh, ...klotskiZh, ...snakeZh, ...tetrisZh, ...match3Zh, ...doudizhuZh, ...buckshotZh, ...xiangqiZh, ...chessZh, ...reversiZh, ...tictactoeZh, ...klondikeZh, ...nonogramZh },
+    'en-US': { ...coreDictEn, ...sokobanEn, ...sudokuEn, ...minesweeperEn, ...game2048En, ...fifteenEn, ...gomokuEn, ...memoryEn, ...lightsoutEn, ...klotskiEn, ...snakeEn, ...tetrisEn, ...match3En, ...doudizhuEn, ...buckshotEn, ...xiangqiEn, ...chessEn, ...reversiEn, ...tictactoeEn, ...klondikeEn, ...nonogramEn },
   },
 }

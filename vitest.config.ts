@@ -24,6 +24,9 @@ export default defineConfig({
       '@eink/xiangqi': pkg('games/xiangqi/src/index.ts'),
       '@eink/chess': pkg('games/chess/src/index.ts'),
       '@eink/reversi': pkg('games/reversi/src/index.ts'),
+      '@eink/tictactoe': pkg('games/tictactoe/src/index.ts'),
+      '@eink/klondike': pkg('games/klondike/src/index.ts'),
+      '@eink/nonogram': pkg('games/nonogram/src/index.ts'),
     },
   },
   test: {
