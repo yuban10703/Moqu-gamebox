@@ -59,7 +59,7 @@
         // 与 apps/web/vite.config.ts 的 target: chrome110、Android 侧 MIN_WEBVIEW_MAJOR 同步
         var REQUIRED_CHROME_MAJOR = 110
         // 给模块脚本（下载 + 执行 + 首屏渲染）留的时间；到点还没挂载才认定"起不来"
-        var WAIT_MS = 2500
+        var WAIT_MS = 5000
 
         // 从 UA 里取 Chromium 主版本号；取不到就返回 null，不编造数字（与原生提示页同口径）
         function detectChromeMajor() {

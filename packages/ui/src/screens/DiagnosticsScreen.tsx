@@ -19,7 +19,7 @@ import { useUi } from '../contexts.js'
  *
  * 与 `apps/web/vite.config.ts` 的 `target: 'chrome110'`、原生闸 `MainActivity.MIN_WEBVIEW_MAJOR`、
  * 以及 `packages/platform/src/webviewSupport.ts` 的 `MIN_WEBVIEW_MAJOR` 同步（四处一起改）。
- * 注意：core 里另有一个 `MIN_WEBVIEW_MAJOR = 69`（早期浏览器基线），早已低于实际构建目标，
+ * 注意：core 里另有一个 `MIN_WEBVIEW_MAJOR = 110`（原本写 69，已与页面统一为 110），已对齐实际构建目标，
  * 本页不使用它 —— 用 69 判定会把必然白屏的设备显示成"正常"。
  */
 const MIN_WEBVIEW_MAJOR = 110

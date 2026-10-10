@@ -23,7 +23,7 @@ export interface DeviceBaseline {
   recordedAt: number
 }
 
-export const MIN_WEBVIEW_MAJOR = 69
+export const MIN_WEBVIEW_MAJOR = 110
 
 export function webViewMajor(version: string | null | undefined): number | null {
   if (!version) return null

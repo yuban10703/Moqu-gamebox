@@ -136,7 +136,7 @@ describe('启动兜底 ②：经典脚本 + 纯 ES5 语法', () => {
   it('兜底逻辑还在：2.5 秒后看 #boot-hint 是否还在', () => {
     const source = classic[0]?.body ?? ''
     expect(source, '兜底脚本没有用 setTimeout 延迟').toContain('setTimeout')
-    expect(source, '兜底脚本没有等 2500ms').toContain('2500')
+    expect(source, '兜底脚本没有等 5000ms').toContain('5000')
     expect(source, '兜底脚本没有按 #boot-hint 判断应用是否起来').toContain(
       "getElementById('boot-hint')",
     )

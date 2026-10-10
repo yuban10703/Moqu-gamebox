@@ -72,7 +72,7 @@
   兜住"版本号够新、能力却缺"的裁剪实现；不通过就只渲染一屏内联样式的极简提示，不挂载应用本体。
 - **诊断页**：`packages/ui/src/screens/DiagnosticsScreen.tsx` 在低于阈值时给出「当前 X / 需要 110」两个数字。
 
-> 已知不一致（历史遗留）：`packages/core/src/diagnostics.ts` 里另有一个 `MIN_WEBVIEW_MAJOR = 69`，
+> 已知不一致（历史遗留）：`packages/core/src/diagnostics.ts` 里另有一个 `MIN_WEBVIEW_MAJOR = 110`，
 > 是 chrome69 时代的基线，如今只影响诊断页「原始转储」里的 `webViewSufficient:` 一行；
 > 界面提示与两道闸一律按 **110**。
 
