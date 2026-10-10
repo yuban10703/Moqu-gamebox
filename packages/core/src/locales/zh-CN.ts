@@ -110,11 +110,20 @@ export const zhCN: Dict = {
   'shell.offline.preparing': '正在准备离线资源…',
   'shell.offline.unavailable': '当前无法离线使用（网络与缓存均不可用）',
 
+  // Web 入口的第二道闸：WebView 能力/版本不足时的极简提示页（提示页只用内联样式，不引用我们的 CSS 类）
+  'shell.webview.title': '系统 WebView 版本过低，游戏无法启动',
+  'shell.webview.body': '当前版本 {current}，本游戏需要 {required} 及以上。',
+  'shell.webview.bodyUnknown': '未能识别当前 WebView 版本，但本设备缺少游戏必需的能力。',
+  'shell.webview.missing': '缺少能力：{missing}',
+  'shell.webview.hint':
+    '请更新「Android System WebView」：在应用商店搜索更新；部分设备可在「设置 → 应用管理 → 显示系统应用 → Android System WebView」中更新。',
+
   'shell.diagnostics.title': '诊断',
   'shell.diagnostics.device': '设备',
   'shell.diagnostics.viewport': '视口',
   'shell.diagnostics.webview': '系统 WebView',
-  'shell.diagnostics.webview.outdated': '系统 WebView 版本偏低（{version}），建议更新',
+  // 阈值与原生闸 / vite 构建目标一致（110）：这里给出「当前 / 需要」两个数字
+  'shell.diagnostics.webview.outdated': '系统 WebView 版本过低：当前 {current}，需要 {required} 及以上',
   'shell.diagnostics.raw': '原始转储',
   'shell.diagnostics.saves': '存档自检',
   'shell.diagnostics.saves.recovered': '已恢复 {count} 条未提交存档',

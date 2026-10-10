@@ -45,6 +45,37 @@
 - `minSdk 23` / `targetSdk 35` 在实机（API 30 / 33）运行正常；
 - 视口 1248×903 属于「≥1200 宽」档：基准字号 22px、按钮高 48px、7×7 棋盘格子 **86px**（真机实测 2026-10-05，消消乐挑战档，棋盘 612²；同款在 P6Plus 439×847 @18px 是 57px）—— 远超 48px 门槛。
 
+## 最低要求：系统 WebView ≥ Chrome 110（硬门槛）
+
+**结论：系统 WebView（Chromium 内核）主版本号 ≥ 110 是运行本应用的最低要求。**
+低于它的设备会由**原生闸**拦下并给出看得懂的提示，而不是白屏。
+
+| 能力 | 最低版本 | 用在哪 | 处理 |
+|---|---|---|---|
+| 容器查询单位 `cqw` / `cqh` | Chromium **105** | 界面排版的主骨架：`packages/ui/src/styles.css` 里 79 处（连 TSX 内联共 83 处），字号 / 间距 / 棋盘尺寸都按容器宽度算 | **挪不掉的底线**：它不是"锦上添花的渐进增强"，缺了整屏布局就没有尺寸依据 |
+| 动态视口高度 `100dvh` | Chromium **108** | 整屏高度（`.eink-app { min-height: 100dvh }` 等 3 处） | 理论上可以用 `@supports` 兜底成 `100vh`，但本轮不改：底座已被容器查询的 105 卡住，改了也只影响 105~107 这一段 |
+| 构建目标 `target` | `['chrome110', ...]`（`apps/web/vite.config.ts`） | 决定产物语法下限 | 与实测能力取齐并留出余量；**与下面两道闸的阈值 110 是同一个数字，必须一起改** |
+
+为什么会有「装上就白屏」的投诉：`minSdk 23` / `targetSdk 35` 让 Android 6.0 起的老设备**装得上**，
+但系统 WebView 是 ROM / 应用商店单独更新的组件 —— 老机器上可能是 60~90 的老内核，
+于是"应用能装、界面全白"。两道闸就是为这段落差准备的：
+
+- **原生闸（第一道，最关键）**：`apps/android/app/src/main/java/com/einkgamebox/MainActivity.kt` 里的
+  `MIN_WEBVIEW_MAJOR = 110`。在**创建 WebView 之前**读主版本号
+  （API 26+ 用 `WebView.getCurrentWebViewPackage()` 的 versionName 取开头数字；
+  API 23~25 用 `WebSettings.getDefaultUserAgent()` 里正则取 `Chrome/(\d+)`；不引入任何新依赖）。
+  低于 110 **完全不创建 WebView**，直接 `setContentView` 一个纯原生提示页（LinearLayout + TextView，
+  「当前版本 X / 需要 110」+ 更新指引 + 一行英文摘要）。
+  版本号**读不到就一律放行** —— 读不到 ≠ 太旧，不能把能用的设备挡在门外。
+- **Web 探测（第二道）**：`packages/platform/src/webviewSupport.ts` 的 `detectWebViewSupport()`
+  在挂载 React 之前探测 `container-type: inline-size`、`height: 100dvh` 与 UA 里的 `Chrome/(\d+)`，
+  兜住"版本号够新、能力却缺"的裁剪实现；不通过就只渲染一屏内联样式的极简提示，不挂载应用本体。
+- **诊断页**：`packages/ui/src/screens/DiagnosticsScreen.tsx` 在低于阈值时给出「当前 X / 需要 110」两个数字。
+
+> 已知不一致（历史遗留）：`packages/core/src/diagnostics.ts` 里另有一个 `MIN_WEBVIEW_MAJOR = 69`，
+> 是 chrome69 时代的基线，如今只影响诊断页「原始转储」里的 `webViewSufficient:` 一行；
+> 界面提示与两道闸一律按 **110**。
+
 ## 关于 Onyx SDK（历史记录）
 
 > **历史说明（2026-10-04）**：Onyx SDK（`onyxsdk-device`）及其 Gradle 开关已从项目中**完全移除**，

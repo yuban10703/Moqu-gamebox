@@ -5,7 +5,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   formatBaseline,
-  isWebViewSufficient,
   webViewMajor,
   type DeviceBaseline,
   type RecoveryReport,
@@ -14,6 +13,16 @@ import {
 import { ActionButton, TopBar } from '../components.js'
 import { copyText } from '../clipboard.js'
 import { useUi } from '../contexts.js'
+
+/**
+ * 本页判定 WebView 是否够用的阈值：**110**。
+ *
+ * 与 `apps/web/vite.config.ts` 的 `target: 'chrome110'`、原生闸 `MainActivity.MIN_WEBVIEW_MAJOR`、
+ * 以及 `packages/platform/src/webviewSupport.ts` 的 `MIN_WEBVIEW_MAJOR` 同步（四处一起改）。
+ * 注意：core 里另有一个 `MIN_WEBVIEW_MAJOR = 69`（早期浏览器基线），早已低于实际构建目标，
+ * 本页不使用它 —— 用 69 判定会把必然白屏的设备显示成"正常"。
+ */
+const MIN_WEBVIEW_MAJOR = 110
 
 export interface DiagnosticsScreenProps {
   onBack: () => void
@@ -33,6 +42,8 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
 
   const text = baseline ? formatBaseline(baseline) : ''
   const major = webViewMajor(baseline?.webViewVersion ?? null)
+  // 版本读不到时**不判为过低**（与原生闸、Web 探测同一口径：读不到不等于太旧，不能误伤）
+  const webViewOutdated = major !== null && major < MIN_WEBVIEW_MAJOR
 
   return (
     <div className="eink-screen eink-screen--sticky-footer">
@@ -50,9 +61,12 @@ export function DiagnosticsScreen({ onBack, recovery }: DiagnosticsScreenProps):
           <Row label="webView" value={baseline?.webViewVersion ?? '-'} />
           <Row label="locale" value={locale} />
         </dl>
-        {!isWebViewSufficient(baseline?.webViewVersion ?? null) ? (
+        {webViewOutdated ? (
           <p className="eink-notice" role="alert">
-            {i18n.t('shell.diagnostics.webview.outdated', { version: String(major ?? '?') })}
+            {i18n.t('shell.diagnostics.webview.outdated', {
+              current: String(major),
+              required: String(MIN_WEBVIEW_MAJOR),
+            })}
           </p>
         ) : null}
       </section>

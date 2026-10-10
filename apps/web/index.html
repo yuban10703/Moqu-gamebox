@@ -16,8 +16,129 @@
     <title>墨趣</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      第 1 级兜底：**纯 HTML 静态占位，零 JS**（最稳的一级）。
+
+      为什么要有它：老系统 WebView（Chromium < 85）解析不了 bundle 里的 ??= / ||= / &&=
+      这类**语法级**新特性，模块脚本直接 SyntaxError，页面上什么都没有 —— 用户只看到纯白。
+      这段占位不依赖任何 JS、也不引任何外部 CSS，能显示就说明渲染链路是通的。
+
+      正常挂载时 React（createRoot().render()）会替换 #root 的子节点，占位随之消失；
+      id="boot-hint" 同时是下面那段 ES5 脚本的判断依据。
+    -->
+    <div id="root">
+      <div
+        id="boot-hint"
+        style="box-sizing:border-box;padding:16px 14px;background:#fff;color:#000;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6;"
+      >
+        <p style="margin:0 0 8px;font-size:15px;font-weight:700;">墨趣正在启动……</p>
+        <p style="margin:0 0 8px;">
+          若长时间停在这一屏、页面空白，多半是系统 WebView 版本过低：请在应用商店更新『Android
+          System WebView』后重试。
+        </p>
+        <p style="margin:0;">
+          If this screen stays blank, your system WebView is probably too old — please update "Android
+          System WebView".
+        </p>
+      </div>
+    </div>
     <noscript>本应用需要启用 JavaScript。</noscript>
     <script type="module" src="/src/main.tsx"></script>
+    <!--
+      第 2 级兜底：经典脚本（不是 module）+ **纯 ES5 语法**。
+
+      它要覆盖的边角是"占位还在、模块脚本却没跑起来"这类情况 —— 也就是说，它必须在
+      **连模块脚本都解析不了**的引擎上照样运行。因此这里不许出现箭头函数、块级作用域声明、
+      模板字符串、可选链、空值合并、函数调用尾随逗号等新语法（守卫测试钉住这一点）。
+
+      版本阈值 110 与 apps/web/vite.config.ts 的 target: chrome110、
+      Android 侧 MainActivity 的 MIN_WEBVIEW_MAJOR 保持一致（三处必须一起改）。
+    -->
+    <script>
+      (function () {
+        // 与 apps/web/vite.config.ts 的 target: chrome110、Android 侧 MIN_WEBVIEW_MAJOR 同步
+        var REQUIRED_CHROME_MAJOR = 110
+        // 给模块脚本（下载 + 执行 + 首屏渲染）留的时间；到点还没挂载才认定"起不来"
+        var WAIT_MS = 2500
+
+        // 从 UA 里取 Chromium 主版本号；取不到就返回 null，不编造数字（与原生提示页同口径）
+        function detectChromeMajor() {
+          var ua = navigator.userAgent || ''
+          var matched = /Chrome\/(\d+)/.exec(ua)
+          return matched ? parseInt(matched[1], 10) : null
+        }
+
+        // 只建元素 + 内联样式 + 纯文本：不引任何外部资源，老引擎也认
+        function addLine(parent, tag, style, text) {
+          var node = document.createElement(tag)
+          node.setAttribute('style', style)
+          node.textContent = text
+          parent.appendChild(node)
+        }
+
+        function renderNotice() {
+          var major = detectChromeMajor()
+          var current = major === null ? '未能识别' : 'Chrome ' + major
+          var body = document.body
+          if (!body) return
+
+          // 整页替换：老引擎上残留的半截界面只会让人以为"卡住了"
+          while (body.firstChild) body.removeChild(body.firstChild)
+          body.setAttribute(
+            'style',
+            'box-sizing:border-box;margin:0;background:#fff;color:#000;' +
+              'font-family:system-ui,-apple-system,sans-serif;line-height:1.6;'
+          )
+
+          var wrap = document.createElement('div')
+          wrap.setAttribute(
+            'style',
+            'box-sizing:border-box;max-width:32em;margin:0 auto;padding:32px 20px;text-align:center;'
+          )
+
+          addLine(
+            wrap,
+            'h1',
+            'margin:0 0 18px;font-size:24px;font-weight:700;',
+            '系统 WebView 版本过低'
+          )
+          addLine(
+            wrap,
+            'p',
+            'margin:0 0 18px;font-size:18px;',
+            '当前：' + current + ' / 需要：' + REQUIRED_CHROME_MAJOR + ' 及以上'
+          )
+          addLine(
+            wrap,
+            'p',
+            'margin:0 0 12px;font-size:16px;',
+            '请在应用商店更新『Android System WebView』后重试（更新完请重新打开本应用）。'
+          )
+          addLine(
+            wrap,
+            'p',
+            'margin:0 0 18px;font-size:15px;',
+            '部分设备路径：设置 → 应用管理 → 显示系统应用 → Android System WebView → 更新 / 启用。'
+          )
+          addLine(
+            wrap,
+            'p',
+            'margin:0;font-size:15px;',
+            'System WebView is too old (needs Chrome ' +
+              REQUIRED_CHROME_MAJOR +
+              '+). Please update "Android System WebView" in your app store, then reopen this app.'
+          )
+
+          body.appendChild(wrap)
+        }
+
+        setTimeout(function () {
+          // React 挂载会替换 #root 的子节点，占位随之消失；它还在，说明应用没起来
+          var hint = document.getElementById('boot-hint')
+          if (!hint) return
+          renderNotice()
+        }, WAIT_MS)
+      })()
+    </script>
   </body>
 </html>

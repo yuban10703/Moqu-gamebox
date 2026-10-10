@@ -4,10 +4,12 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
@@ -16,6 +18,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewClientCompat
 import org.json.JSONObject
@@ -31,6 +35,7 @@ import java.util.concurrent.Executors
  * - 不申请网络权限，安装包内置全部资源，飞行模式首次启动即可游玩。
  * - 系统返回键交给网页层决定（网页层用浏览器历史实现返回），到底层才退出应用。
  * - 长按、缩放、过度滚动全部关闭：墨水屏上这些交互只会帮倒忙。
+ * - **系统 WebView 过旧时根本不创建 WebView**，改为纯原生提示页（见 onCreate 里的闸）。
  */
 class MainActivity : Activity() {
 
@@ -42,6 +47,25 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        /*
+         * 原生闸（第一道，也是最关键的一道）：系统 WebView 版本低于 [MIN_WEBVIEW_MAJOR] 时
+         * **绝不创建 WebView、绝不加载页面**，只显示纯原生提示页。
+         *
+         * 为什么必须在这里拦：网页产物按 chrome110 构建，界面重度依赖容器查询单位（cqw/cqh：styles.css 里 79 处）
+         * 与 100dvh，老 WebView 加载后只会渲染出一片空白 —— 真机上用户报过「装上就是白屏」。
+         * 白屏没有任何信息量，用户只会以为应用坏了；这里把它换成一句看得懂的说明 + 更新指引。
+         *
+         * 版本读不到（null）时**一律放行**：WebView 未选定 / 被禁用 / 厂商改写版本号时，
+         * 不能凭「读不到」就判成「太旧」，否则会把本来能用的设备挡在门外。
+         */
+        val webViewMajor = currentWebViewMajor()
+        if (webViewMajor != null && webViewMajor < MIN_WEBVIEW_MAJOR) {
+            Log.w(TAG, "system webview $webViewMajor < $MIN_WEBVIEW_MAJOR: show native notice instead")
+            setContentView(buildWebViewTooOldView(webViewMajor))
+            return
+        }
+
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         store = NativeStore(this)
@@ -161,6 +185,94 @@ class MainActivity : Activity() {
         resources.updateConfiguration(configuration, resources.displayMetrics)
     }
 
+    // ---------- WebView 版本闸 ----------
+
+    /**
+     * 读系统 WebView 的主版本号；**读不到返回 null**（调用方据此放行）。
+     *
+     * 两条路覆盖全部 API 段，不需要引入任何新依赖（不用 androidx.webkit）：
+     * - API 26+：`WebView.getCurrentWebViewPackage()` 的 versionName，取**开头数字**
+     *   （"156.0.8078.4" → 156）；WebView 未选定/被禁用时它返回 null；
+     * - API 23~25：`WebSettings.getDefaultUserAgent()` 里正则取 `Chrome/(\d+)`。
+     *
+     * 整段包在 try/catch 里：读版本号失败绝不能变成启动失败（那才是真的白屏）。
+     */
+    private fun currentWebViewMajor(): Int? = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WebView.getCurrentWebViewPackage()?.versionName?.let(::leadingMajor)
+        } else {
+            CHROME_UA_REGEX.find(WebSettings.getDefaultUserAgent(this))?.groupValues?.get(1)?.toIntOrNull()
+        }
+    } catch (error: Throwable) {
+        Log.w(TAG, "cannot read system webview version - letting it through", error)
+        null
+    }
+
+    /**
+     * 系统 WebView 过旧时的**纯原生**提示页。
+     *
+     * 为什么必须是纯原生：网页产物按 chrome110 构建，老引擎连脚本都可能解析不了 ——
+     * 用网页去解释「你为什么白屏」，只会得到第二张白屏。这里只用 LinearLayout + TextView，
+     * 全程序化构造（不加 XML 资源），也不引用任何网页 CSS。
+     *
+     * 中英两段同屏：原生侧读不到网页的 i18n 字典，而这类设备很可能是非中文用户手里的旧机器。
+     * 版本号传 null 时不显示具体数字，只写「未能识别」（当前闸只在读到数字时才触发，这里保留该分支）。
+     */
+    private fun buildWebViewTooOldView(major: Int?): View {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int): Int = (value * density + 0.5f).toInt()
+
+        val title = TextView(this).apply {
+            text = "系统 WebView 版本过低" // i18n-exempt：原生提示页不走网页 i18n，中英同屏
+            textSize = 22f
+            setTextColor(Color.BLACK)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+
+        val body = TextView(this).apply {
+            // 提示页文案是原生的、中英同屏，不走网页 i18n 字典（故字面量行标 i18n-exempt）
+            text = if (major == null) {
+                "未能识别当前系统 WebView 版本，本游戏需要 $MIN_WEBVIEW_MAJOR 及以上。" // i18n-exempt
+            } else {
+                "当前版本 $major，本游戏需要 $MIN_WEBVIEW_MAJOR 及以上。" // i18n-exempt
+            }
+            textSize = 18f
+            setTextColor(Color.BLACK)
+        }
+
+        val howTo = TextView(this).apply {
+            text = "请更新「Android System WebView」：打开应用商店搜索更新；" + // i18n-exempt
+                "部分设备可在「设置 → 应用管理 → 显示系统应用 → Android System WebView」中更新。" // i18n-exempt
+            textSize = 16f
+            setTextColor(Color.BLACK)
+        }
+
+        val english = TextView(this).apply {
+            text = "System WebView is too old. This game needs Chromium $MIN_WEBVIEW_MAJOR " +
+                "or newer. Please update \"Android System WebView\" from your app store " +
+                "(on some devices: Settings → Apps → Show system apps → Android System WebView)."
+            textSize = 14f
+            setTextColor(Color.BLACK)
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(28), dp(28), dp(28), dp(28))
+        }
+        listOf(title, body, howTo, english).forEach { view ->
+            layout.addView(
+                view,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply { bottomMargin = dp(14) },
+            )
+        }
+        return layout
+    }
+
     // ---------- 备份导出 / 导入（SAF） ----------
 
     fun startExport(fileName: String, json: String) {
@@ -263,5 +375,23 @@ class MainActivity : Activity() {
         private const val REQUEST_IMPORT = 1002
         /** 渲染进程崩溃后重新加载页面的延迟 */
         private const val RENDERER_RESTART_DELAY_MS = 600L
+
+        /**
+         * 最低可用的系统 WebView 主版本号。
+         *
+         * 与 `apps/web/vite.config.ts` 的 `target: ['chrome110', ...]` 同步：
+         * 界面里有 79 处容器查询单位（cqw/cqh，Chromium 105 起；连 TSX 内联共 83 处）、整屏的 `100dvh`（108 起），
+         * 低于 110 的设备加载后只会白屏 —— 所以这个数字不能比构建目标更宽松。
+         * 同一阈值还出现在 packages/platform/src/webviewSupport.ts 与 DiagnosticsScreen.tsx，四处一起改。
+         */
+        private const val MIN_WEBVIEW_MAJOR = 110
+        /** 版本号**开头**的数字，例如 "156.0.8078.4" → "156" */
+        private val LEADING_DIGITS_REGEX = Regex("^\\s*(\\d+)")
+        /** 老 WebView 的 UA 里的内核版本，例如 "Chrome/51.0.2704.106" → "51" */
+        private val CHROME_UA_REGEX = Regex("Chrome/(\\d+)")
+
+        /** 取版本号开头的数字；不是数字开头返回 null（读不到就不判、不拦） */
+        private fun leadingMajor(versionName: String): Int? =
+            LEADING_DIGITS_REGEX.find(versionName)?.groupValues?.get(1)?.toIntOrNull()
     }
 }

@@ -108,11 +108,21 @@ export const enUS: Dict = {
   'shell.offline.preparing': 'Preparing offline resources…',
   'shell.offline.unavailable': 'Offline use unavailable (no network and no cache)',
 
+  // Second gate in the web entry: minimal notice when the WebView lacks required capabilities
+  'shell.webview.title': 'System WebView is too old to start the game',
+  'shell.webview.body': 'Current version {current}; this game needs {required} or newer.',
+  'shell.webview.bodyUnknown':
+    'The WebView version could not be identified, and this device lacks capabilities the game needs.',
+  'shell.webview.missing': 'Missing capabilities: {missing}',
+  'shell.webview.hint':
+    'Please update "Android System WebView" from your app store; on some devices: Settings → Apps → Show system apps → Android System WebView.',
+
   'shell.diagnostics.title': 'Diagnostics',
   'shell.diagnostics.device': 'Device',
   'shell.diagnostics.viewport': 'Viewport',
   'shell.diagnostics.webview': 'System WebView',
-  'shell.diagnostics.webview.outdated': 'System WebView is old ({version}); consider updating',
+  // Same 110 threshold as the native gate / Vite build target: show "current / required"
+  'shell.diagnostics.webview.outdated': 'System WebView is too old: current {current}, required {required}+',
   'shell.diagnostics.raw': 'Raw dump',
   'shell.diagnostics.saves': 'Save check',
   'shell.diagnostics.saves.recovered': 'Recovered {count} uncommitted save(s)',
