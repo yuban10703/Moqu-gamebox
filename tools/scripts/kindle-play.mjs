@@ -240,6 +240,50 @@ for (const o of ORIENTATIONS) {
     await page.screenshot({ path: `${SHOTS}${o.name}-${id}.png` })
   }
 }
+// ---------- 终局路径：横竖屏各打一局到结束 ----------
+/*
+ * 前面 40 组只验到"能推进"，**终局那条路一次都没走**：
+ * onFinished → 记录战绩 → 弹结果面板 → 写进 localStorage。
+ * 井字棋 3×3、对手会应手，是最快能走到终局的一款，两个方向各打一局。
+ */
+const endgame = []
+for (const o of ORIENTATIONS) {
+  await page.setViewportSize({ width: o.width, height: o.height })
+  await page.evaluate(() => window.__moquApp.navigate('game', { gameId: 'tictactoe', difficulty: 'starter', fresh: true }))
+  await page.waitForTimeout(500)
+  let finished = false
+  for (let i = 0; i < 12 && !finished; i++) {
+    const clicked = await page.evaluate(() => {
+      const empty = Array.from(document.querySelectorAll('.k-board__cell')).find(
+        (c) => c.getAttribute('data-kind') === 'empty',
+      )
+      if (!empty) return false
+      empty.click()
+      return true
+    })
+    if (!clicked) break
+    await page.waitForTimeout(1100)
+    finished = (await page.$('.k-dialog__panel')) !== null
+  }
+  const dialogText = await page.evaluate(
+    () => ((document.querySelector('.k-dialog__panel') || {}).textContent || '').trim(),
+  )
+  const saved = await page.evaluate(() => {
+    // 战绩里 gameId 记在 history 里、completed 里只记内容 id ——
+    // 所以判"有没有落盘"要看整段 JSON，而不是找 gameId 出现在 completed 里
+    return window.localStorage.getItem('moqu:1:progress') || ''
+  })
+  if (process.env.DEBUG_PROGRESS) {
+    console.log(`  [debug] ${o.name} 对话框=「${dialogText.replace(/\s+/g, ' ').slice(0, 80)}」`)
+    console.log(`  [debug] ${o.name} 统计=${await page.evaluate(() => ((document.querySelector('.k-stats') || {}).textContent || '').slice(0, 60))}`)
+  }
+  endgame.push({ where: `${o.name}/井字棋终局`, finished, dialogLen: dialogText.length, saved: saved.indexOf('tictactoe') >= 0 })
+  if (!finished) note(`${o.name}/井字棋终局`, '走到没有空格也没出结果面板')
+  if (finished && dialogText.length === 0) note(`${o.name}/井字棋终局`, '结果面板是空的')
+  if (!saved.includes('tictactoe')) note(`${o.name}/井字棋终局`, '对局结束了但战绩没落盘')
+  await page.screenshot({ path: `${SHOTS}${o.name}-result.png` })
+}
+
 await browser.close()
 
 // ---------- 报告 ----------
@@ -259,6 +303,10 @@ for (const r of rows) {
       ' ' +
       r.notice,
   )
+}
+console.log('\n终局路径（打到结束 → 结果面板 → 战绩落盘）：\n')
+for (const e of endgame) {
+  console.log(`  ${e.where.padEnd(22)} 结束=${e.finished ? '是' : '否'}  结果面板=${e.dialogLen}字  战绩落盘=${e.saved ? '是' : '否'}`)
 }
 const bad = rows.filter((r) => r.advanced === 'NO' || r.undo === 'no-change' || r.restart === 'not-initial')
 console.log(`\n统计：${rows.length} 组（${gameIds.length} 款 × ${ORIENTATIONS.length} 方向），异常 ${bad.length} 组`)

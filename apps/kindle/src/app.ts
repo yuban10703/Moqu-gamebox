@@ -8,6 +8,7 @@
 import { createI18n, detectLocale, type DictSet, type I18n } from '@eink/core'
 import type { GameLibrary } from '@eink/ui'
 import { el, clear } from './dom.js'
+import { closeAllDialogs } from './screens/common.js'
 import { loadSettings, saveSettings, type KindleSettings } from './store.js'
 import type { Screen, ScreenCtx, ScreenName, ScreenParams } from './screen-ctx.js'
 import { renderLibrary } from './screens/library.js'
@@ -150,6 +151,8 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
       }
       currentCleanup = null
     }
+    // 对话框挂在 body 上，清 #k-root 带不走它们 —— 不显式收掉就会浮在新屏幕上
+    closeAllDialogs()
     clear(root)
 
     currentScreen = screen

@@ -98,6 +98,24 @@ export interface DialogOptions {
 }
 
 /**
+ * 当前打开着的对话框（关闭函数）。
+ *
+ * 为什么需要登记：对话框是挂在 `document.body` 上的（不是屏幕根节点 `#k-root`），
+ * 而切屏只清 `#k-root` —— 于是**切换屏幕时对话框会留下来**。
+ * 真机路径：一局结束 → 结果面板 → 按物理返回键回书库 → 结果面板一直浮在书库上面，
+ * 挡住内容又关不掉（它自己的按钮已经不在了）。这条被"打到终局"的测试逮到过。
+ */
+const openDialogs: Array<() => void> = []
+
+/** 切屏前统一收掉所有对话框（静默关闭，不触发各自的 onDismiss） */
+export function closeAllDialogs(): void {
+  while (openDialogs.length > 0) {
+    const close = openDialogs.pop()
+    if (close) close()
+  }
+}
+
+/**
  * 模态对话框。
  * 用 fixed 覆盖层而不是 <dialog>：`<dialog>` 在老 WebKit 上不存在。
  */
@@ -141,8 +159,11 @@ export function showDialog(options: DialogOptions): () => void {
     if (closed) return
     closed = true
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay)
+    const index = openDialogs.indexOf(close)
+    if (index >= 0) openDialogs.splice(index, 1)
     if (options.onDismiss) options.onDismiss()
   }
+  openDialogs.push(close)
 
   // 点遮罩关闭（和 dismiss 语义一致）
   overlay.addEventListener('click', function maskClick(event: Event): void {

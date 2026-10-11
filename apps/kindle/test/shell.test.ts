@@ -214,6 +214,31 @@ describe('Kindle 壳层', () => {
     }
   })
 
+  /*
+   * 切屏必须把对话框一起收掉。
+   *
+   * 对话框挂在 `document.body` 上，而切屏只清屏幕根节点 —— 不显式收掉的话，
+   * 真机上"一局结束 → 结果面板 → 按物理返回键回书库"会让结果面板**一直浮在书库上面**：
+   * 挡住内容，而它自己的按钮早就没了，用户关不掉。
+   * （这条是"打到终局"的实测脚本逮到的：切到井字棋之后，屏幕上还是上一局扫雷的结果。）
+   */
+  it('切屏时把对话框一并收掉', () => {
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+
+    // 顶栏的「菜单」按钮 → 暂停菜单
+    const menu = Array.from(root.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').indexOf('菜单') >= 0,
+    )
+    expect(menu, '顶栏没有「菜单」按钮').toBeTruthy()
+    menu!.click()
+    expect(document.querySelector('.k-dialog__panel'), '暂停菜单没打开').toBeTruthy()
+
+    app.navigate('library')
+    expect(document.querySelector('.k-dialog__panel'), '切屏后对话框还挂在屏幕上').toBeNull()
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)
