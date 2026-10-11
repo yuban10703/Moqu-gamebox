@@ -257,6 +257,28 @@ Kindle 版与 Web 版是**两个独立的 Pages 项目**（产物不同：`apps/
 - 最后才打开首页；如果首页白屏但自检页正常，那就是 bundle 层面的问题，
   把自检页底部那段报告抄下来即可定位。
 
+### 如果你看到的是「部署命令 / 预览命令」这两格
+
+那说明建的是 **Workers（Workers Builds）**，不是 Pages —— Pages 的构建配置里**只有**
+「构建命令 + 构建输出目录」两格，没有部署命令（Cloudflare 读构建命令的退出码，成功后自己上传产物）。
+两条路的区别见 [deploy-cloudflare.md](deploy-cloudflare.md) 开头那张表。
+
+走 Workers 的话，**不能**用仓库根的 `wrangler.jsonc`：它是给 Web 版声明的 Worker（叫 `moqu`），
+`assets.directory` 写死指向 `./apps/web/dist` —— 拿它部署 Kindle 会把**现代版网页**发上去，
+而且构建日志不报错、只是 Kindle 打开仍然白屏。为此单独放了一份 `wrangler.kindle.jsonc`：
+
+| 字段 | 值 |
+|---|---|
+| 构建命令（Build command） | `npm run build:kindle` —— 必填，留空会直接跳到部署并报 `assets.directory ... does not exist` |
+| 部署命令（Deploy command） | `npx wrangler deploy --config wrangler.kindle.jsonc` |
+| 预览命令（Preview command） | `npx wrangler versions upload --config wrangler.kindle.jsonc`（或留默认 `npx wrangler preview`） |
+| 根目录（Root directory） | 留空（npm workspaces 单仓，依赖必须在根装） |
+| 构建变量 | 一般不用设：镜像默认 Node 24.18 且会读仓库根的 `.nvmrc`；要固定则设 `NODE_VERSION=24` |
+
+`--config` 那一段不能省：`wrangler.kindle.jsonc` 不是 wrangler 的自动发现名，
+不带 `--config` 时 wrangler 会用根的 `wrangler.jsonc`（Web 版），于是又部署错产物。
+配置里的 `name` 必须与你在 Cloudflare 上那个 Worker 同名（现写的是 `moqu-kindle`）。
+
 ### 换个方式：本地构建后直传
 
 不想让 Cloudflare 跑构建（或者想在本地先看一眼）时，产物目录被 gitignore，所以要先本地构建：

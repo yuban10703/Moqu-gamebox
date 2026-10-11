@@ -77,6 +77,17 @@ Kindle 版（见 [kindle.md](kindle.md)）产物完全不同，必须单开一�
 | 构建输出目录 | `apps/kindle/dist` |
 | 环境变量 | `NODE_VERSION` = `24` |
 
+若 Kindle 版走的是 **Workers** 而不是 Pages，则用**另一份**配置 ——
+根 `wrangler.jsonc` 的资源目录写死指向 `apps/web/dist`，拿它部署 Kindle 会发错产物：
+
+| 字段 | 值 |
+|---|---|
+| 构建命令 | `npm run build:kindle` |
+| 部署命令 | `npx wrangler deploy --config wrangler.kindle.jsonc` |
+| 预览命令 | `npx wrangler versions upload --config wrangler.kindle.jsonc` |
+
+`wrangler.kindle.jsonc` 里的 `name` 是 `moqu-kindle`，必须与 Cloudflare 上那个 Worker 同名。
+
 这一个**不要开 SPA 回退**：`/check.html` 是零依赖的设备自检页，要靠真实路径访问到。
 产物文件名没有内容哈希，所以构建时会带一个 `_headers` 把所有响应设成 `max-age=0, must-revalidate`，
 避免重新部署后设备上仍是旧版。
