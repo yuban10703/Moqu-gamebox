@@ -32,6 +32,7 @@ export default defineConfig({
     alias: {
       // 更具体的路径必须排在前面：字符串别名是按顺序做前缀匹配的
       '@eink/ui/styles.css': pkg('ui/src/styles.css'),
+      '@eink/library': pkg('library/src/index.ts'),
       '@eink/core': pkg('core/src/index.ts'),
       '@eink/platform': pkg('platform/src/index.ts'),
       '@eink/sokoban': pkg('games/sokoban/src/index.ts'),

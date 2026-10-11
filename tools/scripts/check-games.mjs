@@ -14,7 +14,7 @@ const games = readdirSync(`${ROOT}packages/games`, { withFileTypes: true })
   .filter((e) => e.isDirectory())
   .map((e) => e.name)
 
-const library = read('apps/web/src/library.ts')
+const library = read('packages/library/src/index.ts')
 const contract = read('packages/ui/test/games-contract.test.ts')
 const tsconfig = read('tsconfig.json')
 const vitest = read('vitest.config.ts')
@@ -35,7 +35,7 @@ for (const id of games) {
   // 2) workspace 链接（npm install 之后才会有）
   if (!existsSync(`${ROOT}node_modules/${name}`)) problems.push(`${id}: node_modules/${name} 不存在（需要 npm install）`)
   // 3) library 登记
-  if (!library.includes(name)) problems.push(`${id}: apps/web/src/library.ts 未登记`)
+  if (!library.includes(name)) problems.push(`${id}: packages/library/src/index.ts 未登记`)
   // 4) 首页字形
   /*
    * 图标检查：首页图标已从 Unicode 符号改成**自绘 SVG**（packages/ui/src/GameIcon.tsx 的 SHAPES）。

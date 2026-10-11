@@ -14,7 +14,7 @@ import { createPlatform, type Platform } from '@eink/platform'
 import { coreDictEn, coreDictZh, createI18n, detectLocale } from '@eink/core'
 import { App } from '@eink/ui'
 import '@eink/ui/styles.css'
-import { library } from './library.js'
+import { library } from '@eink/library'
 // 直接引到文件，而不是走 @eink/platform 的出口：这是**入口专用**的一道闸，
 // 不属于上层界面使用的平台门面，也就不进 platform 的公共 API。
 import { detectWebViewSupport, MIN_WEBVIEW_MAJOR } from '../../../packages/platform/src/webviewSupport.js'

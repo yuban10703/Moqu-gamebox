@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@eink/core": "*",
+    "@eink/library": "*",
     "@eink/platform": "*",
     "@eink/sokoban": "*",
     "@eink/ui": "*",

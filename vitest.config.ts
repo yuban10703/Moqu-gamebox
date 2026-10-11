@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@eink/core': pkg('core/src/index.ts'),
+      '@eink/library': pkg('library/src/index.ts'),
       '@eink/sokoban': pkg('games/sokoban/src/index.ts'),
       '@eink/sudoku': pkg('games/sudoku/src/index.ts'),
       '@eink/minesweeper': pkg('games/minesweeper/src/index.ts'),
@@ -33,7 +34,12 @@ export default defineConfig({
     // 默认 node 环境（规则、存档协议、布局纯函数）；
     // 需要 DOM 的测试在文件头部用 `// @vitest-environment jsdom` 单独声明。
     environment: 'node',
-    include: ['packages/**/test/**/*.test.ts', 'packages/**/test/**/*.test.tsx'],
+    include: [
+      'packages/**/test/**/*.test.ts',
+      'packages/**/test/**/*.test.tsx',
+      // Kindle 壳层的测试：ES5 守卫 + 无框架 DOM 渲染
+      'apps/kindle/test/**/*.test.ts',
+    ],
     testTimeout: 20000,
   },
 })

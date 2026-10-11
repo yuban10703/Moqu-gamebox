@@ -1074,7 +1074,7 @@ X2 首页同时复验：9 款、尺寸单一值 **92×186**、图标在左 ✓�
 | `npm run check:docs` | 一致：12 款游戏、命令与路径均有效 |
 | 单测 | **1251 passed | 1 skipped**（跳过的 1 个是按需套件 `dump-levels`）|
 
-- 接线：`tsconfig.json` paths、`vitest.config.ts` alias、`apps/web/src/library.ts`（3 条登记 + 3 份字典合并）、
+- 接线：`tsconfig.json` paths、`vitest.config.ts` alias、`packages/library/src/index.ts`（3 条登记 + 3 份字典合并；原 `apps/web/src/library.ts` 已移除）、
   `packages/ui/test/games-contract.test.ts` 名单、`packages/ui/src/GameIcon.tsx` 三个自绘字形、`npm install` 建立链接。
 - **修掉一处真实缺陷**：`tools/scripts/explore-data.mjs` 把 `PAGE_URL` 硬编码成 8899，无视 `WEB_URL`
   （其余 4 个套件都尊重）。多工作区并存时它会**静默去测另一个服务** —— 本轮实际踩到：

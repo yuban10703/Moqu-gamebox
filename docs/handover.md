@@ -117,7 +117,8 @@ docs/                  架构、验收、墨水屏规范、刷新适配、真机
 4. 接入（5 处，缺一不可；`npm run check:games` 会逐条核对）：
    - `tsconfig.json` paths 与 `vitest.config.ts` alias 各加一条
    - `npm install`（建立 `node_modules/@eink/<id>` 软链）
-   - `apps/web/src/library.ts`：`defineGame({...})` + 两份字典合并
+   - `packages/library/src/index.ts`：`defineGame({...})` + 两份字典合并
+     （原先在 apps/web/src/library.ts，Kindle 版接入时**已移除**并上移为共享包 —— 两个前端共用一份登记表）
    - `packages/ui/src/GameIcon.tsx` 的 `SHAPES` 加一个 1-bit 字形
    - `packages/ui/test/games-contract.test.ts` 的 `GAMES` 数组加入该游戏
 5. 跑 `npm run verify`（单测 + 5 个探索套件），再上真机 `tools/device/verify-device.sh` 验收。
@@ -293,7 +294,7 @@ app-scope 默认 `FAST`（系统默认，非本项目所致）、存储 `android
 ## 附 B：新增三款（贪吃蛇 / 俄罗斯方块 / 消消乐），9 款 → 12 款（2026-10-04）
 
 - **接入点**（`npm run check:games` 会逐条核对）：`tsconfig.json` paths、`vitest.config.ts` alias、
-  `apps/web/src/library.ts`（登记 3 条 + 合并 3 份中英字典）、`packages/ui/test/games-contract.test.ts` 名单、
+  `packages/library/src/index.ts`（登记 3 条 + 合并 3 份中英字典；原 apps/web/src/library.ts 已移除）、`packages/ui/test/games-contract.test.ts` 名单、
   `packages/ui/src/GameIcon.tsx` 三个自绘字形、`npm install` 生成的三个 workspace 链接。
 - **校验同步**：`docs/handover.md` 检查点与各处「9 款」、探索套件的逐款巡检名单
   （原先只枚举首页**当前页**的方块 —— 新游戏排在最后，等于没验；已改成逐页收集全部标题）。

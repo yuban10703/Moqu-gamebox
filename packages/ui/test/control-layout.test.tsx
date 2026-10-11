@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * 对局页控制区的摆法（用**真实的游戏登记表** apps/web/src/library.ts，守住各游戏的实际配置）：
+ * 对局页控制区的摆法（用**真实的游戏登记表** packages/library/src/index.ts，守住各游戏的实际配置）：
  *
  * - 十字方向盘的四款（推箱子 / 2048 / 贪吃蛇 / 数字华容道）改为倒 T：
  *   撤销 / 重开收进上排两侧，控制区不再另起一行；
@@ -13,7 +13,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { coreDictEn, createMemoryKv } from '@eink/core'
 import { createPlatform } from '@eink/platform'
 import { App } from '../src/App.js'
-import { library } from '../../../apps/web/src/library.js'
+import { library } from '@eink/library'
 
 afterEach(() => {
   cleanup()

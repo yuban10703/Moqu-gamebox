@@ -118,6 +118,13 @@ export const zhCN: Dict = {
   'shell.webview.hint':
     '请更新「Android System WebView」：在应用商店搜索更新；部分设备可在「设置 → 应用管理 → 显示系统应用 → Android System WebView」中更新。',
 
+  /*
+   * Kindle 版专有文案：只有「设备自检页」用到。
+   * 放在 shell.* 下而不是单开命名空间 —— 它仍然属于壳层，不是任何一款玩法的内容。
+   */
+  'shell.kindle.gameCheck': '全部玩法自检',
+  'shell.kindle.runCheck': '跑一遍自检',
+  'shell.kindle.report': '自检报告',
   'shell.diagnostics.title': '诊断',
   'shell.diagnostics.device': '设备',
   'shell.diagnostics.viewport': '视口',

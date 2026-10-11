@@ -1,0 +1,1414 @@
+/**
+ * Kindle 构建的完整样式表（apps/kindle）。
+ *
+ * 为什么单独一份：Kindle 自带浏览器是很老的 WebKit —— 不认自定义属性与其引用、
+ * 不认网格布局、不认容器查询与它的视口相对单位、不认动态视口单位、不认「按父级状态选子元素」
+ * 那类新选择器、不认颜色混合，四则运算函数的兼容性也不可靠，flex 更是没有间距属性。
+ * 本文件因此是**纯传统 CSS**：只用浮动、行内块、表格布局（display:table / table-row /
+ * table-cell）、绝对定位、固定像素与 em 尺寸、边框与线型。目标机上不会白屏、不会错版。
+ *
+ * 与 packages/ui/src/styles.css 的关系：**配套，不是移植**。
+ *   · 那边把棋盘几何算进 CSS（容器查询反算格子），这边由渲染器量好可用宽度、把格子像素
+ *     写进行内样式，CSS 只负责表格骨架、线宽层次与黑白状态；
+ *   · 视觉语言保持一致：纯黑白（绝不用灰度区分状态）、状态靠符号 + 线型 + 线宽表达、
+ *     触摸目标 ≥48px、列表分页不滚动、无动画无过渡（面板约 2 次/秒刷新，动画只留残影）。
+ *
+ * 全文件遵守的约定：
+ *   · 线型层次：主操作＝粗实线反白（黑底白字）；次要＝细实线白底；禁用＝点线；走不通＝虚线；
+ *   · 所有会在对局中反复出现/消失的块（提示、统计、吃子盘、道具格、战斗记录）
+ *     高度恒定，否则棋盘会被顶动 —— 这是真机上最显眼的缺陷，见 docs/eink-guidelines.md；
+ *   · 页面本身不滚动（body overflow: hidden），内容超出由屏幕层分页解决；
+ *   · 间距一律 margin，等分列一律 display:table + table-layout:fixed（老 WebKit 没有
+ *     flex 的间距属性，也不认网格布局）。
+ */
+
+/* ================================================================= 0 基础 */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #000;
+  /* 系统字体 + 中文回退链：Kindle 上没有打包字体，也不该依赖打包字体 */
+  font-family: 'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei',
+    'Heiti SC', sans-serif;
+  font-size: 22px;
+  line-height: 1.45;
+  /* 老移动 WebKit 会自动放大宽块里的文字（字号档位会因此失控），必须关掉 */
+  -webkit-text-size-adjust: 100%;
+  /* 点按高亮是彩色方块，墨水屏上既闪又留残影 */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+/* 页面本身不滚动也不缩放：滚动条在墨水屏上会闪、会残影，翻页交给屏幕层 */
+body {
+  overflow: hidden;
+}
+
+/*
+ * 触摸目标：**所有可点元素至少 48×48px**（规范 8 的下限是 48；Kindle 手指更粗，
+ * 这里不取 44 的下限）。下面每个可点类都显式给出 min-width / min-height，
+ * 且内边距 + 行高本身就撑到 48px 以上 —— 字号档位变化时触摸目标不会缩水。
+ */
+
+/* ================================================================= 1 壳层 */
+
+/*
+ * 壳层：顶栏在最上、页脚**绝对定位**在最下、主内容在中间。
+ * 用绝对定位而不是伸缩盒：老 WebKit 的 flex 不可靠，而「主操作永远在首屏内」是硬要求
+ * （竖屏实测过按钮被内容顶出屏幕）。主内容的下外边距＝页脚预算高度 + 间隙，
+ * 与 .k-footer 的 min-height **必须成对修改**（见文末媒体查询里的页脚预算）。
+ */
+.k-app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+.k-topbar {
+  /* 浮动 + 溢出裁剪：标题在左、操作在右，不需要伸缩盒 */
+  overflow: hidden;
+  padding: 8px 14px;
+  border-bottom: 3px solid #000;
+  background: #fff;
+}
+
+.k-topbar__title {
+  float: left;
+  /* 标题绝不换行：换行会让顶栏长高、把棋盘或列表挤小（真机上实测过） */
+  max-width: 66%;
+  margin: 0;
+  font-size: 1.2em;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.k-topbar__action {
+  float: right;
+  white-space: nowrap;
+}
+
+.k-main {
+  padding: 12px 14px 0 14px;
+  /*
+   * 给绝对定位的页脚让位：数值 = 页脚预算高度(.k-footer 的 min-height) + 间隙 12px，
+   * 两处**必须成对修改**。屏幕层分页时按 .k-main 的实测高度算，不要抄这个数字。
+   */
+  margin-bottom: 168px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.k-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /*
+   * 页脚是**预算栏**：min-height 恒定，翻页与主操作因此总在同一个位置；
+   * 用 min-height 而不是 height —— 万一屏幕层多放了一行按钮，页脚向上长高，
+   * 按钮绝不会被裁掉（主操作不可达是这一页最严重的缺陷）。多出来的高度只可能
+   * 盖住主内容最下面的一条留白，而分页本来就按 .k-main 的实测高度算。
+   */
+  min-height: 156px;
+  padding: 10px 14px;
+  border-top: 3px solid #000;
+  background: #fff;
+  /* 同时兼作浮动包含块（横屏下翻页条与按钮左右并排） */
+  overflow: hidden;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+/* 页脚里的按钮与翻页条：用 margin 排间距（没有 flex 的间距属性可用） */
+.k-footer .k-btn {
+  margin: 0 10px 10px 0;
+}
+
+.k-footer .k-pager {
+  margin: 0 0 8px 0;
+}
+
+/* ================================================================= 2 控件 */
+
+/*
+ * 按钮：白底黑字 + 实线框是默认（次要）样式；主操作反白。
+ * 内边距 12 + 行高 ~26 + 12 + 边框 6 ≈ 56px，天然超过 48px 的触摸下限，
+ * min-height 只是「只有符号的按钮」这类极端情况的兜底。
+ */
+.k-btn {
+  display: inline-block;
+  min-width: 48px;
+  min-height: 48px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  vertical-align: middle;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-border-radius: 3px;
+  border-radius: 3px;
+}
+
+/* 主操作：反白。一块黑底是 1-bit 上最强的「现在按这里」 */
+.k-btn--primary {
+  border-width: 4px;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 次要操作：细实线白底，靠线宽（3px vs 4px）与填充区分主次，不用灰度 */
+.k-btn--ghost {
+  border-width: 2px;
+  background: #fff;
+  color: #000;
+  font-weight: 400;
+}
+
+/*
+ * 禁用：点线框 + 文字降到 #666（#666 只是「次要标签」级别的不负载信息，状态由点线承担）。
+ * 禁用时**文本会变宽**，点线框通常看不出「不可点」，所以菜单里必须同时有不带该类的兄弟项。
+ */
+.k-btn--disabled {
+  border-style: dotted;
+  border-color: #000;
+  color: #666;
+  cursor: default;
+}
+
+/*
+ * 被禁用的主按钮绝不能还是黑底：黑底＝「这是现在该按的那一个」，
+ * 禁用时这个暗示是错的（原先斗地主轮到电脑时「出牌」是一块黑底灰字，看着像能点）。
+ */
+.k-btn--primary.k-btn--disabled {
+  border-width: 3px;
+  background: #fff;
+  color: #666;
+  font-weight: 400;
+}
+
+/* 翻页条：上一页靠左、页码居中、下一页靠右（DOM 顺序：按钮、信息、按钮） */
+.k-pager {
+  overflow: hidden;
+  text-align: center;
+}
+
+.k-pager__btn {
+  display: inline-block;
+  min-width: 110px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.k-pager__btn:first-child {
+  float: left;
+}
+
+.k-pager__btn:last-child {
+  float: right;
+}
+
+/* 页码文字行高与翻页按钮等高，三种元素在同一条基线上 */
+.k-pager__info {
+  display: inline-block;
+  font-size: 0.85em;
+  line-height: 54px;
+  white-space: nowrap;
+}
+
+/*
+ * 提示条：对局中会反复出现/消失，所以**高度有上限**（min 48 / max 96）。
+ * 高度不设上限时，长提示会把棋盘顶下去，墨水屏上整块跳动非常显眼；
+ * 但保存失败这类提示必须说完，因此允许到两行，再由屏幕层负责精简文案。
+ */
+.k-notice {
+  margin: 0 0 10px 0;
+  padding: 10px 12px;
+  min-height: 48px;
+  max-height: 96px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+}
+
+/*
+ * 弹窗：整屏不透明白底（墨水屏做不出半透明，半透明遮罩在 1-bit 上会变成一片花）。
+ * 垂直方向用百分比上外边距定位：老 WebKit 没有可靠的居中手段，
+ * 面板宽度按百分比给，横竖屏都不溢出。
+ */
+.k-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  background: #fff;
+  overflow: hidden;
+}
+
+.k-dialog__panel {
+  width: 84%;
+  max-width: 640px;
+  margin: 8% auto 0 auto;
+  padding: 16px 18px;
+  border: 5px solid #000;
+  background: #fff;
+  color: #000;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-dialog__title {
+  margin: 0 0 12px 0;
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.k-dialog__actions {
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.k-dialog__actions .k-btn {
+  margin: 0 10px 10px 0;
+}
+
+/* ============================================================= 3 列表与信息 */
+
+/*
+ * 游戏库列表：**分页显示，永不滚动**。
+ * 条目高度固定（84px：标题一行 + 次要信息一行），因此「一页放几条」是常量，
+ * 屏幕层按主内容区高度一除即可分页；标题过长走省略号，不会把条目撑高。
+ */
+.k-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.k-list__item {
+  float: left;
+  width: 100%;
+  height: 84px;
+  margin: 0 0 10px 0;
+  padding: 10px 12px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 当前选中/正在进行的条目：整块反白（1-bit 上最强的区分） */
+.k-list__item--selected {
+  border-width: 5px;
+  background: #000;
+  color: #fff;
+}
+
+.k-list__title {
+  display: block;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.k-list__meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8em;
+  line-height: 1.25;
+  /* 次要信息用 #666（不负载状态，只是视觉权重更低） */
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 反白条目里的次要信息必须一起翻白，否则黑底上的深灰等于看不见 */
+.k-list__item--selected .k-list__meta {
+  color: #fff;
+}
+
+/*
+ * 统计条：横排小格。内边距与行高钉死，**数值变宽也不会换行**，
+ * 因此统计条高度恒定、棋盘不会被数字变长顶动（真机上踩过这个坑）。
+ */
+.k-stats {
+  margin: 0 0 8px 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.k-stat {
+  float: left;
+  /* 高度写死（不是 min-height）：数值位数变化时统计条高度必须一模一样 */
+  height: 48px;
+  margin: 0 8px 8px 0;
+  padding: 8px 12px;
+  border: 2px solid #000;
+  background: #fff;
+  line-height: 1.2;
+  white-space: nowrap;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-stat__label {
+  margin-right: 6px;
+  font-size: 0.8em;
+  color: #666;
+}
+
+.k-stat__value {
+  font-weight: 700;
+}
+
+/* 区块：上方一条粗线就是分隔（1-bit 上没有背景色差可用） */
+.k-section {
+  margin: 0 0 12px 0;
+  padding-top: 10px;
+  border-top: 3px solid #000;
+}
+
+.k-section__title {
+  margin: 0 0 8px 0;
+  font-size: 1.1em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* 徽标：保存状态这类极短信息。成功＝实线，失败＝虚线 + 加粗，不靠颜色 */
+.k-badge {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.8em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.k-badge--saved {
+  border-style: solid;
+}
+
+.k-badge--failed {
+  border-style: dashed;
+  font-weight: 700;
+}
+
+/* ================================================================= 4 棋盘 */
+
+/*
+ * 棋盘（渲染器给出的是一张真正的 <table>）。
+ *
+ * 为什么用表格：老 WebKit 没有网格布局，等宽等高的二维格子只能用表格表达，
+ * 而且表格的边框塌陷规则正好对得上「格子线 / 分组线 / 外框」三层线宽。
+ *
+ * 用**分离边框**（border-collapse: separate + 0 间距）而不是塌陷边框：
+ * 塌陷模型下相邻两格共用一条边，合并态（--merge-right / --merge-bottom）想「擦掉」这条边
+ * 就必须把邻格也一起改，而契约里只有当前格的类；分离模型下每条边归属明确，
+ * 把本格右边框设为 none 就真的没有线了。
+ *
+ * 每格只画右边框与下边框 + 表格自身 5px 外框 = 完整网格；
+ * 最后一列/最后一行的格子去掉自画的边，避免与外框叠成双线。
+ */
+.k-board {
+  margin: 0 auto;
+  border: 5px solid #000;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  table-layout: fixed;
+}
+
+.k-board__cell {
+  /* 默认格子 56px：渲染器按实测宽度写行内尺寸（行内样式优先），这里只是兜底 */
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+  /* 边框算进格子尺寸：否则每格多出 1px，棋盘比渲染器算的宽高多一圈 */
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-board__cell:last-child {
+  border-right: none;
+}
+
+.k-board tr:last-child .k-board__cell {
+  border-bottom: none;
+}
+
+/* 分组分隔（例如数独 3×3 宫）：5px，与外框同宽，比格子线粗一档 */
+.k-board__cell--group-left {
+  border-left: 5px solid #000;
+}
+
+.k-board__cell--group-top {
+  border-top: 5px solid #000;
+}
+
+/*
+ * 第一行/第一列上的分组线没有分隔意义，只会与外框叠成一条 10px 的黑边。
+ * 两条规则分开写：合在一起会把「第一行里合法的左分组线」一起抹掉。
+ * 分组线加粗不会改变格子外廓（border-box），因此整块棋盘不会移位，只有格内文字移 2~3px。
+ */
+.k-board__cell:first-child.k-board__cell--group-left {
+  border-left: none;
+}
+
+.k-board tr:first-child .k-board__cell--group-top {
+  border-top: none;
+}
+
+/* 合并（一个棋子占多格）：本格与右邻/下邻之间不再画线 */
+.k-board__cell--merge-right {
+  border-right: none;
+}
+
+.k-board__cell--merge-bottom {
+  border-bottom: none;
+}
+
+/*
+ * 反色格：刚发生变化、或即将被消除的一拍。整格反白是 1-bit 上最醒目的一档。
+ * 选中格也是反白，靠「有没有一圈白色内框」区分两种状态 —— 只用一个信号
+ * （都是黑底）会分不清「我选的」与「刚变的」。
+ */
+.k-board__cell--flash {
+  background: #000;
+  color: #fff;
+}
+
+.k-board__cell--selected {
+  background: #000;
+  color: #fff;
+  -webkit-box-shadow: inset 0 0 0 4px #fff;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+
+.k-board__glyph {
+  display: inline-block;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/*
+ * 横幅文字（比一格宽的那种，例如「消行 +100」）：老 WebKit 里 td 上的相对定位不可靠，
+ * 所以**不做绝对定位覆盖**，改为字块自己带白底黑框、并抬高绘制层次（z-index）。
+ * 这样它压在邻格之上仍然读得清，也不会因为定位基准漂移而错位。
+ */
+.k-board__banner {
+  position: relative;
+  z-index: 5;
+  display: inline-block;
+  padding: 0 6px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 落子痕迹小圆点：空心圆环，与实心字形区分；反白格上自动翻成实心白点 */
+.k-board__mark {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+  border: 3px solid #000;
+  background: #fff;
+  vertical-align: middle;
+  -webkit-border-radius: 50%;
+  border-radius: 50%;
+}
+
+.k-board__cell--flash .k-board__mark,
+.k-board__cell--selected .k-board__mark {
+  border-color: #fff;
+  background: #000;
+}
+
+/*
+ * 错标（填错/走错的叉）：老 WebKit 不能在 td 上可靠地叠一层覆盖层，
+ * 因此做成格内的反白小徽章，与字形并排 —— 信息不丢，且不依赖覆盖层的定位基准。
+ * 尺寸受控（不足一格高），不会把格子撑高。
+ */
+.k-board__wrong {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.k-board__cell--flash .k-board__wrong,
+.k-board__cell--selected .k-board__wrong {
+  border-color: #fff;
+  background: #000;
+  color: #fff;
+}
+
+/*
+ * 线索带（数织）：行线索左对齐成一列、列线索横向排开。
+ * 每格的具体宽高由渲染器按棋盘格子算好写进行内样式，这里只管排列方式与字号层级
+ * （线索是配角，字号必须明显小于格子里的数字）。
+ */
+.k-board__clues {
+  margin: 0 auto 6px auto;
+  font-size: 0.7em;
+  line-height: 1.1;
+  overflow: hidden;
+}
+
+.k-board__clue-row {
+  float: left;
+  clear: left;
+  width: 100%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.k-board__clue-col {
+  float: left;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/*
+ * 吃子盘：棋盘外侧一行「已被吃掉的棋子」。
+ * 高度固定（空着也占位）—— 第一次吃子时棋盘会缩一下，布局跳动比留白更糟。
+ * 上下两架底色相反（上方白底黑字、下方黑底白字），1-bit 上不靠灰度区分两侧。
+ */
+.k-captured {
+  display: block;
+  height: 48px;
+  padding: 0 10px;
+  border: 3px solid #000;
+  font-size: 0.95em;
+  line-height: 42px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-captured--top {
+  margin: 0 0 6px 0;
+  background: #fff;
+  color: #000;
+}
+
+.k-captured--bottom {
+  margin: 6px 0 0 0;
+  background: #000;
+  color: #fff;
+}
+
+/* ================================================================= 5 牌桌 */
+
+/* 手牌：一行浮动的牌，超出部分裁掉（屏幕层按可用宽度决定发几张进这一屏） */
+.k-cards {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 手牌比牌堆里的牌大一档：这是玩家点得最多的一排，字号与触摸面积都要够 */
+.k-cards .k-card {
+  width: 76px;
+  height: 106px;
+  font-size: 1em;
+}
+
+/*
+ * 一张牌：白底黑框、圆角，左上角竖排「点数 + 花色」，中间放花色符号。
+ * box-sizing: border-box 是关键 —— 选中时把边框加粗一档，牌的外廓不变，
+ * 一排牌不会因此互相挤动。
+ * 默认尺寸是**牌堆/座位里的小牌**（64×90，一列七堆也放得下）；手牌由 .k-cards 放大。
+ */
+.k-card {
+  position: relative;
+  float: left;
+  width: 64px;
+  height: 90px;
+  margin: 0 8px 8px 0;
+  padding: 4px;
+  border: 3px solid #000;
+  background-color: #fff;
+  color: #000;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-border-radius: 4px;
+  border-radius: 4px;
+}
+
+/*
+ * 牌背：45° 黑白斜纹（1-bit 抖动纹理，不是灰度渐变）。
+ * 先给 background-color: #000 兜底：万一引擎不认重复线性渐变，
+ * 牌背仍是一块纯黑，与正面的白底牌依然完全可分。
+ */
+.k-card--down {
+  background-color: #000;
+  background-image: -webkit-repeating-linear-gradient(
+    45deg,
+    #000,
+    #000 2px,
+    #fff 2px,
+    #fff 7px
+  );
+  background-image: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 7px);
+  color: #fff;
+}
+
+/* 选中的牌：抬高（相对定位不参与布局，邻牌不动）+ 边框加粗一倍 */
+.k-card--selected {
+  top: -10px;
+  border-width: 6px;
+}
+
+.k-card__rank {
+  display: block;
+  font-size: 0.95em;
+  line-height: 1.1;
+}
+
+.k-card__suit {
+  display: block;
+  font-size: 0.85em;
+  line-height: 1.1;
+}
+
+.k-card__center {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.6em;
+  line-height: 1;
+  text-align: center;
+}
+
+/*
+ * 牌堆：等宽一列一列并排 —— 用 display:table + table-layout:fixed 做等分，
+ * 这是老 WebKit 里唯一可靠的等分手段（没有网格布局，浮动的等分要靠百分比硬凑）。
+ * 堆间缝用 border-spacing（表格的间距属性），它才是这一层的「间距」。
+ */
+.k-piles {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 8px 0;
+  margin: 0 0 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-pile {
+  display: table-cell;
+  vertical-align: top;
+  padding: 4px 6px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  text-align: center;
+  -webkit-border-radius: 4px;
+  border-radius: 4px;
+}
+
+/* 堆里的浮动牌不计入单元格高度，用一个清除浮动的伪元素把高度撑回来 */
+.k-pile:after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
+/* 空堆：虚线框（1-bit 上「这里是个空位」靠线型说，不靠灰） */
+.k-pile--empty {
+  border-style: dashed;
+}
+
+/* 选中的堆（正在等目标）：外框加粗 + 堆名反白，两个信号都靠黑白 */
+.k-pile--selected {
+  border-width: 5px;
+}
+
+.k-pile--selected .k-pile__label {
+  background: #000;
+  color: #fff;
+}
+
+.k-pile__label {
+  display: block;
+  margin: 0 0 4px 0;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 横排堆（抽牌堆/弃牌堆/基础堆）：牌横向叠压，每张露出左边一截 */
+.k-pile--row .k-card {
+  float: left;
+  margin: 0 0 0 -38px;
+}
+
+.k-pile--row .k-card:first-child {
+  margin-left: 0;
+}
+
+/* 竖排牌列：牌上下叠压，靠负的上外边距，用 auto 左右外边距在窄列里居中 */
+.k-pile--stack .k-card {
+  display: block;
+  float: none;
+  margin: -64px auto 0 auto;
+}
+
+.k-pile--stack .k-card:first-child {
+  margin-top: 0;
+}
+
+/* 座位（斗地主这类多人牌桌）：名字 / 剩余张数 / 已出的牌 / 文字状态 */
+.k-seat {
+  float: left;
+  width: 100%;
+  margin: 0 0 10px 0;
+  padding: 6px 10px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-border-radius: 4px;
+  border-radius: 4px;
+}
+
+/* 轮到谁：边框加粗一档（线宽表达状态，不用灰度） */
+.k-seat--active {
+  border-width: 6px;
+}
+
+.k-seat__name {
+  display: block;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 剩余张数：细线小胶囊 */
+.k-seat__count {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 10px;
+  border: 2px solid #000;
+  font-size: 0.8em;
+  line-height: 1.5;
+  white-space: nowrap;
+  -webkit-border-radius: 999px;
+  border-radius: 999px;
+}
+
+/*
+ * 已出的牌：给一个固定下限，出牌前后座位高度尽量不变。
+ * 用 min-height 而不是 height：默认小牌 90px + 下外边距 8px 正好落在 100px 内，
+ * 万一渲染器发了更大的牌，座位就长高，牌不会被裁掉半张。
+ */
+.k-seat__played {
+  display: block;
+  clear: both;
+  min-height: 100px;
+  margin-top: 6px;
+}
+
+.k-seat__status {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.85em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* =========================================================== 6 对决面板 */
+
+.k-duel {
+  margin: 0;
+  padding: 0;
+}
+
+/* 一家：一块框，轮流行动时框加粗（线宽，不用灰度） */
+.k-duel__side {
+  margin: 0 0 10px 0;
+  padding: 6px 10px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  overflow: hidden;
+  -webkit-border-radius: 4px;
+  border-radius: 4px;
+}
+
+.k-duel__side--active {
+  border-width: 6px;
+}
+
+.k-duel__name {
+  display: block;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 血量：实心块＝还有血、空心块＝已失去。实心/空心是 1-bit 上最清楚的对比 */
+.k-duel__hp {
+  display: block;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.k-duel__hp-full,
+.k-duel__hp-empty {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  margin: 0 4px 0 0;
+  border: 3px solid #000;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: middle;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-duel__hp-full {
+  background: #000;
+  color: #fff;
+}
+
+.k-duel__hp-empty {
+  background: #fff;
+  color: #000;
+}
+
+/*
+ * 道具槽：等分一排，**格子数恒定**（8 格上限），因此行高不随道具增减变化，
+ * 下方的战斗记录与开火按钮不会被顶动。等分同样靠 display:table + 固定表格布局。
+ */
+.k-duel__items {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 6px 0;
+  margin: 8px 0 0 0;
+}
+
+.k-duel__item {
+  display: table-cell;
+  height: 48px;
+  padding: 0 2px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-border-radius: 3px;
+  border-radius: 3px;
+}
+
+/* 新拿到的道具：反白（与「点线＝不能用」区分开，两者可能同时出现） */
+.k-duel__item--fresh {
+  background: #000;
+  color: #fff;
+}
+
+/* 现在不能用/不属于你：点线框（与禁用按钮同一套线型） */
+.k-duel__item--locked {
+  border-style: dotted;
+  color: #666;
+}
+
+/*
+ * 弹仓：一发发子弹横排。子弹数量与尺寸都固定，仓高因此恒定 ——
+ * min-height 只是「空仓」时也占住同样的高度，装填/退弹不会顶动下面的记录。
+ */
+.k-duel__chamber {
+  min-height: 56px;
+  margin: 8px 0;
+  padding: 4px 6px;
+  border: 3px solid #000;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+.k-duel__token {
+  display: inline-block;
+  width: 24px;
+  height: 46px;
+  margin: 2px 4px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 40px;
+  text-align: center;
+  vertical-align: middle;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-border-radius: 5px 5px 2px 2px;
+  border-radius: 5px 5px 2px 2px;
+}
+
+/*
+ * 战斗记录：**不滚动**（老 WebKit 的滚动条在墨水屏上又闪又残影），
+ * 只显示最新几条，超出部分裁掉；保留几条由屏幕层决定。
+ */
+.k-duel__log {
+  max-height: 176px;
+  margin: 0 0 8px 0;
+  padding: 6px 10px;
+  border: 3px solid #000;
+  font-size: 0.8em;
+  line-height: 1.4;
+  overflow: hidden;
+}
+
+.k-duel__caption {
+  margin: 6px 0;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.k-duel__tags {
+  margin: 0 0 8px 0;
+  overflow: hidden;
+}
+
+.k-duel__tag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 8px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/*
+ * 开火：整块大的可点区域。已知弹种时给出确定性提示 ——
+ * 实弹＝反白（危险），空包＝虚线框白底（安全），两者在 1-bit 上不会看错。
+ */
+.k-duel__fire {
+  display: block;
+  min-height: 72px;
+  margin: 0;
+  padding: 20px 14px;
+  border: 4px solid #000;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-size: 1.05em;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.k-duel__fire--live {
+  background: #000;
+  color: #fff;
+}
+
+.k-duel__fire--blank {
+  border-style: dashed;
+  background: #fff;
+  color: #000;
+}
+
+/* =============================================================== 7 控制区 */
+
+/*
+ * 控制区：横屏一行（方向盘靠左、操作靠右），竖屏上下两段都居中。
+ * 横竖屏的差异放在文末的媒体查询里，这里只写共同部分。
+ */
+.k-controls {
+  margin: 0;
+  padding: 10px 0 0 0;
+  overflow: hidden;
+}
+
+.k-controls__actions {
+  overflow: hidden;
+}
+
+/* 操作按钮一排：用 margin 排间距（老 WebKit 没有 flex 的间距属性） */
+.k-controls__actions .k-btn,
+.k-controls__row .k-btn {
+  margin: 0 10px 10px 0;
+}
+
+.k-controls__row {
+  margin: 0;
+  overflow: hidden;
+}
+
+/* 方向盘容器：本身只负责包住浮动的键（摆法见下面的两种修饰类） */
+.k-dpad {
+  margin: 0;
+  overflow: hidden;
+}
+
+/* 方向盘所在的一栏：横屏靠左、竖屏居中，两种情况都要包住内部浮动 */
+.k-controls__pad {
+  margin: 0;
+  overflow: hidden;
+}
+
+/*
+ * 方向盘按钮：≥72px，远高于 48px 触摸下限 —— 方向键要能盲按，手指落点没得商量。
+ * 尺寸靠内边距撑出来（不是靠 min-height 拉高），文字因此始终垂直居中。
+ */
+.k-dpad__btn {
+  display: inline-block;
+  min-width: 72px;
+  min-height: 72px;
+  margin: 0 8px 8px 0;
+  padding: 22px 8px;
+  border: 3px solid #000;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-size: 1.1em;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  vertical-align: middle;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-border-radius: 4px;
+  border-radius: 4px;
+}
+
+/* 这一方向现在走不通：虚线框，仍然可点（点了给文字反馈，不静默吞输入） */
+.k-dpad__btn--muted {
+  border-style: dashed;
+  color: #666;
+}
+
+/* 平铺摆法（上/下不是空间方向的玩法）：四个键等分一行，顺序无关 */
+.k-dpad--row {
+  display: table;
+  width: 100%;
+  max-width: 560px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 10px 0;
+  margin: 0 auto;
+}
+
+.k-dpad--row .k-dpad__btn {
+  display: table-cell;
+  width: 25%;
+  margin: 0;
+  padding: 22px 4px;
+}
+
+/*
+ * 倒 T 摆法：上排中间是「上」，下排「左、下、右」（与键盘方向键同位置）。
+ * 老 WebKit 没有网格区域，只能按 DOM 次序摆位，因此**依赖顺序：上、左、下、右**
+ * （与内核 DpadLayout 的声明顺序一致）；屏幕层若换顺序，下面三条 nth-child 要同步改。
+ * 三列宽度用百分比凑：32% × 3 + 2% 右外边距 × 2 = 100%。
+ */
+.k-dpad--tee {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.k-dpad--tee .k-dpad__btn {
+  float: left;
+  width: 32%;
+  margin: 0 2% 10px 0;
+}
+
+/* 1 上：第一行居中（左外边距 34% 把 32% 宽的键推到中间） */
+.k-dpad--tee .k-dpad__btn:first-child {
+  margin-left: 34%;
+}
+
+/* 2 左：换行（清除浮动），回到第一列 */
+.k-dpad--tee .k-dpad__btn:nth-child(2) {
+  clear: left;
+  margin-left: 0;
+}
+
+/* 4 右：行尾，不留右外边距 */
+.k-dpad--tee .k-dpad__btn:nth-child(4) {
+  margin-right: 0;
+}
+
+/* ======================================================= 8 屏幕适配 */
+
+/*
+ * 六寸 300ppi 面板：竖屏约 600~800、横屏约 980~1100（CSS 像素）。
+ * 同一个物理尺寸下，CSS 像素越多字就要越大，所以根字号按视口宽度分档；
+ * 触摸目标一律用 px 写死（不随字号缩水），只有文字用 em 跟随根字号。
+ * 页脚高度与主内容的下外边距是**成对的预算**：改一处必须同时改另一处。
+ */
+
+/* 竖屏（含宽屏竖屏）：单列列表、控制区上下两段居中 */
+@media (orientation: portrait) {
+  .k-list__item {
+    width: 100%;
+    margin: 0 0 10px 0;
+  }
+
+  .k-controls__pad {
+    margin: 0 auto;
+  }
+
+  .k-controls__actions {
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  .k-controls__actions .k-btn,
+  .k-controls__row .k-btn {
+    margin: 0 5px 10px 5px;
+  }
+}
+
+/* 横屏且够宽：列表两列、控制区左右并排、页脚更矮（横屏缺的是高度） */
+@media (min-width: 880px) and (orientation: landscape) {
+  html,
+  body {
+    /* 横屏视口更宽：同样物理尺寸下 px 要更大才看得清 */
+    font-size: 24px;
+  }
+
+  .k-list__item {
+    float: left;
+    width: 48%;
+    margin: 0 1% 10px 1%;
+  }
+
+  /* 每一行的第一张卡清除浮动，两列因此整齐对齐 */
+  .k-list__item:nth-child(2n + 1) {
+    clear: left;
+  }
+
+  .k-controls__pad {
+    float: left;
+  }
+
+  .k-controls__actions {
+    float: right;
+    text-align: right;
+  }
+
+  /*
+   * 横屏缺的是高度：页脚改成**一行** —— 翻页条靠左浮动、按钮跟在它右侧，
+   * 于是页脚预算从两行（约 131px）降到一行（约 77px）。
+   */
+  .k-footer {
+    min-height: 100px;
+  }
+
+  .k-footer .k-pager {
+    float: left;
+    width: 52%;
+    margin: 0 10px 10px 0;
+  }
+
+  .k-footer .k-btn {
+    float: left;
+  }
+
+  .k-main {
+    margin-bottom: 112px;
+  }
+}
+
+/* 窄屏（约 600~720）：字号与内边距各收一档，别让一行只放得下十来个字 */
+@media (max-width: 720px) {
+  html,
+  body {
+    font-size: 20px;
+  }
+
+  .k-main {
+    padding: 10px 10px 0 10px;
+    margin-bottom: 176px;
+  }
+
+  .k-topbar {
+    padding: 6px 10px;
+  }
+
+  .k-topbar__title {
+    max-width: 60%;
+  }
+
+  .k-footer {
+    min-height: 164px;
+    padding: 8px 10px;
+  }
+
+  .k-list__item {
+    height: 80px;
+  }
+}
+
+/* 极矮横屏：顶栏与页脚再收一档，把高度让给棋盘与列表 */
+@media (orientation: landscape) and (max-height: 560px) {
+  .k-topbar {
+    padding: 4px 10px;
+  }
+
+  .k-topbar__title {
+    font-size: 1.05em;
+  }
+
+  .k-main {
+    padding: 6px 10px 0 10px;
+    margin-bottom: 108px;
+  }
+
+  .k-footer {
+    min-height: 96px;
+    padding: 6px 10px;
+  }
+
+  /* 这一档高度最紧：页脚里的按钮与翻页键收到 48px 触摸下限，正好排得进预算 */
+  .k-footer .k-btn,
+  .k-footer .k-pager__btn {
+    padding: 8px 10px;
+    line-height: 1.15;
+  }
+
+  .k-stat {
+    height: 44px;
+    padding: 6px 10px;
+  }
+
+  .k-captured {
+    height: 40px;
+    line-height: 34px;
+  }
+
+  .k-dpad__btn {
+    min-height: 48px;
+    padding: 10px 6px;
+  }
+}

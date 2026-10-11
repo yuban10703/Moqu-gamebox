@@ -1,0 +1,100 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "lib": [
+      "ES5",
+      "DOM",
+      "ES2015.Core",
+      "ES2015.Iterable",
+      "ES2015.Collection",
+      "ES2015.Promise",
+      "ES2016.Array.Include",
+      "ES2017.String",
+      "ES2017.Object",
+      "ES2019.Array",
+      "ES2022.Array"
+    ],
+    "module": "AMD",
+    "outFile": "./dist/kindle.js",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "noEmitOnError": false,
+    "baseUrl": "../..",
+    "paths": {
+      "@eink/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@eink/ui": [
+        "packages/ui/src/registry.ts"
+      ],
+      "@eink/sokoban": [
+        "packages/games/sokoban/src/index.ts"
+      ],
+      "@eink/2048": [
+        "packages/games/2048/src/index.ts"
+      ],
+      "@eink/buckshot": [
+        "packages/games/buckshot/src/index.ts"
+      ],
+      "@eink/chess": [
+        "packages/games/chess/src/index.ts"
+      ],
+      "@eink/doudizhu": [
+        "packages/games/doudizhu/src/index.ts"
+      ],
+      "@eink/fifteen": [
+        "packages/games/fifteen/src/index.ts"
+      ],
+      "@eink/gomoku": [
+        "packages/games/gomoku/src/index.ts"
+      ],
+      "@eink/klondike": [
+        "packages/games/klondike/src/index.ts"
+      ],
+      "@eink/klotski": [
+        "packages/games/klotski/src/index.ts"
+      ],
+      "@eink/lightsout": [
+        "packages/games/lightsout/src/index.ts"
+      ],
+      "@eink/match3": [
+        "packages/games/match3/src/index.ts"
+      ],
+      "@eink/memory": [
+        "packages/games/memory/src/index.ts"
+      ],
+      "@eink/minesweeper": [
+        "packages/games/minesweeper/src/index.ts"
+      ],
+      "@eink/nonogram": [
+        "packages/games/nonogram/src/index.ts"
+      ],
+      "@eink/reversi": [
+        "packages/games/reversi/src/index.ts"
+      ],
+      "@eink/snake": [
+        "packages/games/snake/src/index.ts"
+      ],
+      "@eink/sudoku": [
+        "packages/games/sudoku/src/index.ts"
+      ],
+      "@eink/tetris": [
+        "packages/games/tetris/src/index.ts"
+      ],
+      "@eink/tictactoe": [
+        "packages/games/tictactoe/src/index.ts"
+      ],
+      "@eink/xiangqi": [
+        "packages/games/xiangqi/src/index.ts"
+      ],
+      "@eink/library": [
+        "packages/library/src/index.ts"
+      ]
+    }
+  },
+  "files": [
+    "src/boot.ts"
+  ]
+}

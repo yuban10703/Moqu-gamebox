@@ -60,7 +60,7 @@ interface GameDef<S, A> {
 
 ## 3. 注册（除游戏包外还要在 5 处登记，清单见 `tools/scripts/check-games.mjs`）
 
-`apps/web/src/library.ts`：
+`packages/library/src/index.ts`（原 `apps/web/src/library.ts`，已移除）：
 
 ```ts
 export const library: GameLibrary = {

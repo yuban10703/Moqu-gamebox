@@ -1,0 +1,251 @@
+# Kindle 版（兼容优先的第二套壳层）
+
+给 **Kindle 自带浏览器**（老 WebKit）用的墨趣。与 Web/Android 版共用同一份游戏逻辑，
+壳层是重写的：没有 React、没有构建期模块系统、没有 CSS 变量与 grid。
+
+> 目标设备：Kindle Paperwhite 6（KPW6）一类**封闭、老引擎**的阅读器。
+> 它装不了我们的 APK，只能用自带浏览器打开一个网页 —— 这就是这一版存在的全部理由。
+
+## 为什么是"第二套壳层"而不是"再降级一次 Web 版"
+
+`docs/A01-device-baseline.md` 里记着之前的结论：**明确不支持 Kindle 自带浏览器**。
+当时的理由是实测出来的，不是猜的：
+
+- 它不认 `<script type="module">`，模块脚本被整段忽略 → `#root` 永远为空 → **白屏**；
+- 它没有 CSS 变量与 grid，而 `packages/ui/src/styles.css` 里有约 190 处 `var(--)`、10 处 `display:grid`；
+- 主界面排版的主骨架是**容器查询单位**（`cqw/cqh`，79 处）—— 那是 Chromium 105 起步的能力，
+  在老 WebKit 上不是"样式差一点"，而是"整屏没有尺寸依据"。
+
+也就是说，把 Web 版"降级"是行不通的：需要换的不是语法，是**布局手段与渲染方式**。
+所以 Kindle 版是独立的一条构建线，产物在 `apps/kindle/dist/`。
+
+## 架构：逻辑全复用，壳层全重写
+
+```
+packages/core          ─┐
+packages/games/*（20）  ├─ 原样复用（纯 TS，无 DOM/React 依赖）
+packages/library        ─┘   20 款玩法的登记表（Web 与 Kindle 共用同一份）
+                              ↓
+apps/kindle/src/            新壳层（ES5 目标）
+  dom.ts                    极简 DOM 工具（建节点 + textContent，不拼 innerHTML）
+  store.ts                  localStorage + core 的信封格式
+  session.ts                会话状态机（对齐 packages/ui/src/session.ts 的语义）
+  render/board.ts           棋盘渲染（BoardView → <table> + 内联 SVG）
+  render/cards.ts           牌桌渲染（斗地主 / 空当接龙）
+  render/duel.ts            对决面板渲染（恶魔轮盘赌）
+  render/controls.ts        方向键 + 动作按钮
+  screens/*                 库 / 详情 / 对局 / 设置 / 关于 / 诊断
+  app.ts                    路由（自维护栈，物理返回键走它）
+  boot.ts                   入口：能力闸 → i18n → 挂载
+```
+
+关键点：**玩法一行都没改**。`packages/core` 与 20 个 `packages/games/*` 里没有任何
+DOM、React、WebView 依赖，`GameDef.view()` 产出的是**与呈现技术无关**的展示模型
+（见 `packages/core/src/types.ts` 的文件头注释）。所以换壳层不动规则，20 款玩法的测试
+与真机验收结论全部继续有效。
+
+`packages/library` 是从 `apps/web/src/library.ts` **移出来**的（原路径**已移除**）：现在两个前端共用一份登记表，
+再加游戏只需要改一处（`tools/scripts/check-games.mjs` 这道守卫也已指向新位置）。
+
+## 工具链：为什么绕开 Vite
+
+Vite 8 的打包器是 rolldown。实测（本仓库当前版本）：
+
+```
+$ node -e "require('rolldown').build({transform:{target:'es5'}})"
+Error: [BUNDLER_INITIALIZE_ERROR] Invalid target 'es5'.
+  Rolldown only supports ES2015 (ES6) and later.
+```
+
+也就是说，**整条 Vite 线无法产出 ES5**。而 `tsc` 可以：
+`--target ES5` 会把 `async/await`、`class`、迭代、解构、可选链全部降级，
+并内联 `__awaiter` / `__generator` / `__values` 等运行时辅助函数。
+
+于是 Kindle 线的构建是：
+
+```
+tsc --target ES5 --module AMD --outFile dist/kindle.js
+      （core + 20 款玩法 + 新壳层，一次编译成一个文件）
+        ↓
+public/polyfills.js   ES2015+ 的**运行时方法**补齐
+public/amd-shim.js    60 行的 AMD 执行器（tsc 的 AMD 产物靠它跑起来）
+        ↓
+tools/scripts/build-kindle.mjs  复制资源 → ES5 守卫 → 体积报告
+```
+
+`module: AMD` 的选择理由：`tsc` 只有配 `outFile` 才能把多文件合成一份，
+而 `outFile` 只支持 `amd` 与 `system` 两种模块格式。AMD 的 `define(name, deps, factory)`
+用一个极小的执行器就能跑，且**产物本身仍是纯 ES5**。
+
+### 语法与 API 是两件事
+
+`tsc --target ES5` 只降**语法**，不补 **API**。所以产物的运行还依赖 `polyfills.js`
+补齐的那些方法。这份清单不是猜的 —— 是把 `packages/core`、`packages/games/*`、
+`packages/library`、`apps/kindle/src` 全量扫过一遍、统计实际调用点之后列出来的：
+
+| 方法 | 规范版本 | 共用代码里的调用点数 |
+|---|---|---|
+| `Array.prototype.includes` | ES2016 | 106 |
+| `Number.isInteger` / `isFinite` | ES2015 | 80+ |
+| `Object.entries` / `values` / `fromEntries` | ES2017 / ES2019 | 5 |
+| `String.prototype.startsWith` | ES2015 | 4 |
+| `Array.prototype.flatMap` / `flat` | ES2019 | 2 |
+| `Array.prototype.at` | ES2022 | 1 |
+| `String.prototype.repeat` / `padStart` / `codePointAt` | ES2015 / ES2017 | 各 1 |
+| `Number.parseInt` | ES2015 | 1 |
+
+另外还补了 `Promise`、`Symbol`、`Set`、`Map`、`Object.assign`、`Array.from`、
+`Array.prototype.find/findIndex`、`classList`，以及 —— 容易被漏掉的一个 ——
+**`Array.prototype[Symbol.iterator]`**：`tsc` 的 `--downlevelIteration` 产物
+（`__values` / `__read` / `__spreadArray`）会读这个键，而老引擎的数组上没有它。
+
+`tsconfig.json` 的 `lib` 里**只声明确实补过**的那几个（`ES2016.Array.Include`、
+`ES2017.String`、`ES2017.Object`、`ES2019.Array`、`ES2022.Array` 等）——
+类型层放行、运行时缺失是最难查的一类问题，不允许出现。
+
+## 布局手段：没有变量 / grid / container query 之后剩下的东西
+
+| 现代做法（Web 版） | Kindle 版的做法 |
+|---|---|
+| `display:grid` 摆棋盘 | `<table>` + `table-layout:fixed`（等宽等高、无缝隙、不错行） |
+| 容器查询 `cqw/cqh` 算格子边长 | **JS 算成像素**：`computeCellSize(cols, rows, width, height)`，取宽高两种约束的较小值，钳在 24–96px |
+| CSS 变量传尺寸 | 内联 `style` 属性（`getAttribute('style')` 累加） |
+| 现代 flex + `gap` | `float` / `display:inline-block` / `display:table-cell` + `margin` |
+| `calc()` | 全部预先在 JS 里算好 |
+| 覆盖层放整盘文字 | **一律按格渲染**（覆盖层与网格是两套坐标系，历史上真机整体错过位） |
+
+1-bit 的呈现规则与 Web 版一致：**形状、线宽、反白**区分状态，绝不用灰度；
+`flash` 反白、`banner` 横幅、`wrong` 覆盖叉、`lastFrom` 圆点、`lastTo` 内框、
+`disc` 圆片、`groups` 加粗分组线，都按 `packages/ui/src/components.tsx` 的几何原样搬过来。
+
+## 存档：格式相同，协议简化（这一点必须说清楚）
+
+**相同的部分**：信封就是 `packages/core/src/save.ts` 的 `SaveEnvelopeV1`
+（`schema/gameId/rulesVersion/contentVersion/difficulty/seed/state/moves/session/progress/updatedAt/commitId/checksum`），
+键名是 `moqu:1:save:<gameId>`。也就是说 **Kindle 的存档可以导到 Web/Android 上继续**，
+反之亦然（设置页有导出按钮，出来的是一段 JSON）。
+
+**不同的部分**：Kindle 版**没有** pending/committed 两阶段提交与 CAS。
+那套协议解决的是「多标签页 / 多端并发写，绝不静默覆盖别人刚写的进度」，
+而 Kindle 浏览器是单进程单标签，`localStorage.setItem` 对单键本身就是原子的。
+代价是：
+
+- 并发写不会被告警（在 Kindle 上造不出这个场景）；
+- 写入失败（配额满、隐私模式）降级为「本局可玩但不落盘」，并在界面上明确提示
+  （`shell.storage.failed`），不假装保存成功；
+- **坏档绝不静默覆盖**：读不出来时保留原始记录、提示用户，并从新局开始（与 Web 版同一口径）。
+
+## 设备能力：**本仓库没有 KPW6 实测数据**
+
+这一点必须直说，不能含糊：
+
+- 本仓库的实测基线只有两台 BOOX（Chromium 146 / 156，见 `docs/A01-device-baseline.md`）；
+- **没有任何一台 Kindle 上的实测记录**。KPW6 固件版本、引擎版本、可用 API 都**未经验证**；
+- 因此 Kindle 版的目标基线取的是**最保守的一档**：纯 ES5 语法 + 无变量/无 grid 的 CSS +
+  XHR/localStorage。这是"能在很老的 WebKit 上跑"的写法；如果 KPW6 的引擎其实很新，
+  这套写法**照样能跑**（ES5 是子集），只是没有用到新能力而已。
+- 你的需求说明里那句「以上是建议的技术选型，并不代表 KPW6 已经支持所有对应 API」——
+  正是这个意思，所以这一版选了向下兼容而不是向上试探。
+
+### 怎么在真机上把能力测清楚
+
+打开 `check.html`（设备自检页）。它**不依赖任何外部文件**（无 CSS、无脚本引入），
+所以在主应用跑不起来的时候它照样能用 —— 这正是它的用途。它会逐项打印：
+
+- 环境：UA、视口、DPR、platform
+- 主应用真正依赖的：`querySelector` / `addEventListener` / `createElementNS(SVG)` /
+  `JSON` / `localStorage` 读写 / `XMLHttpRequest`（含 XHR2 的 `onload`+`responseType`）
+- ES5 语法与常用方法：`forEach/indexOf/map`、`Object.keys`、`Object.defineProperty`、
+  `Function.prototype.bind`、`Date.now` 等
+- 样式能力：`border-radius`、`box-shadow`（含 `inset`）、`repeating-linear-gradient`、
+  CSS 变量、`display:grid`、`display:table-cell`
+- 交互：`touch` 事件、`keydown` 事件
+- **实测耗时**：构建一个 81 格棋盘用多少毫秒（老 CPU 上最关键的指标）
+
+页面底部会生成一段可直接选中复制的自检报告文本。
+
+主应用内也有一个「诊断」页（`shell.diagnostics.title`），除了同样的能力探测之外，
+还能**一键把 20 款玩法全部跑一遍**（`create → view → controls → status → encode → decode`），
+逐款报出耗时。这一条比什么都直接：哪一款在真机上慢或直接抛错，一眼就能看到。
+
+## 构建与运行
+
+```bash
+npm run build:kindle     # 构建到 apps/kindle/dist/（含 ES5 守卫与体积报告）
+npm run serve:kindle     # 起一个绑定 0.0.0.0 的局域网服务，并打印 Kindle 能用的地址
+npm run check:es5        # 只跑手写脚本的 ES5 守卫
+```
+
+Kindle 上的用法：把 `apps/kindle/dist/` 丢到任意静态托管（和 Web 版一样），
+或者用 `npm run serve:kindle` 在本机起服务、让 Kindle 通过同一个 WiFi 打开它打印出来的
+「局域网」地址。**注意**：Kindle 连不上绑在 `127.0.0.1` 的服务，
+所以这个脚本特意绑 `0.0.0.0` 并打印本机局域网 IP。
+
+`dist/` 是纯静态产物（`index.html` + 4 个 JS/CSS + `check.html`），没有服务端、没有权限要求。
+
+## 测试
+
+新增两道守卫，都挂在 `npm test` 里：
+
+- `apps/kindle/test/es5-guard.test.ts`
+  - 手写的 `polyfills.js` / `amd-shim.js` 必须**逐字节纯 ES5**；
+  - `index.html` / `check.html` 的**内联脚本**同样必须是纯 ES5
+    （它们先于一切执行，最不能出错）；
+  - 入口页必须是**经典脚本**且按 `polyfills → amd-shim → kindle` 顺序同步加载
+    （`type="module"` 或 `async/defer` 都会让这套链路失效）；
+  - 构建产物 `dist/*.js` 存在时一并检查（这就是 tsc 的 downlevel 有没有漏的判据）；
+  - `kindle.css` 里不得出现 `var(--)`、`display:grid`、`cqw/cqh/dvh`、`:has()`、
+    `color-mix()`、`@container`、`calc()`、`minmax()/clamp()`、`gap`
+    —— 每一条都是"BOOX 上没事、Kindle 上整块失效"的东西。
+- `apps/kindle/test/shell.test.ts`（jsdom）
+  - 游戏库把登记表里的玩法列出来，且有翻页控件；
+  - **逐款玩法**：建局、出视图、必须有呈现模型（棋盘/牌桌/对决之一）、
+    棋盘的 `cells.length === cols × rows`；
+  - 棋盘真的渲染成 DOM `<table>`，格子类名正确；
+  - 点格子不抛错、不白屏；
+  - 存档写进 localStorage 且是 core 的信封格式（字段齐全，能跨端读）；
+  - 设置页切语言即时生效；
+  - 诊断页跑完全部自检后显示 `20 / 20`。
+- `apps/kindle/test/artifact-boot.test.ts`（jsdom）—— **最重要的一条**
+  - 把 `dist/` 里**真正要发给 Kindle 的那三个文件**按 `index.html` 的顺序跑一遍：
+    `polyfills.js` → `amd-shim.js` → `kindle.js`；
+  - 断言 AMD 真的执行了 160+ 个模块、**没有卡在等待依赖的模块**（`pending === 0`）；
+  - 断言壳层挂载后渲染出了游戏库（看得到「推箱子」与「下一页」）；
+  - 断言 polyfill 补齐的那些方法确实都在（含 `Array.prototype[Symbol.iterator]`）。
+
+  这条测试的价值：这套链路上**每一环都不在源码里** —— 语法降级、AMD 执行、
+  运行时补齐、挂载渲染。逐环"看起来都对"没有意义，串起来跑一次才算数。
+  它已经逮住过一个真 bug：`polyfills.js` 里写 `var Symbol = ...` 会在 IIFE 作用域内
+  **遮蔽**全局 Symbol，赋值又只在 `if` 分支里发生 —— 于是在**原生就有 Symbol** 的引擎上，
+  后面的 `Array.prototype[Symbol.iterator] = ...` 直接抛错（Kindle 上没有原生 Symbol，
+  所以只有现代浏览器会踩到，属于"在开发机上炸、在目标机上不炸"的反向 bug）。
+
+守卫逻辑（`findEs5Violations`）放在 `tools/scripts/check-es5.mjs`，
+**构建脚本与测试共用同一份实现** —— 两处各写一份判据迟早会分叉。
+
+## 已知限制
+
+1. **没有 KPW6 实测**（见上）。当前只能在 jsdom 里保证"逻辑与 ES5 纯度"，
+   真机上的触摸精度、翻页键键码、刷新残影都需要设备实测后微调。
+2. **单包 1.5 MB（未压缩）/ 374 KB（gzip）**。没有做按玩法分包：`tsc --outFile` 会把
+   可达模块全部内联，而"每款玩法一个文件"需要先给 `packages/core` 单独发 `.d.ts`、
+   再把壳层改成读"构建期生成的元数据清单"（否则游戏库列表本身就要加载全部玩法）。
+   体积分布（实测，按包聚合）：
+
+   | 部分 | 未压缩 | 说明 |
+   |---|---|---|
+   | 壳层（`apps/kindle/src`） | 178 KB | 渲染器 + 屏幕 + 会话 |
+   | `packages/core` | 106 KB | 含 27 KB 的 `storage.ts`（Kindle 版其实没用到它的两阶段协议） |
+   | 20 款玩法 | 1057 KB | 最大的四款：中国象棋 88、斗地主 82、国际象棋 78、恶魔轮盘赌 67 |
+   | `packages/library` | 15 KB | 20 款玩法的登记表 |
+
+   作为对照，同一份玩法在 Web 版里是 **189 KB（gzip，已压缩）**；
+   Kindle 版没有做压缩，所以是 374 KB —— 差距主要来自"未 minify"而不是"代码变多"。
+   真机上如果解析时间不可接受，下一步的优先顺序是：
+   ① 先接一个不引入新语法的压缩步骤（当前工具链里没有可用的 ES5 安全压缩器）；
+   ② 再考虑按玩法分包。
+3. **物理键映射是按常见键码猜的**：方向键 37–40、`U` 撤销、`R` 重开、`Esc/Backspace` 返回。
+   Kindle 各代的翻页键上报什么键码没有实测，`check.html` 里的 `keydown` 一项只能确认事件存在，
+   具体键码需要真机按一遍（诊断页已经把 UA 与视口打出来，方便对账）。
+4. **没有音效、没有动画**（与 Web 版一致，墨水屏上这两样只会添乱）。
+5. **不提供联机**：保持 100% 离线（`packages/games/doudizhu/src/net` 的联机骨架在 Kindle 版里没有被接线）。

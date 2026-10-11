@@ -10,7 +10,7 @@
 
 <p>
   <img alt="games" src="https://img.shields.io/badge/games-20-111111?style=flat-square">
-  <img alt="platform" src="https://img.shields.io/badge/platform-Web%20PWA%20%7C%20Android%206.0%2B-111111?style=flat-square">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Web%20PWA%20%7C%20Android%206.0%2B%20%7C%20Kindle-111111?style=flat-square">
   <img alt="offline" src="https://img.shields.io/badge/offline-100%25-111111?style=flat-square">
   <img alt="permissions" src="https://img.shields.io/badge/Android%20permissions-0-111111?style=flat-square">
 </p>
@@ -86,6 +86,17 @@
 
 - **最省事**：用阅读器自带的浏览器打开 <https://moqu.2333.world/>，菜单里选「添加到主屏幕」——之后就当一个离线应用在用。
 - **想要独立图标**：从 [Releases](https://github.com/yuban10703/Moqu-gamebox/releases) 下载 `moqu-<版本>.apk`，传到阅读器上点开安装即可（Android 6.0 以上都行，BOOX 全系适配）。想自己构建见 [docs/android.md](docs/android.md)。
+- **Kindle**：Kindle 自带浏览器装不了 APK，也跑不动上面那个现代版网页（它不认模块脚本、没有 CSS 变量）。
+  另有一条**兼容优先**的构建线，产出纯 ES5 + 无变量/无 grid 的静态文件，玩法与逻辑完全共用：
+
+  ```bash
+  npm run build:kindle    # → apps/kindle/dist/（纯静态，丢到任意静态托管即可）
+  npm run serve:kindle    # 起一个绑定 0.0.0.0 的局域网服务，并打印 Kindle 能用的地址
+  ```
+
+  设备能力**没有在本仓库实测过**（手头只有 BOOX），所以内置了一个不依赖任何外部文件的
+  设备自检页 `check.html`，先在 Kindle 上打开它就能看清这台设备到底支持什么。
+  细节与已知限制见 [docs/kindle.md](docs/kindle.md)。
 
 ## 自己构建
 
@@ -93,11 +104,13 @@
 npm ci
 npm run dev:web      # 本地开发 → http://127.0.0.1:5173
 npm run build:web    # Web 产物（可部署到任意静态托管）
+npm run build:kindle # Kindle 产物（ES5，含语法守卫与体积报告）
 npm run verify       # 提交前：类型检查 + 全部测试 + 五套真浏览器巡检
 ```
 
 Android APK：`npm run setup:android` 装构建链，再 `npm run build:apk`。
-项目全貌与真机流程见 [docs/handover.md](docs/handover.md)，架构见 [docs/architecture.md](docs/architecture.md)。
+项目全貌与真机流程见 [docs/handover.md](docs/handover.md)，架构见 [docs/architecture.md](docs/architecture.md)，
+Kindle 版见 [docs/kindle.md](docs/kindle.md)。
 
 ## 关于 AI
 

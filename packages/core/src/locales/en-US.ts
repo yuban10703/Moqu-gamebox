@@ -117,6 +117,9 @@ export const enUS: Dict = {
   'shell.webview.hint':
     'Please update "Android System WebView" from your app store; on some devices: Settings → Apps → Show system apps → Android System WebView.',
 
+  'shell.kindle.gameCheck': 'All games self-check',
+  'shell.kindle.runCheck': 'Run self-check',
+  'shell.kindle.report': 'Self-check report',
   'shell.diagnostics.title': 'Diagnostics',
   'shell.diagnostics.device': 'Device',
   'shell.diagnostics.viewport': 'Viewport',

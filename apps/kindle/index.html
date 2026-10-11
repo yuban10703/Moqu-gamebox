@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      视口：Kindle 自带浏览器（老 WebKit）**不认识** viewport-fit=cover / user-scalable=no 之外的新键值，
+      所以这里只保留最保守的三项。宽度用 device-width 而不是固定值：横竖屏都要能自适应。
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="墨趣 Kindle 版：为 Kindle 自带浏览器准备的离线游戏合集" />
+    <title>墨趣 · Kindle 版</title>
+    <!--
+      样式表必须**先于脚本**加载，且不能是 media="print" 之类的花招：
+      老引擎对延迟应用的样式表会在首屏闪一下无样式内容。
+    -->
+    <link rel="stylesheet" href="./kindle.css" />
+  </head>
+  <body>
+    <!--
+      第 1 级兜底：**零 JS 的静态占位**。
+      老引擎上最坏的情况是 bundle 解析失败，此时页面上必须有东西可看 ——
+      纯白屏会让用户以为"设备坏了"。这一屏不依赖任何脚本与外部资源。
+    -->
+    <div id="k-root" class="k-app">
+      <div
+        id="k-boot-hint"
+        style="padding:20px 16px;font-size:15px;line-height:1.6;color:#000;background:#fff;"
+      >
+        <p style="margin:0 0 10px;font-weight:700;">墨趣正在启动……</p>
+        <p style="margin:0 0 10px;">
+          若长时间停在这一屏，说明这台设备的浏览器跑不动本应用。可以先打开
+          <a href="./check.html" style="color:#000;">设备自检页</a> 看看缺了什么。
+        </p>
+        <p style="margin:0;">If this screen stays, your device browser cannot run the app. Open the device check page first.</p>
+      </div>
+    </div>
+    <noscript>
+      <p style="padding:16px;font-size:15px;">墨趣需要启用 JavaScript。 / Moqu needs JavaScript enabled.</p>
+    </noscript>
+
+    <!--
+      脚本顺序是硬约束，**不能用 async / defer**：
+        ① polyfills.js —— Promise / Set / Map / Symbol / Array 方法 / classList
+        ② amd-shim.js  —— 执行 tsc 的 AMD 产物
+        ③ kindle.js    —— core + 20 款玩法 + 壳层（tsc --target ES5 产物）
+      三者都是**经典脚本**（不是 type="module"）：Kindle 浏览器不认模块脚本，会被整段忽略。
+    -->
+    <script src="./polyfills.js"></script>
+    <script src="./amd-shim.js"></script>
+    <script src="./kindle.js"></script>
+
+    <!--
+      第 2 级兜底：纯 ES5 的"起不来"提示。
+      5 秒后 #k-boot-hint 还在（说明壳层没挂载成功），就把它换成可读的排障提示。
+      本段自身必须是 ES5，否则在"连 ES5 都跑不动"的极端情况下它自己先挂了。
+    -->
+    <script>
+      (function () {
+        var WAIT_MS = 5000;
+        setTimeout(function () {
+          var hint = document.getElementById('k-boot-hint');
+          if (!hint) return; // 壳层已挂载，占位被替换掉了
+          var modules = window.__MOQU_AMD__ ? window.__MOQU_AMD__.count() : 0;
+          hint.innerHTML = '';
+          var title = document.createElement('p');
+          title.setAttribute('style', 'margin:0 0 10px;font-weight:700;font-size:16px;');
+          title.textContent = '应用没能启动';
+          hint.appendChild(title);
+          var body = document.createElement('p');
+          body.setAttribute('style', 'margin:0 0 10px;font-size:14px;line-height:1.6;');
+          body.textContent =
+            '已加载模块数：' + modules + '。可能是浏览器过旧，或脚本被中断。';
+          hint.appendChild(body);
+          var link = document.createElement('a');
+          link.setAttribute('href', './check.html');
+          link.setAttribute('style', 'color:#000;font-size:14px;');
+          link.textContent = '打开设备自检页 →';
+          hint.appendChild(link);
+        }, WAIT_MS);
+      })();
+    </script>
+  </body>
+</html>
