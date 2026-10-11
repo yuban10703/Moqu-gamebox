@@ -266,7 +266,7 @@ Kindle 版与 Web 版是**两个独立的 Pages 项目**（产物不同：`apps/
 两条路的区别见 [deploy-cloudflare.md](deploy-cloudflare.md) 开头那张表。
 
 仓库根的 `wrangler.jsonc` 在本分支上**就是 Kindle 的配置**
-（`name = moqu-kindle`、`assets.directory = ./apps/kindle/dist`），所以部署命令直接用默认值即可：
+（`name = moqu-gamebox-kindle`、`assets.directory = ./apps/kindle/dist`），所以部署命令直接用默认值即可：
 
 | 字段 | 值 |
 |---|---|
@@ -276,20 +276,20 @@ Kindle 版与 Web 版是**两个独立的 Pages 项目**（产物不同：`apps/
 | 根目录（Root directory） | 留空（npm workspaces 单仓，依赖必须在根装） |
 | 构建变量 | 一般不用设：镜像默认 Node 24.18 且会读仓库根的 `.nvmrc`；要固定则设 `NODE_VERSION=24` |
 
-配置里的 `name` 必须与你在 Cloudflare 上那个 Worker 同名（现为 `moqu-kindle`）。
+配置里的 `name` 必须与你在 Cloudflare 上那个 Worker 同名（现为 `moqu-gamebox-kindle`）。
 
 ### 换个方式：本地构建后直传
 
 不想让 Cloudflare 跑构建（或者想在本地先看一眼）时，产物目录被 gitignore，所以要先本地构建：
 
 ```bash
-npm run deploy:cf    # = build:kindle + wrangler pages deploy（项目名 moqu-kindle，分支 kindle）
+npm run deploy:cf    # = build:kindle + wrangler pages deploy（项目名 moqu-gamebox-kindle，分支 kindle）
 ```
 
 首次要先把项目建出来：
 
 ```bash
-npx --yes wrangler pages project create moqu-kindle --production-branch=kindle
+npx --yes wrangler pages project create moqu-gamebox-kindle --production-branch=kindle
 ```
 
 ## 测试

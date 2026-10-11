@@ -12,13 +12,15 @@
  * 其余（产物目录、纯静态站点）都由下面的 assets 声明。
  *
  * 注意：`name` 必须与你 Cloudflare 上那个 Worker 同名，否则会去部署/新建另一个 Worker。
+ * 现为 `moqu-gamebox-kindle` —— 这是 Cloudflare 建项目时按「仓库名 + 分支」生成的名字，
+ * 与仓库里原来的 `moqu` 是两个 Worker，互不影响。
  * 本项目是纯静态站点：只有 assets、没有 main（不需要 Worker 脚本）。
  *
  * 若你用的是 **Pages** 项目（Pages 没有 Deploy command 字段，Cloudflare 自己上传产物），
  * 本文件不起作用也不冲突 —— 见 docs/deploy-cloudflare.md。
  */
 {
-  "name": "moqu-kindle",
+  "name": "moqu-gamebox-kindle",
   /* 故意用一个**过去**的日期：写成未来日期 wrangler 会直接拒绝（
      "Compatibility date ... is in the future and unsupported"），
      而本项目是纯静态资源、没有 Worker 脚本，用不到任何新行为。 */

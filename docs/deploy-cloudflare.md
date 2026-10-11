@@ -1,7 +1,7 @@
 # 部署到 Cloudflare（Kindle 版）
 
 > **本分支只部署 Kindle 版。** 产物是 `apps/kindle/dist`（纯 ES5 + 遗留 CSS 的静态文件），
-> Worker / Pages 项目名用 `moqu-kindle`，不要和现代版共用项目。
+> Worker / Pages 项目名用 `moqu-gamebox-kindle`，不要和现代版共用项目。
 > 构建与产物本身的说明见 [kindle.md](kindle.md)。
 
 纯静态站点，不需要改任何代码：产物用相对路径，挂 `*.workers.dev`、`*.pages.dev`、
@@ -19,7 +19,7 @@
 
 ## 一、Workers（Workers Builds）
 
-仓库根已放好 `wrangler.jsonc`：`name = moqu-kindle`、`assets.directory = ./apps/kindle/dist`、纯静态无 Worker 脚本。
+仓库根已放好 `wrangler.jsonc`：`name = moqu-gamebox-kindle`、`assets.directory = ./apps/kindle/dist`、纯静态无 Worker 脚本。
 Dashboard 上：
 
 | 字段 | 值 |
@@ -30,7 +30,7 @@ Dashboard 上：
 | 根目录（Root directory） | 留空（npm workspaces 单仓，依赖必须在根装） |
 | 构建变量 | 一般不用设：镜像默认 Node 24.18，且会读仓库根的 `.nvmrc`（写了 `24`）。要固定则设 `NODE_VERSION=24` |
 
-**`wrangler.jsonc` 里的 `name` 必须与你 Cloudflare 上那个 Worker 同名**（现为 `moqu-kindle`），
+**`wrangler.jsonc` 里的 `name` 必须与你 Cloudflare 上那个 Worker 同名**（现为 `moqu-gamebox-kindle`），
 否则会去部署/新建另一个 Worker。
 
 **只保留一个 Wrangler 配置**：本仓库用 `wrangler.jsonc`，不要再加 `wrangler.toml`（两个同时存在 wrangler 会直接报错）。
@@ -48,7 +48,7 @@ Pages 的构建配置里只有「构建命令 + 构建输出目录」，没有�
 | 构建输出目录 | `apps/kindle/dist` |
 | 环境变量 | `NODE_VERSION` = `24` |
 
-非生产分支 / PR 自动得到预览地址 `https://<分支名>.moqu-kindle.pages.dev`，不覆盖生产。
+非生产分支 / PR 自动得到预览地址 `https://<分支名>.moqu-gamebox-kindle.pages.dev`，不覆盖生产。
 
 **这一个不要开 SPA 回退（Single-page application fallback）**：站点是多页静态，
 `/check.html` 是零依赖的设备自检页，必须靠真实路径访问到；开了回退只会把 404 变成首页。
@@ -76,13 +76,13 @@ npm run build:kindle && npx wrangler pages dev apps/kindle/dist
 npx wrangler deploy
 
 # 部署（本地/CI 手动；Pages 路线）
-npm run deploy:cf     # = build:kindle + wrangler pages deploy apps/kindle/dist --project-name=moqu-kindle --branch=kindle
+npm run deploy:cf     # = build:kindle + wrangler pages deploy apps/kindle/dist --project-name=moqu-gamebox-kindle --branch=kindle
 ```
 
 首次用 Pages 命令行要先建项目：
 
 ```bash
-npx --yes wrangler pages project create moqu-kindle --production-branch=kindle
+npx --yes wrangler pages project create moqu-gamebox-kindle --production-branch=kindle
 ```
 
 非交互（CI）：设 `CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID`；工作树脏时加 `--commit-dirty=true`。
