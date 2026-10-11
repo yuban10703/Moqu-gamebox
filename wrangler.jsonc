@@ -1,38 +1,38 @@
 /**
- * Cloudflare **Workers**（Workers Builds）部署配置。
+ * Cloudflare **Workers**（Workers Builds）部署配置 —— 本分支只部署 Kindle 版。
  *
- * 为什么需要它：Workers 的构建流程里，「Deploy command」默认是 `npx wrangler deploy`；
+ * 为什么需要它：Workers 的构建流程里「Deploy command」默认是 `npx wrangler deploy`；
  * 仓库里没有 Wrangler 配置文件时，wrangler 会尝试「自动配置」你的项目（会去开一个 PR），
- * 在 Builds 环境里这一步通常会失败，日志就是「Failed: error occurred while running deploy command」。
+ * 在 Builds 环境里这一步通常失败，日志就是「Failed: error occurred while running deploy command」。
  *
  * 有了这个文件，Cloudflare 上只需要填：
- *   构建命令（Build command）  npm run build:web
+ *   构建命令（Build command）  npm run build:kindle      ← 必填，留空会报 assets.directory does not exist
  *   部署命令（Deploy command） 留默认 `npx wrangler deploy`
  *   预览命令（Preview command）留默认 `npx wrangler preview`
  * 其余（产物目录、纯静态站点）都由下面的 assets 声明。
  *
- * 注意：`name` 必须与你 Cloudflare 上那个 Worker/项目的名字一致，否则会去部署另一个 Worker。
+ * 注意：`name` 必须与你 Cloudflare 上那个 Worker 同名，否则会去部署/新建另一个 Worker。
  * 本项目是纯静态站点：只有 assets、没有 main（不需要 Worker 脚本）。
  *
  * 若你用的是 **Pages** 项目（Pages 没有 Deploy command 字段，Cloudflare 自己上传产物），
  * 本文件不起作用也不冲突 —— 见 docs/deploy-cloudflare.md。
  */
 {
-  "name": "moqu",
+  "name": "moqu-kindle",
   /* 故意用一个**过去**的日期：写成未来日期 wrangler 会直接拒绝（
      "Compatibility date ... is in the future and unsupported"），
      而本项目是纯静态资源、没有 Worker 脚本，用不到任何新行为。 */
   "compatibility_date": "2025-04-01",
+  /* Kindle 版的产物目录（不是 apps/web/dist —— 本分支不部署现代版） */
   "assets": {
-    "directory": "./apps/web/dist"
+    "directory": "./apps/kindle/dist"
   },
   /**
-   * 可观测性（按 Cloudflare 面板两次提示的最终形态，2026-10-05）。
-   *
-   * logs：Workers Logs —— Free 计划也包含（20 万条/天、保留 3 天；Paid 2000 万条/月、7 天）。
-   *   `invocation_logs` 记录每次请求（方法 / URL / 状态），`persist` 打开持久化，
-   *   `head_sampling_rate: 1` = 全量采样（想省额度可以调小，例如 0.1）。
-   * traces：分布式追踪 —— 面板里是关闭的，这里如实同步（关了就不产生追踪数据）。
+   * 可观测性：面板给新 Worker 提示 Workers Logs 时按这个填。
+   * logs —— Free 计划也包含（20 万条/天、保留 3 天；Paid 2000 万条/月、7 天）；
+   *   `invocation_logs` 记录每次请求，`persist` 打开持久化，`head_sampling_rate: 1` = 全量采样。
+   * traces —— 分布式追踪，默认关闭（关了就不产生追踪数据）。
+   * 若部署因计划权限报 `persist` 相关错误，去掉 persist 即可（保留 enabled 与 invocation_logs 仍会记录）。
    */
   "observability": {
     "logs": {
