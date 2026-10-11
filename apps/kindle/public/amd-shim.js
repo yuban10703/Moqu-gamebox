@@ -104,10 +104,15 @@
 
   global.require = localRequire;
 
-  /** 排障用：能看到到底加载了多少个模块（诊断页会读它） */
+  /**
+   * 排障与测试用：能看到到底加载了多少个模块、以及取出某个模块的导出。
+   * `get` 是给「产物级测试」用的 —— 有些缺陷只有在 ES5 降级之后才存在
+   * （例如 class extends Error 的 instanceof 失效），必须对着真产物断言。
+   */
   global.__MOQU_AMD__ = {
     count: function () { return Object.keys ? Object.keys(registry).length : 0; },
     pending: function () { return pending.length; },
-    has: has
+    has: has,
+    get: function (name) { return has(name) ? registry[name] : undefined; }
   };
 })(typeof window !== 'undefined' ? window : this);

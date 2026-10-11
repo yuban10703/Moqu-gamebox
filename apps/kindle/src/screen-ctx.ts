@@ -20,6 +20,22 @@ export interface ScreenParams {
 export interface ScreenCtx {
   /** 翻译 */
   t(key: string, params?: Record<string, string | number>): string
+  /**
+   * 复数翻译（`key__one` / `key__other`）。
+   *
+   * **凡是有「数量」的文案都必须走它**：字典里大量键只存在复数形式
+   * （例如 `tictactoe.result.moves__other`、`<ns>.result.best__other`），
+   * 用普通 `t()` 取会直接落到缺键分支，屏幕上出现 ⟦tictactoe.result.moves⟧。
+   * 中文没有 `__one`，core 的 plural 会自动落到本语言的 `__other`。
+   */
+  plural(key: string, count: number, params?: Record<string, string | number>): string
+  /**
+   * 字典里有没有这个键。
+   *
+   * 用途：**玩法自定义文案不是每款都有**（例如 `<ns>.solved.best` 只有 14/20 款定义），
+   * 无条件取会在另外 6 款上显示 ⟦key⟧。渲染前先问一句，缺了就退回壳层通用文案。
+   */
+  has(key: string): boolean
   /** 本次渲染的语言（用于诊断页展示） */
   locale: string
   library: GameLibrary

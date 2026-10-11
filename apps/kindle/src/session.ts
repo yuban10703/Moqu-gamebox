@@ -38,6 +38,7 @@ import {
   updateSave,
   writeSave,
   type GameProgress,
+  type WriteFailure,
 } from './store.js'
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed' | 'corrupt'
@@ -71,9 +72,16 @@ export interface SessionOptions<S, A> {
   autoTick: boolean
   /** 是否需要渲染（状态变了就调一次，由屏幕层重画） */
   onRender: () => void
-  /** 顶部状态提示（保存失败 / 坏档） */
+  /** 顶部状态提示（缺键由壳层翻译；会话只给 key） */
   onStatus: (textKey: string | null) => void
   onSaveStatus: (status: SaveStatus) => void
+  /**
+   * 存档写不进去时回调，参数是**事实**而不是文案：
+   * `unavailable` = 这台设备/这个浏览器根本不让写（隐私模式等）；
+   * `quota` = 空间满了；`io` = 其它写失败。
+   * 措辞由壳层决定（会话没有 i18n，也不该硬编码文案 key 之外的东西）。
+   */
+  onSaveFailed: (reason: 'unavailable' | WriteFailure) => void
   /** 对局结束（只在第一次跃迁时回调一次） */
   onFinished: (outcome: 'won' | 'lost' | 'draw', view: GameView) => void
 }
@@ -100,6 +108,10 @@ export interface Session<S, A> {
   move(dir: MoveDir): void
   steal(slot: number): void
   hasControl(id: string): boolean
+  /** 保存失败提示已被收掉（壳层重试成功后调用） */
+  clearSaveFailure(): void
+  /** 当前内容 id（关卡制 = 关卡 id；无关卡 = 难度 id）。标题与最佳成绩都按它取。 */
+  contentId(): string
   undo(): void
   restart(): void
   restartFresh(): void
@@ -110,6 +122,22 @@ export interface Session<S, A> {
   retrySave(): void
   clearNotice(): void
   dispose(): void
+}
+
+/**
+ * 判断一个异常是不是「按规则的非法动作」。
+ *
+ * **不能只靠 `instanceof`**：`tsc --target ES5` 把 `class extends Error` 降级后
+ * 原型链是断的（`Error.call(this)` 返回新对象），`instanceof` 恒为 false ——
+ * 那样每个非法输入都会变成未捕获异常抛出去（真机表现：点了没反应 + 控制台报错）。
+ * core 里已经用 `linkErrorSubclass` 接回了原型，这里再按"名字 + 字段"兜一道，
+ * 两道都过不了才当成真 bug 抛出去。
+ */
+function isIllegalAction(error: unknown): boolean {
+  if (error instanceof IllegalActionError) return true
+  if (error === null || typeof error !== 'object') return false
+  const bag = error as { name?: unknown; gameId?: unknown; reason?: unknown }
+  return bag.name === 'IllegalActionError' && typeof bag.gameId === 'string' && typeof bag.reason === 'string'
 }
 
 function readContentId<S>(game: GameDef<S, unknown>, state: S, fallback: string): string {
@@ -182,14 +210,33 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
   }
   status = game.status(state)
 
-  // 关卡制玩法：把玩家选的关卡在开局时派发一次（游戏自己认识 startLevel）
-  if (options.startContentId !== null && options.resume === false && game.controlAction !== undefined) {
-    // 只有真正支持跳关的玩法才派发；不支持时派发会被 reduce 拒绝并给提示，反而打扰玩家
+  /*
+   * 一开始就知道写不进去的（隐私模式 / 禁用存储）：**立刻说**。
+   * 等到第一次落盘才报的话，玩家已经先玩了一会儿才开始被告知 ——
+   * 而这类问题不会自己好，越早说越好。
+   */
+  if (!canPersist) {
+    saveStatus = 'failed'
+    options.onSaveFailed('unavailable')
+  }
+
+  /*
+   * 关卡制玩法：开局时把玩家选的那一关派发一次（游戏自己认识 startLevel）。
+   *
+   * 这里**不能**用 `game.controlAction !== undefined` 当前置条件 —— 推箱子既支持
+   * `{type:'startLevel'}`、又没有 controlAction，于是玩家在详情页选了第 4 关，
+   * 进去永远是第 1 关：界面上没有任何报错，只是"选了没用"。
+   * （klotski 恰好有 controlAction，所以只有推箱子中招，更难发现。）
+   *
+   * 正确做法是不预判能力，直接派发、让规则层拒绝：
+   * 不支持的玩法会抛 IllegalActionError，接住即可，玩家无感。
+   */
+  if (options.startContentId !== null && options.resume === false) {
     try {
       state = game.reduce(state, { type: 'startLevel', levelId: options.startContentId } as unknown as A)
       status = game.status(state)
     } catch (e) {
-      /* 该玩法不支持跳关：保持在第一关，不打扰 */
+      /* 该玩法不支持跳关（或关卡 id 不认）：保持在第一关，不打扰玩家 */
     }
   }
 
@@ -197,8 +244,10 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
   function commit(): void {
     if (disposed && envelope === null) return
     if (!canPersist) {
+      // 一开局就写不进去：必须立刻说出来，否则玩家会玩很久才发现进度全丢
       saveStatus = 'failed'
       options.onSaveStatus('failed')
+      options.onSaveFailed('unavailable')
       return
     }
     // 坏档在场时不写回：否则会把坏内容「修好校验和」后覆盖掉原档
@@ -224,11 +273,13 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
         elapsedMs: storedElapsed + (Date.now() - clockStart),
       })
     }
-    saveStatus = writeSave(envelope) ? 'saved' : 'failed'
+    const written = writeSave(envelope)
+    saveStatus = written.ok ? 'saved' : 'failed'
     options.onSaveStatus(saveStatus)
-    if (saveStatus === 'failed') {
-      canPersist = false
-      options.onStatus('shell.storage.failed')
+    if (!written.ok) {
+      // 不在失败后就把 canPersist 关掉：空间可能只是暂时满了，
+      // 关掉之后连"重试"都没机会。让玩家点重试再试一次。
+      options.onSaveFailed(written.reason)
     }
   }
 
@@ -328,6 +379,19 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     options.onFinished(raw, game.view(state))
   }
 
+  /**
+   * 设置提示并**通知壳层**。
+   *
+   * 之前只改 `noticeKey` 不回调，于是界面上的提示一旦出现就永远留在那里：
+   * 「这里不能这样点」在玩家后续成功走了好几步之后还挂在屏幕顶上 ——
+   * 在一个"每一步都要重画"的界面上，这种陈旧信息比没有提示更误导。
+   */
+  function setNotice(key: string | null): void {
+    if (noticeKey === key) return
+    noticeKey = key
+    options.onStatus(key)
+  }
+
   // ---------- 核心分发 ----------
   function dispatch(action: A): boolean {
     if (disposed) return false
@@ -339,9 +403,8 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     try {
       next = game.reduce(state, action)
     } catch (e) {
-      if (e instanceof IllegalActionError) {
-        noticeKey = game.illegalNoticeKey ?? null
-        if (noticeKey) options.onStatus(noticeKey)
+      if (isIllegalAction(e)) {
+        setNotice(game.illegalNoticeKey ?? null)
         options.onRender()
         return false
       }
@@ -354,7 +417,7 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       finishedHandled = false
       status = game.status(state)
     }
-    noticeKey = null
+    setNotice(null)
     settle(false)
     return true
   }
@@ -419,8 +482,7 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
          * 此时照着 illegalNoticeKey 念（原因其实是"没轮到你"）反而误导。
          */
         if (status === 'playing' && activeTickMs === null && game.illegalNoticeKey) {
-          noticeKey = game.illegalNoticeKey
-          options.onStatus(noticeKey)
+          setNotice(game.illegalNoticeKey)
           options.onRender()
         }
         return
@@ -455,6 +517,10 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     },
 
     hasControl: hasControl,
+
+    contentId: function contentId(): string {
+      return readContentId(game, state, difficulty)
+    },
 
     undo(): void {
       if (!hasControl('undo')) return
@@ -507,9 +573,13 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       commit()
     },
 
+    /** 只在重试成功后由壳层调用，用来把"保存失败"那条提示收掉 */
+    clearSaveFailure(): void {
+      if (saveStatus === 'failed') saveStatus = 'idle'
+    },
+
     clearNotice(): void {
-      noticeKey = null
-      options.onStatus(null)
+      setNotice(null)
       options.onRender()
     },
 

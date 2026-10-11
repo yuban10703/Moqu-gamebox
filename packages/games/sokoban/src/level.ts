@@ -9,6 +9,8 @@
  * 并由 `test/levels.test.ts` 用独立求解器逐关复核。因此不存在第三方题库授权问题。
  */
 
+import { linkErrorSubclass } from '@eink/core'
+
 export type MoveDir = 'up' | 'down' | 'left' | 'right'
 export type DifficultyId = 'starter' | 'skilled' | 'challenging'
 
@@ -49,6 +51,8 @@ export class LevelFormatError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'LevelFormatError'
+    // 与 IllegalActionError 同一个坑：ES5 降级下不接回原型，instanceof 恒为 false
+    linkErrorSubclass(this, LevelFormatError)
   }
 }
 

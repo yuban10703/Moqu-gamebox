@@ -1,3 +1,5 @@
+import { linkErrorSubclass } from './errors.js'
+
 /**
  * 游戏接入契约。
  *
@@ -549,6 +551,10 @@ export class IllegalActionError extends Error {
   ) {
     super(`illegal action for ${gameId}: ${reason}`)
     this.name = 'IllegalActionError'
+    // ES5 降级下 extends Error 的原型链是断的（见 errors.ts 的说明）：
+    // 不接回来的话 `instanceof IllegalActionError` 恒为 false，
+    // 规则层的 isLegal 与壳层的"非法动作提示"都会失效。
+    linkErrorSubclass(this, IllegalActionError)
   }
 }
 

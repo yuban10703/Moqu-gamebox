@@ -75,6 +75,43 @@ describe('构建产物能在浏览器里真的跑起来', () => {
     expect(text).toContain('下一页')
   })
 
+  /*
+   * 这一条守的是一个**只在 ES5 产物里存在**的缺陷，本地跑源码的测试永远测不到。
+   *
+   * tsc --target ES5 把 `class X extends Error` 降级成
+   *   `var _this = _super.call(this, msg) || this`
+   * 而 `Error.call(this, msg)` 不修改 this、返回一个新的普通 Error ——
+   * 于是 `_this` 是普通 Error，`err instanceof X` **恒为 false**。
+   *
+   * 后果不是"少个类型判断"：规则层用 instanceof 区分「按规则的非法动作」与「真 bug」
+   * （贪吃蛇/2048/俄罗斯方块的 isLegal），壳层用它决定"给提示"还是"当崩溃抛"。
+   * 判错 → 玩家一次正常的非法输入被抛成未捕获异常：点了没反应、控制台报错。
+   */
+  it('ES5 产物里 IllegalActionError 的 instanceof 仍然成立', () => {
+    if (!existsSync(`${DIST}kindle.js`)) return
+    document.body.innerHTML = '<div id="k-root" class="k-app"></div>'
+    for (const name of ['polyfills.js', 'amd-shim.js', 'kindle.js']) {
+      ;(window as unknown as { eval(code: string): void }).eval(readFileSync(`${DIST}${name}`, 'utf8'))
+    }
+    const amd = (window as unknown as { __MOQU_AMD__?: { get(name: string): unknown } }).__MOQU_AMD__
+    expect(amd, 'amd-shim 没有挂上 __MOQU_AMD__').toBeTruthy()
+
+    const types = amd?.get('packages/core/src/types') as
+      | { IllegalActionError: new (gameId: string, reason: string) => Error }
+      | undefined
+    expect(types, '取不到 core/types 模块').toBeTruthy()
+    const Ctor = types?.IllegalActionError
+    expect(typeof Ctor).toBe('function')
+
+    const error = new (Ctor as new (a: string, b: string) => Error)('sudoku', 'conflict')
+    // 这一条就是缺陷本身：降级后 error 会是一个普通 Error，instanceof 为 false
+    expect(error instanceof (Ctor as unknown as Function), 'ES5 产物里 instanceof 失效（extends Error 的原型链断了）').toBe(true)
+    // 消息与字段也必须在：壳层要靠 reason 给提示
+    expect(error.message).toContain('illegal action for sudoku')
+    expect((error as unknown as { name: string }).name).toBe('IllegalActionError')
+    expect((error as unknown as { reason: string }).reason).toBe('conflict')
+  })
+
   it('polyfill 补齐了共用代码真正依赖的那些方法', () => {
     if (!existsSync(`${DIST}polyfills.js`)) return
     document.body.innerHTML = '<div id="k-root" class="k-app"></div>'

@@ -53,6 +53,14 @@ export interface AppHandle {
   render(): void
   /** 当前运行时摘要（排障与自检页用；不要拿它做业务判断） */
   status(): { screen: ScreenName; params: ScreenParams; locale: string; games: number }
+  /** 全部玩法 id（探索脚本与诊断页用；顺序与游戏库一致） */
+  listGameIds(): string[]
+  /**
+   * 某个玩法是否支持「点棋盘操作」（由登记表里有没有 selectAction 决定）。
+   * 探索脚本靠它区分两种情况：**点棋盘本该有反应却没反应**（缺陷）
+   * 与**这个玩法本来就是方向键驱动、点棋盘没反应是设计如此**（不是缺陷）。
+   */
+  isCellSelectable(gameId: string): boolean
 }
 
 export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
@@ -110,6 +118,20 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
         games: library.entries.length,
       }
     },
+
+    listGameIds: function listGameIds(): string[] {
+      const out: string[] = []
+      for (let i = 0; i < library.entries.length; i++) out.push(library.entries[i].game.id)
+      return out
+    },
+
+    isCellSelectable: function isCellSelectable(gameId: string): boolean {
+      for (let i = 0; i < library.entries.length; i++) {
+        const game = library.entries[i].game
+        if (game.id === gameId) return typeof game.selectAction === 'function'
+      }
+      return false
+    },
   }
 
   function renderScreen(screen: ScreenName, params: ScreenParams): void {
@@ -137,6 +159,12 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
     const ctx: ScreenCtx = {
       t: function t(key: string, tParams?: Record<string, string | number>): string {
         return i18n.t(key, tParams)
+      },
+      plural: function plural(key: string, count: number, tParams?: Record<string, string | number>): string {
+        return i18n.plural(key, count, tParams)
+      },
+      has: function has(key: string): boolean {
+        return i18n.has(key)
       },
       locale: settings.locale,
       library: library,

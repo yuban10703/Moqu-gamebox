@@ -8,6 +8,7 @@
  * - 覆盖已有进度要二次确认（`shell.detail.replace.*`）。
  */
 import { el, clear, on } from '../dom.js'
+import { supportsSwipe } from '@eink/ui'
 import { findEntry, type Screen, type ScreenCtx } from '../screen-ctx.js'
 import { loadProgress, loadSave } from '../store.js'
 import { topBar, button, showDialog, field } from './common.js'
@@ -104,6 +105,15 @@ export const renderDetail: Screen = function renderDetail(root: HTMLElement, ctx
       body.appendChild(rules)
     }
 
+    /*
+     * 滑动提示：**只在该玩法真的能滑动时显示**（与 React 版同一判据 supportsSwipe）。
+     * 点格子的玩法（数独/扫雷/华容道…）不能滑动 —— 墨水屏触摸有抖动，
+     * 轻点容易被判成滑动，所以那里给这条提示本身就是错的。
+     */
+    if (supportsSwipe(entry)) {
+      body.appendChild(el('p', { style: 'margin:8px 0;font-size:13px;line-height:1.5;' }, ctx.t('shell.detail.swipeHint')))
+    }
+
     // 进度 / 最佳
     const progress = loadProgress()
     const completedList = progress.completed ?? []
@@ -118,7 +128,21 @@ export const renderDetail: Screen = function renderDetail(root: HTMLElement, ctx
     const contentForBest = contentId ?? difficulty
     const bestMoves = (progress.bestMoves ?? {})[contentForBest]
     if (bestMoves !== undefined) {
-      body.appendChild(field(ctx.t('shell.result.stats'), ctx.t(ns + '.result.best', { count: bestMoves })))
+      /*
+       * 最佳成绩是**一整句话**（例如「本关最佳 {count} 步」）—— 不能拆成"标签 + 数值"：
+       * 拆开就意味着拿 `t(key)` 不带参数去取，而它的值里就带 `{count}`，
+       * 于是屏幕上直接印出「本关最佳 {count} 步」（这条被逐款守卫逮到过）。
+       *
+       * 两种键形都要认（都是玩法自己定义的，且只有 14/20 款有）：
+       *   `<ns>.solved.best`（普通键，含 {count}）与 `<ns>.result.best__one/__other`（复数键）。
+       */
+      const best = bestText(ctx, ns, bestMoves)
+      if (best !== null) {
+        body.appendChild(el('p', { style: 'margin:8px 0;font-size:13px;' }, best))
+      } else {
+        // 玩法没定义最佳成绩文案：退回壳层通用词，不硬造
+        body.appendChild(field(ctx.t('shell.detail.progress'), String(bestMoves)))
+      }
     }
 
     // 历史（最多 5 条）
@@ -204,4 +228,18 @@ function safeDecode(game: { decode(raw: unknown): unknown; create(seed: number, 
   } catch (e) {
     return game.create(0, 'starter')
   }
+}
+
+/**
+ * 取「最佳成绩」那句话。两种键形都认，且**一定把 count 传进去**：
+ * 这些文案的值里就带 `{count}`，不带参数取会把它原样印在屏幕上。
+ */
+function bestText(ctx: ScreenCtx, ns: string, count: number): string | null {
+  const plain = ns + '.solved.best'
+  if (ctx.has(plain)) return ctx.t(plain, { count: count })
+  if (ctx.has(plain + '__other')) return ctx.plural(plain, count, { count: count })
+  const pluralKey = ns + '.result.best'
+  if (ctx.has(pluralKey)) return ctx.t(pluralKey, { count: count })
+  if (ctx.has(pluralKey + '__other')) return ctx.plural(pluralKey, count, { count: count })
+  return null
 }

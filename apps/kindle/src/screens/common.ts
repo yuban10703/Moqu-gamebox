@@ -90,6 +90,9 @@ export function pager(ctx: ScreenCtx, page: number, pageCount: number, onGo: (ne
 export interface DialogOptions {
   title: string
   body?: string
+  /** 多行正文：**每一行单独一个节点** —— 文本节点里的 `\n` 在 HTML 里会被折成空格，
+   *  结果面板的明细（步数 / 用时 / 最佳）会全挤在一行上。 */
+  bodyLines?: string[]
   actions: Array<{ label: string; onClick: () => void; primary?: boolean }>
   onDismiss?: () => void
 }
@@ -112,6 +115,15 @@ export function showDialog(options: DialogOptions): () => void {
   box.appendChild(el('div', { class: 'k-dialog__title', style: 'font-size:17px;font-weight:700;margin-bottom:10px;text-align:center;' }, options.title))
   if (options.body) {
     box.appendChild(el('div', { style: 'font-size:14px;line-height:1.5;margin-bottom:14px;' }, options.body))
+  }
+  const lines = options.bodyLines ?? []
+  if (lines.length > 0) {
+    const bodyBox = el('div', { style: 'font-size:14px;line-height:1.6;margin-bottom:14px;' })
+    for (let i = 0; i < lines.length; i++) {
+      // 空行留一个占位高度，避免"明细之间的分隔"被吃掉
+      bodyBox.appendChild(el('div', { style: 'min-height:1.2em;' }, lines[i]))
+    }
+    box.appendChild(bodyBox)
   }
   const actions = el('div', { class: 'k-dialog__actions', style: 'text-align:center;' })
   for (let i = 0; i < options.actions.length; i++) {

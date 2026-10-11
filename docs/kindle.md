@@ -332,6 +332,12 @@ npx --yes wrangler pages project create moqu-gamebox-kindle --production-branch=
 守卫逻辑（`findEs5Violations`）放在 `tools/scripts/check-es5.mjs`，
 **构建脚本与测试共用同一份实现** —— 两处各写一份判据迟早会分叉。
 
+`tools/scripts/kindle-explore.mjs`（`npm run explore:kindle`）是**探索式缺陷探测**：
+把 UI 真的点一遍 —— 20 款玩法逐款走「详情 → 开局 → 点棋盘 → 点控件 → 方向键 → 撤销 → 暂停菜单」，
+再加触摸滑动、视口矩阵（竖屏/横屏/小屏/极矮横屏的裁切）、以及把一局井字棋打到终局。
+每一步都查：无 JS 错误、无缺键、无未替换参数、页脚在视口内、不滚动、按钮有文字，
+以及**「合法操作必须有反应」**（区分"被拒绝但有提示"和"完全没反应"）。
+
 另外还有一条**真实 Chromium** 的冒烟脚本 `tools/scripts/kindle-smoke.mjs`（31 项断言）：
 启动链路 → 游戏库 → 逐款玩法（棋盘 / 牌桌 / 对决三种呈现面各取几款）→ 自检页，
 每步都验「无缺键、无未替换参数、页脚主操作在视口内、整页不滚动」。
@@ -347,6 +353,32 @@ npx --yes wrangler pages project create moqu-gamebox-kindle --production-branch=
 
 后一类现在由 `shell.test.ts` 的「文案完整性」用例兜住：两种语言 × 6 个屏幕，
 既查 `⟦key⟧` 也查残留的 `{param}`。
+
+## 自测记录：这一轮找到并修掉的缺陷
+
+用 `tools/scripts/kindle-explore.mjs`（真实 Chromium，把 UI 真的点一遍）逐款玩法扫出来的。
+记在这里是因为**其中几条只有"把产物跑起来"才看得见** —— 本地 vitest 跑的是源码，
+走的是原生 class / 非 ES5 路径，全都正常。
+
+| # | 现象 | 根因 | 守卫 |
+|---|---|---|---|
+| 1 | 非法操作变成未捕获异常：**点了没反应 + 控制台报错**（扫出 10 处） | `tsc --target ES5` 把 `class extends Error` 降级后原型链是断的（`Error.call(this)` 返回新对象），`instanceof IllegalActionError` **恒为 false** —— 规则层的 isLegal 与壳层的提示全失效 | core 里 `linkErrorSubclass` 接回原型；`artifact-boot.test.ts` 对**产物**断言 instanceof（撤掉修复就红，已验证） |
+| 2 | 关卡制玩法选了第 N 关，进去永远是第 1 关 | 会话把"派发 startLevel"卡在了 `game.controlAction !== undefined` 上，而**推箱子既支持 startLevel、又没有 controlAction**（华容道恰好有，所以只有推箱子中招） | `shell.test.ts`：选第 4 关的棋盘必须与第 1 关不同（撤掉修复就红） |
+| 3 | 结果面板显示 ⟦tictactoe.result.moves⟧ | 字典里只有 `__one`/`__other` 复数键，壳层却用普通 `t()` 取 | 壳层补 `ctx.plural`；探索脚本打通一局井字棋到终局 |
+| 4 | 详情页印出「本关最佳 {count} 步」 | 该键的值**本身含 `{count}`**，却被当纯标签用 `t()` 取（参数没传） | 逐款详情页守卫（20 款 ×2 语言，且预置战绩让这一行真的渲染出来） |
+| 5 | 存储写不进去时**一句提示都没有** —— 玩家读一小时才发现进度全丢 | `!canPersist` 分支只更新内部状态、没通知壳层；且等到第一次落盘才检查 | 开局即报 + 常驻警告行（带「重试」）；`shell.test.ts` 模拟 setItem 抛错 |
+| 6 | 「这里不能这样点」在后续成功走子后仍挂在屏幕顶上 | 壳层清了内部状态但没回调，界面不知道要收 | 提示统一走 `setNotice()`，变化必回调 |
+| 7 | 结果面板的明细全挤在一行 | 文本节点里的 `\n` 在 HTML 里是空格 | `showDialog({ bodyLines })` 逐行建节点 |
+| 8 | 设置页写着「用滑动操作」，但**壳层根本没实现滑动** | 提示与实现脱节；且提示放错了地方（设置页与具体玩法无关） | 实现触摸滑动（判据同 `supportsSwipe`）；提示改到详情页且只在真能滑动时显示；探索脚本逐款验滑动 |
+| 9 | 推箱子的标题与统计栏都不显示"第几关" | 标题只显示了难度，而关卡制玩法隐藏了难度区 | 标题显示「第 N/M 关」；`shell.test.ts` 断言 |
+
+**同一轮里我自己的探针也误报过两次**，一并记下来，因为它们说明"测试红了"不等于"应用坏了"：
+
+- 一开始用 `textContent` 做界面快照，而「选中」这类反馈**只改样式与 data 属性、不改文字**
+  —— 于是 klotski/sudoku 的"点了有反应"被误判成"没反应"。改用 `outerHTML`。
+- 井字棋"走不到终局"：探针固定点第 i 格，一直在点已被对手占掉的格子。改成每次点一个 `data-kind="empty"` 的格子后，5 步就正常出结果面板。
+- 另外「推箱子/2048/贪吃蛇/俄罗斯方块点棋盘没反应」是**设计如此**（方向键驱动、没有 `selectAction`），
+  不是缺陷 —— 探索脚本现在会先问 `isCellSelectable()` 再决定要不要求"有反应"。
 
 ## 已知限制
 

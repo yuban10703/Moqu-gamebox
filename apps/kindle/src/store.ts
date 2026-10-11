@@ -206,8 +206,22 @@ export function loadSave(gameId: string): LoadResult {
   }
 }
 
-export function writeSave(envelope: SaveEnvelopeV1): boolean {
-  return writeRaw(saveKey(envelope.gameId), JSON.stringify(envelope))
+export type WriteFailure = 'quota' | 'io'
+
+/**
+ * 写存档。失败时**带上原因**：界面要据此说明白"是空间满了还是别的"，
+ * 只说"保存失败"用户不知道该怎么办。
+ */
+export function writeSave(envelope: SaveEnvelopeV1): { ok: true } | { ok: false; reason: WriteFailure } {
+  try {
+    window.localStorage.setItem(saveKey(envelope.gameId), JSON.stringify(envelope))
+    return { ok: true }
+  } catch (e) {
+    const name = e && typeof e === 'object' && 'name' in e ? String((e as { name: unknown }).name) : ''
+    const message = e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : ''
+    const quota = /quota|exceed|full/i.test(name + ' ' + message)
+    return { ok: false, reason: quota ? 'quota' : 'io' }
+  }
 }
 
 export function deleteSave(gameId: string): void {

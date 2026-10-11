@@ -6,6 +6,7 @@
  * 这里不出现任何 DOM / React / WebView / Android 相关代码。
  */
 export * from './types.js'
+export * from './errors.js'
 export * from './version.js'
 export * from './rng.js'
 export * from './i18n.js'

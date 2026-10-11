@@ -130,6 +130,90 @@ describe('Kindle 壳层', () => {
     }
   })
 
+  /*
+   * 关卡选择：详情页选了第 N 关，进去就必须是第 N 关。
+   *
+   * 这条守的是"选了没用"型缺陷 —— 界面上不报错、也没有任何提示，
+   * 只是玩家选的关卡没生效。曾经真的漏过：会话层把"派发 startLevel"这一步
+   * 卡在了 `game.controlAction !== undefined` 上，而推箱子既支持 startLevel、
+   * 又没有 controlAction（华容道恰好有，所以只有推箱子中招，更难发现）。
+   */
+  it('关卡制玩法：选第 N 关就进第 N 关（棋盘必须不同）', async () => {
+    const ids = (() => {
+      const app = startApp(makeRoot(), library)
+      return app.listGameIds()
+    })()
+    expect(ids.length).toBe(20)
+
+    for (const gameId of ['sokoban', 'klotski']) {
+      const entry = library.entries.find((e) => e.game.id === gameId)
+      expect(entry?.levels?.length ?? 0, `${gameId} 应当有关卡`).toBeGreaterThan(3)
+      const first = entry!.levels![0].id
+      const fourth = entry!.levels![3].id
+
+      const boardFor = (contentId: string): string => {
+        const root = makeRoot()
+        const app = startApp(root, library)
+        app.navigate('game', { gameId, difficulty: 'starter', contentId, fresh: true })
+        const cells = root.querySelectorAll('.k-board__cell')
+        expect(cells.length, `${gameId} 没画出棋盘`).toBeGreaterThan(0)
+        return Array.from(cells)
+          .map((c) => c.getAttribute('data-kind'))
+          .join(',')
+      }
+
+      const atFirst = boardFor(first)
+      const atFourth = boardFor(fourth)
+      expect(atFourth, `${gameId}: 选了第 4 关却和第 1 关一模一样（跳关没生效）`).not.toBe(atFirst)
+    }
+  })
+
+  it('关卡制玩法的标题显示「第 N/M 关」', () => {
+    const root = makeRoot()
+    const app = startApp(root, library)
+    const entry = library.entries.find((e) => e.game.id === 'sokoban')!
+    const fourth = entry.levels![3].id
+    app.navigate('game', { gameId: 'sokoban', difficulty: 'starter', contentId: fourth, fresh: true })
+    const title = root.querySelector('.k-topbar__title')?.textContent ?? ''
+    // 统计栏里没有关卡项，标题是玩家唯一能确认"我在第几关"的地方
+    expect(title).toContain('4')
+    expect(title).toMatch(/第\s*4\s*\/\s*\d+\s*关/)
+  })
+
+  /*
+   * 存档写不进去时必须**说出来**，而且要一直说。
+   *
+   * 这是最容易被忽略、代价却最大的一类缺陷：Kindle 上玩家可能读了一小时，
+   * 合上盖子再打开，进度全没了 —— 而当时界面上一句提示都没有。
+   * （真被漏过：`!canPersist` 那条分支只更新了内部状态、没通知壳层。）
+   */
+  it('localStorage 写不进去时常驻警告 + 重试入口', () => {
+    const root = makeRoot()
+    const app = startApp(root, library)
+
+    // 模拟隐私模式 / 配额满：让 setItem 抛错
+    const original = window.localStorage.setItem.bind(window.localStorage)
+    const proto = Object.getPrototypeOf(window.localStorage) as Storage
+    proto.setItem = function throwing(): void {
+      const error = new Error('QuotaExceededError')
+      error.name = 'QuotaExceededError'
+      throw error
+    }
+
+    try {
+      app.navigate('game', { gameId: 'lightsout', difficulty: 'starter', fresh: true })
+      const text = root.textContent ?? ''
+      // 必须看得见"进度存不下来"，且给得出下一步动作
+      expect(text).toContain('本次进度无法持久化')
+      const retry = Array.from(root.querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').indexOf('重试') >= 0,
+      )
+      expect(retry, '没有「重试」入口').toBeTruthy()
+    } finally {
+      proto.setItem = original
+    }
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)
@@ -172,6 +256,19 @@ describe('文案完整性（每一屏、两种语言）', () => {
       for (const screen of SCREENS) {
         window.localStorage.clear()
         window.localStorage.setItem('moqu:1:settings', JSON.stringify({ locale }))
+        // 每个屏幕都带上一份"有战绩"的进度：否则「最佳成绩」那一行根本不会渲染，
+        // 缺键也就露不出来（这条守卫就被绕过去了）
+        const completed: string[] = []
+        const bestMoves: Record<string, number> = {}
+        for (const entry of library.entries) {
+          const contentId = entry.levels && entry.levels.length > 0 ? entry.levels[0].id : entry.defaultDifficulty
+          completed.push(entry.game.id + ':' + contentId)
+          bestMoves[contentId] = 7
+        }
+        window.localStorage.setItem(
+          'moqu:1:progress',
+          JSON.stringify({ completed, bestMoves, history: [{ gameId: 'sudoku', difficulty: 'starter', outcome: 'won', moves: 7, at: 1 }] }),
+        )
         const root = makeRoot()
         const app = startApp(root, library)
         app.navigate(screen, PARAMS)
@@ -184,6 +281,40 @@ describe('文案完整性（每一屏、两种语言）', () => {
         if (unreplaced) {
           problems.push(`${locale}/${screen} 有没替换的参数: ${Array.from(new Set(unreplaced)).slice(0, 5).join(', ')}`)
         }
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([])
+  })
+
+  /*
+   * 逐款玩法跑详情页。
+   *
+   * 这一条是补上上面那条守卫的盲区：上面只用一款（推箱子）代表全部玩法，
+   * 而**玩法自定义文案不是每款都齐全** —— 例如 `<ns>.solved.best` 只有 14/20 款有，
+   * 无条件取就会在另外 6 款的详情页上显示 ⟦sokoban.solved.best⟧ 这种东西。
+   */
+  it('20 款玩法的详情页在两种语言下都不缺键', () => {
+    const problems: string[] = []
+    for (const locale of ['zh-CN', 'en-US'] as const) {
+      for (const entry of library.entries) {
+        window.localStorage.clear()
+        window.localStorage.setItem('moqu:1:settings', JSON.stringify({ locale }))
+        const contentId = entry.levels && entry.levels.length > 0 ? entry.levels[0].id : entry.defaultDifficulty
+        window.localStorage.setItem(
+          'moqu:1:progress',
+          JSON.stringify({
+            completed: [entry.game.id + ':' + contentId],
+            bestMoves: { [contentId]: 7 },
+            history: [],
+          }),
+        )
+        const root = makeRoot()
+        startApp(root, library).navigate('detail', { gameId: entry.game.id })
+        const text = root.textContent ?? ''
+        const missing = text.match(/⟦[^⟧]+⟧/g)
+        if (missing) problems.push(`${locale}/${entry.game.id}: ${Array.from(new Set(missing)).join(', ')}`)
+        const unreplaced = text.match(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g)
+        if (unreplaced) problems.push(`${locale}/${entry.game.id} 未替换参数: ${Array.from(new Set(unreplaced)).join(', ')}`)
       }
     }
     expect(problems, problems.join('\n')).toEqual([])

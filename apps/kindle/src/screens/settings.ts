@@ -48,9 +48,9 @@ export const renderSettings: Screen = function renderSettings(root: HTMLElement,
 
     // 方向键
     body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:14px 0 6px;' }, ctx.t('shell.settings.dpad')))
-    body.appendChild(
-      el('div', { style: 'font-size:12px;line-height:1.5;margin-bottom:6px;' }, ctx.t('shell.detail.swipeHint')),
-    )
+    // 这里**不放**滑动提示：设置页与具体玩法无关，而滑动只对方向键驱动的玩法有效。
+    // 那句话（"…用滑动操作"）现在只在详情页、且该玩法真的能滑动时出现。
+
     const dpadRow = el('div', {})
     dpadRow.appendChild(
       button(ctx.t('shell.common.on'), function onDpad(): void {
