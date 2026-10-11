@@ -28,6 +28,8 @@
     "smoke:web": "node tools/scripts/web-smoke.mjs",
     "smoke:kindle": "node tools/scripts/kindle-smoke.mjs",
     "explore:kindle": "node tools/scripts/kindle-explore.mjs",
+    "audit:kindle": "node tools/scripts/kindle-audit.mjs",
+    "play:kindle": "node tools/scripts/kindle-play.mjs",
     "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8790",
     "preview:cf": "npm run build:kindle && npx --yes wrangler dev",
     "deploy:cf": "npm run build:kindle && npx --yes wrangler pages deploy apps/kindle/dist --project-name=moqu-gamebox-kindle --branch=kindle",

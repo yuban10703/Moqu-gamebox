@@ -327,7 +327,13 @@ for (const vp of VIEWPORTS) {
       const m = r(main)
       const s = r(surface)
       const f = r(footer)
+      const mainEl = document.querySelector('.k-main')
+      const mainScrollable =
+        !!mainEl &&
+        mainEl.scrollHeight > mainEl.clientHeight + 2 &&
+        window.getComputedStyle(mainEl).overflowY === 'auto'
       return {
+        mainScrollable: mainScrollable,
         main: m && { top: Math.round(m.top), bottom: Math.round(m.bottom), h: Math.round(m.height) },
         surface: s && { top: Math.round(s.top), bottom: Math.round(s.bottom), h: Math.round(s.height), w: Math.round(s.width) },
         footer: f && { top: Math.round(f.top), bottom: Math.round(f.bottom) },
@@ -340,9 +346,13 @@ for (const vp of VIEWPORTS) {
     if (!geom.surface || geom.surface.h < 20) {
       note(where, `呈现区高度只剩 ${geom.surface ? geom.surface.h : 0}px（基本不可玩）`)
     }
-    // 被 .k-main 的 overflow:hidden 裁掉 = 玩家看不到 / 点不到
-    if (geom.main && geom.surface && geom.surface.bottom > geom.main.bottom + 2) {
-      note(where, `呈现区被裁：bottom=${geom.surface.bottom} 超出 .k-main 底边 ${geom.main.bottom}`)
+    /*
+     * 被 .k-main 裁掉 = 玩家看不到 / 点不到。
+     * 例外：**极矮屏幕上壳层会主动开滚动保底**（放不下时宁可滚一下，也不让按钮够不着），
+     * 那种情况下内容仍可达，不算缺陷 —— 但要看它是不是真的滚得动。
+     */
+    if (geom.main && geom.surface && geom.surface.bottom > geom.main.bottom + 2 && !geom.mainScrollable) {
+      note(where, `呈现区被裁且无法滚动：bottom=${geom.surface.bottom} 超出 .k-main 底边 ${geom.main.bottom}`)
     }
     if (geom.surface && geom.surface.w > geom.vw + 2) {
       note(where, `呈现区超宽：${geom.surface.w} > 视口 ${geom.vw}`)

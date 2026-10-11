@@ -184,6 +184,7 @@ export function computeCellSize(cols: number, rows: number, width: number, heigh
   return byWidth
 }
 
+/** 一行/一列最多有几段线索 —— 线索带的厚度与宽度都按它算 */
 function clueMax(clues: string[][] | undefined): number {
   if (!clues || clues.length === 0) return 0
   let max = 0
@@ -201,13 +202,30 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
   const rowClues = board.rowClues
   const colClues = board.colClues
 
-  // 线索带要占掉一条边的宽度：先从可用宽高里扣掉，再算格子（否则棋盘会被裁）
-  const rowClueBand = rowClues ? clueMax(rowClues) * 1 : 0
-  const colClueBand = colClues ? clueMax(colClues) * 1 : 0
-  const bandCols = rowClueBand > 0 ? 1 : 0
-  const bandRows = colClueBand > 0 ? 1 : 0
-  const cell = computeCellSize(cols + bandCols, rows + bandRows, ctx.width, ctx.height)
-  const clueFont = Math.max(9, Math.round(cell * 0.34))
+  /*
+   * 线索带（数织）的尺寸必须**按线索条数**算，不能按"占一格"估。
+   *
+   * 踩过的坑：原先给线索带只留了一个格子的大小，而线索字号又是按格子等比放大的
+   * （cell × 0.34）—— 5 个数字的列线索需要 5 行文字，最后把那一行撑到 748px，
+   * 整块棋盘 1383px 高，在一屏 1024px 上被裁掉一半（全量审计量出来的）。
+   *
+   * 现在：线索字号**固定**（它是配角，不该跟着格子一起放大），
+   * 带子厚度 = 最多几条线索 × 行高，宽度 = 最多几位数字 × 字宽，再从可用区里扣掉。
+   */
+  const rowClueCount = clueMax(rowClues)
+  const colClueCount = clueMax(colClues)
+  const clueFont = Math.max(9, Math.min(15, Math.round(Math.min(ctx.width, ctx.height) / 60)))
+  const clueLine = Math.ceil(clueFont * 1.2)
+  const topBand = colClueCount > 0 ? colClueCount * clueLine + 2 : 0
+  const leftBand = rowClueCount > 0 ? Math.ceil(rowClueCount * clueFont * 0.85) + 4 : 0
+  // 每格还有 1px×2 的边框要占地方：9 列的棋盘光边框就吃掉 18px，
+  // 不扣掉的话高度会稳稳超出几个像素（审计量到的 3~9px 就是它）
+  const cell = computeCellSize(
+    cols,
+    rows,
+    ctx.width - leftBand - cols * 2,
+    ctx.height - topBand - rows * 2,
+  )
 
   const table = el('table', { class: 'k-board', cellspacing: '0', cellpadding: '0' })
   table.setAttribute('role', 'grid')
@@ -238,20 +256,25 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
   if (colClues) {
     const clueRow = el('tr', { class: 'k-board__clue-row' })
     if (rowClues) {
+      // 左上角空格：与左侧行线索带同宽
       clueRow.appendChild(
-        el('th', { class: 'k-board__clue-col', style: 'width:' + cell + 'px;height:' + cell + 'px;border:none;' }),
+        el('th', {
+          class: 'k-board__clue-corner',
+          style: 'width:' + leftBand + 'px;height:' + topBand + 'px;border:none;padding:0;',
+        }),
       )
     }
     for (let c = 0; c < cols; c++) {
       const th = el('th', {
         class: 'k-board__clue-col',
         style:
-          'width:' + cell + 'px;height:' + cell + 'px;border:none;padding:1px;vertical-align:bottom;' +
-          'font-size:' + clueFont + 'px;line-height:1.05;text-align:center;font-weight:400;',
+          'width:' + cell + 'px;height:' + topBand + 'px;border:none;padding:0;' +
+          'vertical-align:bottom;text-align:center;font-weight:400;font-size:' + clueFont + 'px;' +
+          'line-height:' + clueLine + 'px;overflow:hidden;',
       })
       const list = colClues[c] ?? []
       for (let k = 0; k < list.length; k++) {
-        th.appendChild(el('div', {}, list[k]))
+        th.appendChild(el('div', { style: 'height:' + clueLine + 'px;overflow:hidden;' }, list[k]))
       }
       clueRow.appendChild(th)
     }
@@ -264,8 +287,9 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
       const th = el('th', {
         class: 'k-board__clue-row',
         style:
-          'width:' + cell + 'px;height:' + cell + 'px;border:none;padding:1px;vertical-align:middle;' +
-          'font-size:' + clueFont + 'px;text-align:right;white-space:nowrap;font-weight:400;',
+          'width:' + leftBand + 'px;height:' + cell + 'px;border:none;padding:0 3px 0 0;' +
+          'vertical-align:middle;text-align:right;white-space:nowrap;font-weight:400;' +
+          'font-size:' + clueFont + 'px;line-height:' + clueLine + 'px;overflow:hidden;',
       })
       const list = rowClues[r] ?? []
       th.appendChild(document.createTextNode(list.join(' ')))

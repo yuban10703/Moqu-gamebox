@@ -9,7 +9,7 @@ import { APP_VERSION } from '@eink/core'
 import { el, clear, on } from '../dom.js'
 import type { Screen, ScreenCtx } from '../screen-ctx.js'
 import { listSaves, loadProgress, storageAvailable } from '../store.js'
-import { topBar, button, field } from './common.js'
+import { topBar, button, field, pager } from './common.js'
 import { svgSupported } from '../render/svg.js'
 
 interface Probe {
@@ -174,6 +174,8 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
   let checks: GameCheck[] | null = null
   let totalMs = 0
 
+  let page = 0
+
   function draw(): void {
     clear(root)
     root.appendChild(
@@ -187,89 +189,162 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
 
     const body = el('div', { class: 'k-main', style: 'font-size:13px;line-height:1.5;' })
 
-    body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:6px 0;' }, ctx.t('shell.diagnostics.device')))
+    /*
+     * 分页：这个版本**刻意不做滚动**，而自检页的内容（20 项能力 + 20 款玩法结果 +
+     * 报告框）远高于一屏 —— 竖屏内容约 892px、可用只有 730，横屏更是只有 522。
+     * 不分页的话，底部那截（包括「跑一遍自检」按钮与报告）永远看不见也点不到。
+     *
+     * 做法与游戏库一致：先把所有内容建成块，**离屏量出每块的真实高度**，
+     * 再按可用高度贪心装箱。量出来再排，比"估个行高"可靠得多
+     * （游戏库当初就是估行高估错、把分页器顶出了屏幕）。
+     */
+    const blocks = collectBlocks()
+    const pages = packPages(blocks)
+    if (page >= pages.length) page = pages.length - 1
+    if (page < 0) page = 0
+    const current = pages[page] ?? []
+    for (let i = 0; i < current.length; i++) body.appendChild(current[i])
+    root.appendChild(body)
+
+    const footer = el('div', { class: 'k-footer', style: 'padding:6px 10px;border-top:1px solid #000;' })
+    if (pages.length > 1) {
+      footer.appendChild(
+        pager(ctx, page, pages.length, function go(next: number): void {
+          page = next
+          draw()
+        }),
+      )
+    }
+    footer.appendChild(button(ctx.t('shell.settings.title'), function settings(): void { ctx.navigate('settings') }, { small: true }))
+    footer.appendChild(button(ctx.t('shell.nav.about'), function about(): void { ctx.navigate('about') }, { small: true }))
+    root.appendChild(footer)
+  }
+
+  /** 把这一页要显示的所有内容建成"块"（标题 / 行 / 按钮 / 报告框） */
+  function collectBlocks(): HTMLElement[] {
+    const blocks: HTMLElement[] = []
+    const section = function section(key: string): HTMLElement {
+      return el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:6px 0;' }, ctx.t(key))
+    }
+    const line = function line(text: string, extra?: HTMLElement): HTMLElement {
+      const row = el('div', { style: 'line-height:1.5;' })
+      row.appendChild(el('span', {}, text))
+      if (extra) row.appendChild(extra)
+      return row
+    }
+
+    blocks.push(section('shell.diagnostics.device'))
     const probes = runProbes()
     for (let i = 0; i < probes.length; i++) {
       const item = probes[i]
-      // 用形状标记支持与否：老引擎上没有颜色可言，★/☆ 在 1-bit 上也能分辨
+      // ★/☆ 表示支持与否：老引擎上没有颜色，形状最可靠
       const mark = item.ok ? '★' : '☆'
-      body.appendChild(
-        el('div', { style: 'line-height:1.5;' },
-          el('span', { style: 'font-weight:700;' }, mark + ' ' + item.key),
-          item.detail ? el('span', { style: 'font-size:11px;' }, ' — ' + item.detail) : null,
+      blocks.push(
+        line(
+          mark + ' ' + item.key,
+          item.detail ? el('span', { style: 'font-size:11px;' }, ' — ' + item.detail) : undefined,
         ),
       )
     }
 
-    body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:12px 0 6px;' }, ctx.t('shell.kindle.gameCheck')))
+    blocks.push(section('shell.kindle.gameCheck'))
     if (checks === null) {
-      body.appendChild(
+      blocks.push(
         button(ctx.t('shell.kindle.runCheck'), function run(): void {
           const result = runGameChecks(ctx)
           checks = result.checks
           totalMs = result.totalMs
+          page = 0
           draw()
         }, { primary: true }),
       )
     } else {
       let passed = 0
       for (let i = 0; i < checks.length; i++) if (checks[i].ok) passed++
-      body.appendChild(
-        el('div', { style: 'font-weight:700;margin-bottom:6px;' },
-          passed + ' / ' + checks.length + ' · ' + String(totalMs) + ' ms'),
-      )
+      blocks.push(el('div', { style: 'font-weight:700;margin-bottom:4px;' }, passed + ' / ' + checks.length + ' · ' + String(totalMs) + ' ms'))
       for (let i = 0; i < checks.length; i++) {
         const check = checks[i]
-        body.appendChild(
-          el('div', { style: 'line-height:1.5;' },
-            el('span', { style: 'font-weight:700;' }, (check.ok ? '★ ' : '☆ ') + check.id),
+        blocks.push(
+          line(
+            (check.ok ? '★ ' : '☆ ') + check.id,
             el('span', { style: 'font-size:11px;' }, ' ' + String(check.ms) + ' ms' + (check.detail ? ' · ' + check.detail : '')),
           ),
         )
       }
-      body.appendChild(
+      blocks.push(
         button(ctx.t('shell.kindle.runCheck'), function rerun(): void {
           const result = runGameChecks(ctx)
           checks = result.checks
           totalMs = result.totalMs
+          page = 0
           draw()
         }, { small: true }),
       )
     }
 
-    body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:12px 0 6px;' }, ctx.t('shell.diagnostics.saves')))
-    body.appendChild(field(ctx.t('shell.diagnostics.saves'), String(listSaves().length)))
+    blocks.push(section('shell.diagnostics.saves'))
+    blocks.push(line(ctx.t('shell.diagnostics.saves') + ': ' + String(listSaves().length)))
     const progress = loadProgress()
-    body.appendChild(field(ctx.t('shell.detail.progress'), String((progress.completed ?? []).length)))
-    body.appendChild(field(ctx.t('shell.common.version'), APP_VERSION))
-    body.appendChild(field(ctx.t('shell.settings.language'), ctx.locale))
+    blocks.push(line(ctx.t('shell.detail.progress') + ': ' + String((progress.completed ?? []).length)))
+    blocks.push(line(ctx.t('shell.common.version') + ': ' + APP_VERSION))
+    blocks.push(line(ctx.t('shell.settings.language') + ': ' + ctx.locale))
 
+    blocks.push(section('shell.kindle.report'))
     /*
-     * 自检报告：一行一行贴出来，用户可以直接拍照或抄下来反馈。
-     * 不提供「复制到剪贴板」：Kindle 浏览器没有 navigator.clipboard，假装有反而是骗人。
+     * 报告框：一行一行贴出来，用户可以直接拍照或抄下来反馈。
+     * 不提供「复制到剪贴板」—— Kindle 浏览器没有 navigator.clipboard，假装有反而是骗人。
      */
-    body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:12px 0 6px;' }, ctx.t('shell.kindle.report')))
     const report: string[] = []
     report.push('kindle-report v' + APP_VERSION)
     report.push('ua=' + (navigator.userAgent || '?'))
     report.push('viewport=' + String(window.innerWidth) + 'x' + String(window.innerHeight))
-    for (let i = 0; i < probes.length; i++) {
-      report.push(probes[i].key + '=' + (probes[i].ok ? '1' : '0'))
-    }
+    for (let i = 0; i < probes.length; i++) report.push(probes[i].key + '=' + (probes[i].ok ? '1' : '0'))
     if (checks !== null) report.push('games=' + String(checks.length) + ' total_ms=' + String(totalMs))
     const area = el('textarea', {
-      style: 'width:100%;height:110px;font-size:11px;box-sizing:border-box;border:1px solid #000;',
+      style: 'width:100%;height:84px;font-size:11px;box-sizing:border-box;border:1px solid #000;',
     })
     ;(area as HTMLTextAreaElement).value = report.join('\n')
     area.setAttribute('readonly', 'readonly')
-    body.appendChild(area)
+    blocks.push(area)
 
-    root.appendChild(body)
+    return blocks
+  }
 
-    const footer = el('div', { class: 'k-footer', style: 'padding:6px 10px;border-top:1px solid #000;' })
-    footer.appendChild(button(ctx.t('shell.settings.title'), function settings(): void { ctx.navigate('settings') }, { small: true }))
-    footer.appendChild(button(ctx.t('shell.nav.about'), function about(): void { ctx.navigate('about') }, { small: true }))
-    root.appendChild(footer)
+  /**
+   * 按**实测高度**把块装进页里。
+   *
+   * 先把块放进一个离屏容器量一次（宽度与真实主内容一致，否则换行不同、量不准），
+   * 再用可用高度贪心装箱。可用高度 = 页脚顶 − 主内容顶 − 分页器高度。
+   */
+  function packPages(blocks: HTMLElement[]): HTMLElement[][] {
+    const probe = el('div', {
+      style:
+        'position:absolute;left:-99999px;top:0;width:' + Math.max(200, ctx.width - 28) + 'px;' +
+        'font-size:13px;line-height:1.5;',
+    })
+    for (let i = 0; i < blocks.length; i++) probe.appendChild(blocks[i])
+    document.body.appendChild(probe)
+    const heights: number[] = []
+    for (let i = 0; i < blocks.length; i++) heights.push(blocks[i].getBoundingClientRect().height)
+    if (probe.parentNode) probe.parentNode.removeChild(probe)
+
+    // 可用高度：页脚（含分页器）预算从视口里扣掉
+    const available = Math.max(200, ctx.height - 130 - 96)
+    const pages: HTMLElement[][] = []
+    let current: HTMLElement[] = []
+    let used = 0
+    for (let i = 0; i < blocks.length; i++) {
+      const h = heights[i]
+      if (current.length > 0 && used + h > available) {
+        pages.push(current)
+        current = []
+        used = 0
+      }
+      current.push(blocks[i])
+      used += h
+    }
+    if (current.length > 0) pages.push(current)
+    return pages.length > 0 ? pages : [[]]
   }
 
   unbinds.push(

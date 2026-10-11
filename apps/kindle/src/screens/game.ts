@@ -17,7 +17,15 @@ import { renderControls } from '../render/controls.js'
 import type { RenderCtx } from '../render/types.js'
 import { topBar, button, showDialog, progressBar } from './common.js'
 
-/** 顶栏 + 统计 + 控制区占掉的高度（像素）；棋盘用剩下的 */
+/*
+ * 顶栏 / 统计 / 控制区占掉的高度。
+ *
+ * 这几个常量**只是首帧的估值**：真实高度由 CSS 决定（实测顶栏 65px、统计栏 65px、
+ * 页脚竖屏 156px / 横屏 100px、吃子盘 48px×2 —— 与这里的估值差得很远）。
+ * 靠估值算棋盘尺寸会把棋盘算大：中国象棋/国际象棋竖屏会溢出 7~31px，
+ * 数织更是被裁掉一半（全量审计量出来的）。
+ * 所以渲染完还要**按实测的可用带子收敛一次**（见 fitToViewport）。
+ */
 const CHROME_TOP = 52
 const CHROME_STATS = 30
 const CHROME_BOTTOM_TEE = 150
@@ -114,6 +122,12 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
 
   // 'unavailable' = 这台设备根本不让写；'quota' = 空间满；'io' = 其它写失败
   let saveFailure: 'unavailable' | 'quota' | 'io' | null = null
+  // 棋盘高度的收敛：0 = 还没收敛（用估值），>0 = 实测后压小的预算
+  let boardBudget = 0
+  let usedBoardHeight = 0
+  let fitAttempts = 0
+  let nudged = false
+  let scrollFallback = false
 
   const session = createSession<unknown, unknown>({
     game: game as GameDef<unknown, unknown>,
@@ -280,7 +294,10 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const body = el('div', { class: 'k-main', style: 'padding:4px 6px;' })
     const chromeBottom = dpadOn && hasDpad() ? (dpadLayout === 'row' ? CHROME_BOTTOM_ROW : CHROME_BOTTOM_TEE) : CHROME_BOTTOM_MIN
     const statsH = view.stats.length > 0 ? CHROME_STATS : 0
-    const boardHeight = Math.max(120, ctx.height - CHROME_TOP - statsH - chromeBottom - 24)
+    const estimated = ctx.height - CHROME_TOP - statsH - chromeBottom - 24
+    // 收敛后的预算优先（fitToViewport 会把它压小）
+    const boardHeight = Math.max(120, boardBudget > 0 ? Math.min(boardBudget, estimated) : estimated)
+    usedBoardHeight = boardHeight
 
     if (view.board) {
       renderBoard(body, localizeBoard(view.board, ctx.t), renderCtx(ctx.width - 12, boardHeight))
@@ -347,6 +364,190 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       cornerRight: restartHidden ? null : button('↻', function restart(): void { session.restart() }, { small: true }),
     })
     root.appendChild(el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar))
+
+    // DOM 已经进文档，可以量真实高度了
+    fitToViewport()
+  }
+
+  /**
+   * 渲染完量一次：呈现区（棋盘/牌桌/对决）有没有超出**实测**的可用带子。
+   *
+   * 为什么必须实测：算棋盘高度要减掉顶栏、统计栏、吃子盘、控制区、页脚……
+   * 这些高度全由 CSS 决定，而 CSS 是另一套可变的东西（横竖屏还不一样）。
+   * 用常量估就会算大 —— 大出来的部分被 .k-main 的 overflow:hidden 静静裁掉，
+   * 页面上不报任何错，只是棋盘底下一截看不见、手牌点不到。
+   *
+   * 收敛方式：按实测比例收缩预算后重画，最多两次（正常一次就够；两次仍不收敛说明
+   * 不是尺寸问题，继续重画只会闪屏）。
+   */
+  /** 呈现区的根元素：棋盘 / 手牌布局 / 牌堆布局（空当接龙）/ 对决面板 */
+  const SURFACE_SELECTOR = '.k-board, .k-cards, .k-piles, .k-duel'
+
+  /**
+   * 渲染完量一次：呈现区有没有超出**实测**的可用带子；超了就收缩再画一次。
+   *
+   * 为什么必须实测：棋盘高度要减掉顶栏、统计栏、吃子盘、控制区、页脚……
+   * 这些高度全由 CSS 决定，横竖屏还不一样。用常量估就会算大，而大出来的部分
+   * 被 .k-main 的 overflow:hidden 静静裁掉 —— 页面上不报任何错，
+   * 只是棋盘底下一截看不见、手牌点不到。
+   *
+   * 收敛不了时（牌桌/对决渲染器按比例缩放，可能缩不动）走 applyNudge 兜底。
+   * 最多收敛两次：两次还不行的，继续重画只会闪屏，问题不在预算上。
+   */
+  function fitToViewport(): void {
+    const main = root.querySelector('.k-main') as HTMLElement | null
+    const surface = root.querySelector(SURFACE_SELECTOR) as HTMLElement | null
+    const footer = root.querySelector('.k-footer') as HTMLElement | null
+    if (!main || !surface || !footer) return
+
+    const mainRect = main.getBoundingClientRect()
+    const surfaceRect = surface.getBoundingClientRect()
+    const band = footer.getBoundingClientRect().top - mainRect.top
+    if (band <= 40 || surfaceRect.height <= 0) return
+
+    /*
+     * 第一步：把 .k-main 的高度**钉死**在可用带子上。
+     *
+     * 这是结构性的修法：`.k-main` 的高度本来由内容撑开，内容一高它就钻到
+     * 绝对定位的页脚底下（页脚白底一盖，底部那截看不见也点不到，而页面上不报错）。
+     * 与其每次去猜"内容该多高"，不如直接告诉它"你就这么高"——
+     * 于是"主内容伸到页脚下面"这一类问题从根上不可能再出现。
+     *
+     * 同时把 CSS 里给页脚预留的 margin-bottom 归零：高度已经钉死了，
+     * 再留那 168px 只会把文档撑高（虽然被 .k-app 裁掉，但会让"整页不滚动"的断言变味）。
+     */
+    /*
+     * **每次渲染都要重新钉**：draw() 会清空并重建 .k-main，钉死的内联样式随节点一起没了；
+     * 用一个 mainPinned 标记挡住重复设置的话，重画之后就等于没钉
+     * （实测：斗地主/空当接龙仍然压到页脚下面）。
+     * 这一步是幂等的，而且不影响 band 的测量（band 只看 main 的顶边）。
+     *
+     * 必须连盒模型一起指定：.k-main 默认是 content-box，
+     * 只给 height 的话内边距会加在它外面（实测每次多出 8px）。
+     */
+    main.style.boxSizing = 'border-box'
+    main.style.height = Math.floor(band) + 'px'
+    main.style.marginBottom = '0'
+
+    /*
+     * 可用高度还要再扣两样：
+     *   offsetInside：呈现区上方压着的东西（.k-main 的上内边距等）
+     *   tail：呈现区下方的内边距
+     * 最初只扣了前一项，于是每次都在底部差 3~6px —— 差得不多，
+     * 但正好是被页脚盖住的那几像素（审计每次都报）。
+     */
+    const offsetInside = Math.max(0, surfaceRect.top - mainRect.top)
+    const computed = window.getComputedStyle(main)
+    const padBottom = parseFloat(computed.paddingBottom ? computed.paddingBottom : '0') || 0
+    const tail = padBottom + 2
+    if (surfaceRect.height <= band - offsetInside - tail) return // 已经放得下
+
+    if (fitAttempts < 4) {
+      /*
+       * 直接把**实测的可用高度**当作预算，而不是按比例缩放。
+       * 比例缩放是错的：棋盘尺寸取"宽高两种约束的较小值"，对接近正方形的棋盘
+       * （数织、象棋）**约束其实在宽度**，压高度预算它一点都不变小
+       * （实测日志：预算 858 → 826，棋盘纹丝不动）。
+       */
+      const available = Math.max(120, Math.floor(band - offsetInside - tail - 4))
+      if (available < usedBoardHeight) {
+        fitAttempts++
+        boardBudget = available
+        draw()
+        return
+      }
+    }
+
+    /*
+     * 收敛失败时先试"有让步空间的那一块"：对决面板里的**对战记录**。
+     *
+     * 实测（恶魔轮盘赌 @1024×760）：上家 102 + 枪台 177 + 记录 176 + 下家 115 ≈ 730，
+     * 而可用只有 522 —— 记录区是唯一可以缩短而不影响操作的东西
+     * （它只是"最近发生了什么"，最新几条仍在可见范围内，渲染器本来就会滚到底部）。
+     * 先砍它，砍完还不够再走整体缩放。
+     */
+    if (shrinkDuelLog(surface, surfaceRect.height - (band - offsetInside - tail))) {
+      const after = surface.getBoundingClientRect().height
+      if (after <= band - offsetInside - tail + 2) return
+    }
+
+    // 还不行 → 兜底缩放（每个屏幕只做一次）
+    applyNudge(band - offsetInside - tail - 2, surfaceRect.height, surface)
+  }
+
+  /**
+   * 最后手段：把呈现区整体缩一点。
+   *
+   * 为什么需要：牌桌 / 对决渲染器的尺寸是**按比例**从 height 推的（卡宽、头像、字号），
+   * 而斗地主这类布局的总高主要由**宽度**决定 —— 把 height 预算压下去，它纹丝不动
+   * （实测：预算 858 → 720，渲染高度仍是 756）。与其为几个百分点去改上千行布局代码，
+   * 不如整体缩：比例很小（通常 3~12%），触摸目标仍在 44px 以上，字也不会糊。
+   *
+   * 下限 0.88：超过 12% 说明布局结构上就放不下，再缩只会把字缩到读不清 ——
+   * 那种情况该去改渲染器，而不是在这里假装解决了。
+   */
+  /**
+   * 保底：让主内容可以滚动。
+   *
+   * 这个版本的设计原则是"不滚动、只翻页"，但在**极矮的屏幕**上（实测 900×520、
+   * 600×800）有些布局就是放不下 —— 对决面板要 ~730px、斗地主的手牌要 ~620px，
+   * 而可用带子只剩 390px。
+   *
+   * 两害相权：**缩到看不清**（缩放 <0.85）和**裁掉看不见**都不可接受，
+   * 而"能滚一下够到底部"至少保证每个按钮都点得到。
+   * 墨水屏上滚动体验不好，所以这是最后手段，不是常规做法 ——
+   * 常规视口（竖屏 760×1024 / 横屏 1024×760）都由收敛与缩放在不滚动的前提下解决。
+   */
+  function allowScrollFallback(): void {
+    if (scrollFallback) return
+    scrollFallback = true
+    const main = root.querySelector('.k-main') as HTMLElement | null
+    if (!main) return
+    main.style.height = 'auto'
+    main.style.overflowY = 'auto'
+    // 老 iOS/WebKit 的惯性滚动；属性名不在标准类型里，用 setProperty 写
+    main.style.setProperty('-webkit-overflow-scrolling', 'touch')
+  }
+
+  /**
+   * 缩短对决面板里的对战记录，给上面那几块腾出空间。
+   * 记录区是"只读信息"，缩短它不会让任何操作变得点不到 —— 这是唯一该动的块。
+   * 返回是否真的缩短了。
+   */
+  function shrinkDuelLog(surface: HTMLElement, need: number): boolean {
+    if (need <= 0) return false
+    const log = surface.querySelector('.k-duel__log') as HTMLElement | null
+    if (!log) return false
+    const current = log.getBoundingClientRect().height
+    const floor = 46 // 大约两行，低于这个就只剩一条缝，不如不要
+    if (current <= floor) return false
+    const next = Math.max(floor, Math.round(current - need - 4))
+    if (next >= current) return false
+    log.style.maxHeight = next + 'px'
+    log.style.overflow = 'hidden'
+    return true
+  }
+
+  function applyNudge(band: number, actual: number, surface: HTMLElement): void {
+    if (nudged) return
+    const ratio = band / actual
+    /*
+     * 缩放下限 0.85。再往下字就糊了、触摸目标也掉到 44px 以下 ——
+     * 那种情况不是"差一点"，而是**这个布局在这么矮的屏幕上就是放不下**，
+     * 该走下面的保底（允许滚动），而不是把界面缩成看不清的样子。
+     */
+    if (ratio < 0.85) {
+      allowScrollFallback()
+      return
+    }
+    nudged = true
+    const scale = ratio.toFixed(3)
+    surface.setAttribute(
+      'style',
+      (surface.getAttribute('style') || '') +
+        ';transform-origin:top left;-webkit-transform-origin:top left;' +
+        'transform:scale(' + scale + ');-webkit-transform:scale(' + scale + ');',
+    )
   }
 
   function hasDpad(): boolean {

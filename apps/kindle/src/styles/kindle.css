@@ -629,18 +629,30 @@ body {
   overflow: hidden;
 }
 
-.k-board__clue-row {
-  float: left;
-  clear: left;
-  width: 100%;
+/*
+ * 线索带是**棋盘表格里的单元格**（<th>），不是浮动盒子。
+ *
+ * 这里原先写的是 float:left —— 那是给"线索带自成一套浮动布局"的结构准备的，
+ * 而渲染器把线索输出成 <th>。float 作用在表格单元格上会打乱行的尺寸计算，
+ * 实测把线索行撑到 748px、整块棋盘 1383px（一屏只有 1024px，被裁掉一半）。
+ * 现在按表格单元格来：宽度/高度都由渲染器按线索条数算好，这里只管对齐与裁剪。
+ */
+.k-board__clue-row,
+.k-board__clue-col,
+.k-board__clue-corner {
   text-align: right;
   white-space: nowrap;
+  overflow: hidden;
+  font-weight: 400;
 }
 
 .k-board__clue-col {
-  float: left;
   text-align: center;
-  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.k-board__clue-corner {
+  border: none;
 }
 
 /*
