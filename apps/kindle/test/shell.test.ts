@@ -154,3 +154,38 @@ describe('Kindle 壳层', () => {
     expect(text).toContain('20 / 20')
   })
 })
+
+describe('文案完整性（每一屏、两种语言）', () => {
+  /**
+   * 两类会被漏掉的文案缺陷，都会**直接显示给用户**：
+   *   ① 缺 key：i18n 返回 `⟦key⟧`（这是刻意设计的，就是为了让缺词暴露出来）；
+   *   ② 参数名对不上：`第 {index}/{total} 页` 传了 `{page}` → 用户看到字面的 `{index}`。
+   * 第二种更阴 —— 它不报错、不缺 key，只是把占位符原样打在屏幕上。
+   * （真被漏过一次：`shell.library.page` 需要 `index`，代码里传的是 `page`。）
+   */
+  const SCREENS = ['library', 'detail', 'game', 'settings', 'about', 'diagnostics'] as const
+  const PARAMS = { gameId: 'sokoban', difficulty: 'starter' }
+
+  it('两种语言下都没有缺键标记 ⟦key⟧，也没有没被替换的 {param}', () => {
+    const problems: string[] = []
+    for (const locale of ['zh-CN', 'en-US'] as const) {
+      for (const screen of SCREENS) {
+        window.localStorage.clear()
+        window.localStorage.setItem('moqu:1:settings', JSON.stringify({ locale }))
+        const root = makeRoot()
+        const app = startApp(root, library)
+        app.navigate(screen, PARAMS)
+
+        const text = root.textContent ?? ''
+        const missing = text.match(/⟦[^⟧]+⟧/g)
+        if (missing) problems.push(`${locale}/${screen} 缺 key: ${missing.slice(0, 5).join(', ')}`)
+        // 占位符形式：{ 单词 }（字典里的模板长这样；正常渲染后不该再有）
+        const unreplaced = text.match(/\{[a-zA-Z_][a-zA-Z0-9_]*\}/g)
+        if (unreplaced) {
+          problems.push(`${locale}/${screen} 有没替换的参数: ${Array.from(new Set(unreplaced)).slice(0, 5).join(', ')}`)
+        }
+      }
+    }
+    expect(problems, problems.join('\n')).toEqual([])
+  })
+})

@@ -26,6 +26,7 @@
     "juice": "node tools/juice/render.mjs",
     "juice:check": "node tools/juice/check-site.mjs",
     "smoke:web": "node tools/scripts/web-smoke.mjs",
+    "smoke:kindle": "node tools/scripts/kindle-smoke.mjs",
     "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8790",
     "preview:cf": "npm run build:web && npx --yes wrangler dev",
     "deploy:cf": "npm run build:web && npx --yes wrangler pages deploy apps/web/dist --project-name=moqu --branch=main",

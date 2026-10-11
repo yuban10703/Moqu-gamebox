@@ -11,23 +11,74 @@ import type { Screen, ScreenCtx } from '../screen-ctx.js'
 import { loadProgress } from '../store.js'
 import { topBar, button, pager, progressBar } from './common.js'
 
-/** 每页条数：按可用高度算，保证一屏放得下（不出现滚动条） */
-function pageSizeFor(height: number): number {
-  // 顶栏约 56、分页器约 44、底部导航约 48；每行约 56
-  const usable = height - 56 - 44 - 48 - 16
-  const rows = Math.floor(usable / 56)
-  if (rows < 3) return 3
-  if (rows > 12) return 12
-  return rows
+/**
+ * 每页条数。
+ *
+ * **必须按实测高度算，不能抄固定数字**：最初这里按"每行 56px"猜，
+ * 真机截图立刻打脸 —— 列表项实际约 93px（标题 + 进度 + 进度条三行），
+ * 第一页 8 项直接顶出屏幕、连分页器都看不见了（翻不动页 = 后面 12 款玩法够不着）。
+ * 现在的做法：先用上次实测的行高估一版，挂载后**量一次真实高度**再修正并重排。
+ */
+function pageSizeFor(available: number, rowHeight: number): { size: number; rows: number } {
+  const rows = Math.floor(available / rowHeight)
+  const size = rows < 3 ? 3 : rows > 20 ? 20 : rows
+  return { size: size, rows: rows }
 }
 
 export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, ctx: ScreenCtx): () => void {
   const entries = ctx.library.entries
-  const pageSize = pageSizeFor(ctx.height)
-  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
+  /*
+   * 行高与可用高度都先给保守估值：首帧宁可少放两行（挂载后 measure() 会修正并重排），
+   * 也不要先多放 —— 多放的那一帧会把分页器顶出屏幕，看起来就像"翻不了页"。
+   */
+  let rowHeight = 100
+  let pageSize = pageSizeFor(ctx.height - 260, rowHeight).size
+  let pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
   let page = 0
   let selected = 0
+  let measured = false
   const unbinds: Array<() => void> = []
+
+  /**
+   * 挂载后量一次**真实可用高度**与**真实行高**，据此重排。
+   *
+   * 为什么要量而不是算：第一次实现用的是"视口高度 - 一串猜的常数"，
+   * 结果漏掉了 CSS 里 `.k-main` 给绝对定位页脚预留的 margin-bottom（168px），
+   * 于是每一页都多塞了一行，最后一项被切在屏幕外、**分页器根本看不见**——
+   * 在不能滚动的页面上，这等于后面 12 款玩法全都够不着。
+   *
+   * 现在的做法完全不依赖常数：直接量顶栏底边与页脚顶边之间的那条带子，
+   * 再扣掉分页器自己占的高度。CSS 那边的预算怎么改，这里都跟着走。
+   *
+   * 只重排一次（measured 标记）：量完布局就稳定了，反复重排会闪。
+   */
+  function measure(): void {
+    if (measured) return
+    const topbar = root.querySelector('.k-topbar') as HTMLElement | null
+    const footer = root.querySelector('.k-footer') as HTMLElement | null
+    const firstRow = root.querySelector('.k-list__item') as HTMLElement | null
+    const pagerEl = root.querySelector('.k-pager') as HTMLElement | null
+    if (!topbar || !firstRow) return
+
+    const rowPx = firstRow.offsetHeight + 6 // 6 = 行间距（margin-bottom）
+    if (rowPx <= 10) return // 还没布局（隐藏/零尺寸）：下次再说
+
+    const bandTop = topbar.getBoundingClientRect().bottom
+    const bandBottom = footer ? footer.getBoundingClientRect().top : ctx.height
+    const pagerPx = pagerEl ? pagerEl.offsetHeight + 8 : 52
+    const available = bandBottom - bandTop - pagerPx - 12
+    const next = pageSizeFor(available, rowPx)
+
+    measured = true
+    if (next.size !== pageSize) {
+      rowHeight = rowPx
+      pageSize = next.size
+      pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
+      if (page >= pageCount) page = pageCount - 1
+      selected = 0
+      draw()
+    }
+  }
 
   function draw(): void {
     const start = page * pageSize
@@ -40,7 +91,8 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     root.appendChild(
       topBar(ctx, {
         title: ctx.t('shell.app.title'),
-        subtitle: ctx.t('shell.library.page', { page: page + 1, total: pageCount }),
+        // 参数名必须与字典一致：shell.library.page 用的是 {index}/{total}
+        subtitle: ctx.t('shell.library.page', { index: page + 1, total: pageCount }),
         onBack: null,
         actions: [{ label: ctx.t('shell.nav.settings'), onClick: function toSettings(): void { ctx.navigate('settings') } }],
       }),
@@ -91,6 +143,8 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     nav.appendChild(button(ctx.t('shell.nav.about'), function toAbout(): void { ctx.navigate('about') }, { small: true }))
     nav.appendChild(button(ctx.t('shell.nav.diagnostics'), function toDiag(): void { ctx.navigate('diagnostics') }, { small: true }))
     root.appendChild(nav)
+
+    measure()
   }
 
   // 物理键：上下移动、回车进入、左右翻页

@@ -173,7 +173,15 @@ tools/scripts/build-kindle.mjs  复制资源 → ES5 守卫 → 体积报告
 ```bash
 npm run build:kindle     # 构建到 apps/kindle/dist/（含 ES5 守卫与体积报告）
 npm run serve:kindle     # 起一个绑定 0.0.0.0 的局域网服务，并打印 Kindle 能用的地址
+npm run smoke:kindle     # 真实 Chromium 冒烟（31 项，截图落在 .kindle-shots/）
 npm run check:es5        # 只跑手写脚本的 ES5 守卫
+```
+
+`smoke:kindle` 需要先 `build:kindle` 并起好服务（与 `smoke:web` 同一套约定）：
+
+```bash
+npm run build:kindle && node tools/scripts/serve-kindle.mjs apps/kindle/dist 8791 &
+npm run smoke:kindle
 ```
 
 Kindle 上的用法：把 `apps/kindle/dist/` 丢到任意静态托管（和 Web 版一样），
@@ -223,10 +231,33 @@ Kindle 上的用法：把 `apps/kindle/dist/` 丢到任意静态托管（和 Web
 守卫逻辑（`findEs5Violations`）放在 `tools/scripts/check-es5.mjs`，
 **构建脚本与测试共用同一份实现** —— 两处各写一份判据迟早会分叉。
 
+另外还有一条**真实 Chromium** 的冒烟脚本 `tools/scripts/kindle-smoke.mjs`（31 项断言）：
+启动链路 → 游戏库 → 逐款玩法（棋盘 / 牌桌 / 对决三种呈现面各取几款）→ 自检页，
+每步都验「无缺键、无未替换参数、页脚主操作在视口内、整页不滚动」。
+
+它存在的理由很具体：jsdom 的三条守卫**都没有真实布局**，而 Kindle 版最特别的地方恰恰是布局
+（容器查询 / grid / 现代 flex 全不可用，格子边长是 JS 算出来的，页面不能滚动）。
+它已经逮住两个真缺陷，两个都是**只看代码看不出来**的那种：
+
+| 缺陷 | 现象 | 根因 |
+|---|---|---|
+| 分页按"每行 56px"猜 | 第一页塞 8 项后溢出，**分页器被顶出屏幕**（后 12 款玩法够不着） | 实际行高约 93px；且漏算了 CSS 给绝对定位页脚预留的 `margin-bottom:168px`。现改为**量顶栏底边到页脚顶边的那条带子**，不再依赖任何常数 |
+| `shell.library.page` 应传 `{index}` | 屏幕上印着字面的 `第 {index}/2 页` | 缺 key 会显示 `⟦key⟧`（刻意设计，容易发现），但**参数名对不上不会报错**，只是把占位符原样打出来 —— 更阴 |
+
+后一类现在由 `shell.test.ts` 的「文案完整性」用例兜住：两种语言 × 6 个屏幕，
+既查 `⟦key⟧` 也查残留的 `{param}`。
+
 ## 已知限制
 
-1. **没有 KPW6 实测**（见上）。当前只能在 jsdom 里保证"逻辑与 ES5 纯度"，
-   真机上的触摸精度、翻页键键码、刷新残影都需要设备实测后微调。
+1. **没有 KPW6 实测**（见上）。当前的验证止步于：
+   - jsdom：ES5 纯度、产物能启动、20 款玩法逐款建局、文案完整性；
+   - **真实 Chromium**（`smoke:kindle`，31 项）：启动链路、游戏库分页、7 款玩法的三种呈现面、
+     自检页、无未捕获错误。
+
+   也就是说「代码能在浏览器里正确渲染」是有证据的；**「KPW6 的引擎认不认这些语法与 CSS」
+   仍然没有证据** —— 这正是 ES5 守卫与 `check.html` 存在的原因。
+   真机上还需要实测的：触摸精度与抖动（决定"点格子"是否会被判成滑动）、
+   翻页键上报的键码、整屏刷新后的残影与对比度。
 2. **单包 1.5 MB（未压缩）/ 374 KB（gzip）**。没有做按玩法分包：`tsc --outFile` 会把
    可达模块全部内联，而"每款玩法一个文件"需要先给 `packages/core` 单独发 `.d.ts`、
    再把壳层改成读"构建期生成的元数据清单"（否则游戏库列表本身就要加载全部玩法）。

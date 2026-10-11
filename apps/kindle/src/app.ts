@@ -33,11 +33,26 @@ function viewport(): { width: number; height: number } {
   return { width: width, height: height }
 }
 
+/**
+ * 真机排障用的全局句柄。
+ *
+ * 与 Web 版把平台对象挂到 `window.__einkPlatform` 同一个理由：
+ * Kindle 上没有 DevTools、没有控制台，出问题时只能靠"在地址栏里塞一段 JS"或
+ * 自检页读到运行时状态。有它才能问出「现在在哪一屏、库加载了几款、语言是什么」。
+ */
+declare global {
+  interface Window {
+    __moquApp?: AppHandle
+  }
+}
+
 export interface AppHandle {
   navigate(screen: ScreenName, params?: ScreenParams): void
   back(): void
   setLocale(locale: 'zh-CN' | 'en-US'): void
   render(): void
+  /** 当前运行时摘要（排障与自检页用；不要拿它做业务判断） */
+  status(): { screen: ScreenName; params: ScreenParams; locale: string; games: number }
 }
 
 export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
@@ -85,6 +100,15 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
 
     render: function render(): void {
       renderScreen(currentScreen, currentParams)
+    },
+
+    status: function status(): { screen: ScreenName; params: ScreenParams; locale: string; games: number } {
+      return {
+        screen: currentScreen,
+        params: currentParams,
+        locale: settings.locale,
+        games: library.entries.length,
+      }
     },
   }
 
@@ -198,6 +222,7 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
 
   rebuildI18n()
   renderScreen('library', {})
+  window.__moquApp = handle
   return handle
 }
 

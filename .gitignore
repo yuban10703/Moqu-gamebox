@@ -37,3 +37,6 @@ __pycache__/
 
 # Cloudflare wrangler 的本地缓存（跑 preview:cf / deploy --dry-run 会生成）
 .wrangler/
+
+# Kindle 冒烟测试的截图（本地排障用，不进仓库）
+.kindle-shots/

@@ -355,6 +355,7 @@ function logNode(
   log: readonly DuelLine[],
   height: number,
   base: number,
+  host: StealHost,
   out: { scroll: HTMLElement | null },
 ): HTMLElement {
   var box = el('div', {
@@ -367,6 +368,14 @@ function logNode(
   box.setAttribute('role', 'log')
   box.setAttribute('aria-label', ctx.t('shell.duel.recent'))
   out.scroll = box
+  // 玩家往上翻时记住位置：这块 DOM 下次是清空重建的，位置只能存在容器上（见 renderDuel 末尾）
+  box.addEventListener(
+    'scroll',
+    function onScroll(): void {
+      host.__kLogTop = box.scrollTop
+    },
+    false,
+  )
 
   var groups: Array<{ highlight: boolean; lines: Array<{ line: DuelLine; index: number }> }> = []
   var i: number
@@ -963,7 +972,7 @@ export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCt
   root.appendChild(stage)
 
   var scroll: { scroll: HTMLElement | null } = { scroll: null }
-  root.appendChild(logNode(ctx, duel.log, geom.logH, geom.base, scroll))
+  root.appendChild(logNode(ctx, duel.log, geom.logH, geom.base, host, scroll))
 
   if (bottom) root.appendChild(sideNode(ctx, bottom, armed, geom, pickFor(bottom), stealAt))
 
