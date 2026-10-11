@@ -7,7 +7,7 @@
  * 这条测试是这套新壳层与旧 React 壳层之间**唯一**的共同判据 ——
  * 玩法逻辑两边共用，壳层却是重写的，所以必须逐款过一遍。
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { library } from '@eink/library'
 import { createI18n } from '@eink/core'
 import { startApp } from '../src/app.js'
@@ -237,6 +237,114 @@ describe('Kindle 壳层', () => {
 
     app.navigate('library')
     expect(document.querySelector('.k-dialog__panel'), '切屏后对话框还挂在屏幕上').toBeNull()
+  })
+
+  /*
+   * 开新局必须换种子。
+   *
+   * 这里原先四处都写死 `game.create(0, difficulty)`，后果不是"稍微单调"，而是
+   * **所有靠种子生成的玩法每局完全一样**：扫雷雷区、记忆配对洗牌、2048 出块、
+   * 斗地主牌、恶魔轮盘赌装填顺序全部固定。
+   * 更糟的是 core 的 mulberry32 里有 `state = (seed >>> 0) || 0x9e3779b9` ——
+   * 种子 0 会落到那个固定常量，所以那是"唯一那一局"，不是"某一局"。
+   */
+  it('开新局换种子：靠随机生成的玩法不能每局一模一样', () => {
+    const seeds: number[] = []
+    const states: string[] = []
+    // 同毫秒内连开几局会拿到同一个种子（真实操作里不可能，但测试里会）——把时钟推着走
+    let clock = 1700000000000
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1000))
+    try {
+      for (let i = 0; i < 3; i++) {
+        window.localStorage.clear()
+        const root = makeRoot()
+        const app = startApp(root, library)
+        app.navigate('game', { gameId: 'minesweeper', difficulty: 'starter', fresh: true })
+        // 存档是在**第一次落子**时才写的（开局本身不落盘），所以先点一格；
+        // 扫雷的雷区是首点之后才铺的 —— 这一步之后存档里就带上了真正的雷区
+        const cell = root.querySelector('.k-board__cell') as HTMLElement | null
+        expect(cell, '棋盘没渲染出格子').toBeTruthy()
+        cell!.click()
+        const raw = window.localStorage.getItem('moqu:1:save:minesweeper')
+        expect(raw, '开新局之后没有写入存档').toBeTruthy()
+        const envelope = JSON.parse(raw!) as { seed: number; state: unknown }
+        seeds.push(envelope.seed)
+        states.push(JSON.stringify(envelope.state))
+      }
+    } finally {
+      spy.mockRestore()
+    }
+    expect(seeds, `三局的种子分别是 ${seeds.join(', ')}`).not.toEqual([0, 0, 0])
+    expect(new Set(seeds).size, `种子没有变化：${seeds.join(', ')}`).toBe(3)
+    expect(new Set(states).size, '三局的雷区完全一样').toBe(3)
+  })
+
+  /*
+   * 「重开」对两类玩法语义不同（与现代版一致）：
+   *   · 无关卡（扫雷/数织/记忆…）：**换一局** —— 游戏自己的规则文案就是这么写的
+   *     （数织「重开会换一道题」、记忆「重新洗牌」、扫雷「重新放置地雷」）。
+   *     壳层原先一律只调 session.restart()，等于把游戏承诺的语义做没了。
+   *   · 有关卡（推箱子/华容道）：回到**本关**初始局面，不能换种子、更不能退回第 1 关。
+   */
+  it('重开：无关卡玩法换新一局，有关卡玩法仍在同一关', () => {
+    let clock = 1700000000000
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1000))
+    try {
+      const readSeed = (id: string): number => {
+        const raw = window.localStorage.getItem('moqu:1:save:' + id)
+        expect(raw, `${id} 没有存档`).toBeTruthy()
+        return (JSON.parse(raw!) as { seed: number }).seed
+      }
+      /** 点当前对话框里指定文字的按钮 */
+      const pressInDialog = (label: string): void => {
+        const panel = document.querySelector('.k-dialog__panel')
+        expect(panel, '没有打开的对话框').toBeTruthy()
+        const btn = Array.from(panel!.querySelectorAll('button')).find(
+          (b) => (b.textContent ?? '').trim() === label,
+        )
+        expect(btn, `对话框里没有「${label}」`).toBeTruthy()
+        btn!.click()
+      }
+      /**
+       * 走暂停菜单重开（所有玩法都有这条路）。
+       * 倒 T 方向键布局的玩法还有 ↻ 角落按钮，但那是布局的空格子顺手放的，
+       * 无关卡玩法大多没有方向键，所以测试走通用路径。
+       */
+      const pressRestart = (host: HTMLElement): void => {
+        const menu = Array.from(host.querySelectorAll('button')).find(
+          (b) => (b.textContent ?? '').indexOf('菜单') >= 0,
+        )
+        expect(menu, '顶栏找不到「菜单」').toBeTruthy()
+        menu!.click()
+        pressInDialog('重新开始') // 暂停菜单里的那一项
+        pressInDialog('重新开始') // 确认框
+      }
+
+      // —— 无关卡：扫雷 ——
+      window.localStorage.clear()
+      let root = makeRoot()
+      startApp(root, library).navigate('game', { gameId: 'minesweeper', difficulty: 'starter', fresh: true })
+      ;(root.querySelector('.k-board__cell') as HTMLElement).click()
+      const before = readSeed('minesweeper')
+      pressRestart(root)
+      const after = readSeed('minesweeper')
+      expect(after, '扫雷重开之后还是同一套雷区').not.toBe(before)
+
+      // —— 有关卡：推箱子 ——
+      window.localStorage.clear()
+      root = makeRoot()
+      startApp(root, library).navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+      const levelBefore = (root.textContent ?? '').match(/第\s*\d+\s*\/\s*\d+\s*关/)?.[0] ?? ''
+      const boardBefore = root.querySelector('.k-board')?.outerHTML ?? ''
+      pressRestart(root)
+      const levelAfter = (root.textContent ?? '').match(/第\s*\d+\s*\/\s*\d+\s*关/)?.[0] ?? ''
+      const boardAfter = root.querySelector('.k-board')?.outerHTML ?? ''
+      expect(levelBefore, '推箱子标题里没有关卡号').not.toBe('')
+      expect(levelAfter, '推箱子重开之后换了关').toBe(levelBefore)
+      expect(boardAfter, '推箱子重开之后不是本关初始局面').toBe(boardBefore)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('设置页能把语言切到英文并即时生效', () => {

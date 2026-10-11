@@ -115,6 +115,20 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
   const ns = game.i18nNamespace
   const unbinds: Array<() => void> = []
 
+  /*
+   * 「重开」对两类玩法的语义**不一样**（与现代版保持一致）：
+   *   · 有关卡（推箱子/华容道）：回到**本关**初始局面 —— 布局是固定的，换种子没意义，
+   *     而且用 restartFresh 会把玩家踢回第 1 关。
+   *   · 无关卡（扫雷/2048/记忆/数织…）：**换一个种子重新生成** ——
+   *     否则按多少次「重开」都是同一道题。
+   *
+   * 这一条有玩法自己的规则文案作证：数织写的是「重开会换一道题」、
+   * 记忆写的是「重新洗牌」、扫雷写的是「重新放置地雷」——
+   * 而壳层原先一律只调 session.restart()，等于把游戏自己承诺的语义做没了
+   * （与现代版记录的用户反馈"重新开始并不会随机生成关卡"是同一件事）。
+   */
+  const hasLevels = !!(entry.levels && entry.levels.length > 0)
+
   const dpadOn = ctx.settings.dpad && entry.dpadDefault !== false
   const dpadLayout = entry.dpadLayout ?? 'tee'
   // 能不能滑动由登记表决定（点格子的玩法一律不能滑），与提示文案同一判据
@@ -352,7 +366,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
           return
         }
         if (id === 'restart') {
-          session.restart()
+          askRestart()
           return
         }
         if (!session.runControl(id)) {
@@ -361,7 +375,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
         }
       },
       cornerLeft: undoHidden ? null : button('↶', function undo(): void { session.undo() }, { small: true, disabled: !session.hasControl('undo') }),
-      cornerRight: restartHidden ? null : button('↻', function restart(): void { session.restart() }, { small: true }),
+      cornerRight: restartHidden ? null : button('↻', function restart(): void { askRestart() }, { small: true }),
     })
     root.appendChild(el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar))
 
@@ -558,6 +572,32 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     return false
   }
 
+  /** 真的重开（已经确认过） */
+  function doRestart(): void {
+    session.resume()
+    if (hasLevels) session.restart()
+    else session.restartFresh()
+  }
+
+  /**
+   * 重开前先确认。
+   *
+   * 正文用**玩法自己**的 `<ns>.rules.restart` —— 它说明的是"这一款重开意味着什么"
+   * （数织：换一道题；推箱子：清空本关进度），比壳层写一句通用话准确得多。
+   * 20/20 款都定义了这个键，但仍然走 ctx.has 兜底。
+   */
+  function askRestart(): void {
+    const bodyKey = ns + '.rules.restart'
+    showDialog({
+      title: ctx.t('shell.game.restart'),
+      body: ctx.has(bodyKey) ? ctx.t(bodyKey) : undefined,
+      actions: [
+        { label: ctx.t('shell.game.restart'), primary: true, onClick: doRestart },
+        { label: ctx.t('shell.common.cancel'), onClick: function cancel(): void {} },
+      ],
+    })
+  }
+
   function openPauseMenu(): void {
     session.pause()
     const undoHidden = (entry.hideShellControls ?? []).indexOf('undo') >= 0
@@ -583,8 +623,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       actions.push({
         label: ctx.t('shell.game.restart'),
         onClick: function restart(): void {
-          session.resume()
-          session.restart()
+          askRestart()
         },
       })
     }
@@ -623,9 +662,8 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     actions.push({
       label: ctx.t('shell.result.again'),
       onClick: function again(): void {
-        // 回本关初始局面（关卡制）；无关卡玩法由游戏自己的 restart 语义决定。
-        // 不要用 restartFresh：那会换种子，对关卡制等于把玩家踢回第 1 关。
-        session.restart()
+        // 走统一的 doRestart：关卡制回本关，无关卡玩法换新一局
+        doRestart()
       },
     })
     actions.push({
@@ -667,7 +705,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       }
       if (code === 82) {
         e.preventDefault()
-        session.restart()
+        askRestart()
         return
       }
       if (code === 27) {

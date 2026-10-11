@@ -119,7 +119,8 @@ async function interact(index, cellSelectable) {
       cards[i % cards.length].click()
       return 'cards'
     }
-    const dpad = pick(Array.from(document.querySelectorAll('.k-dpad button')))
+    // .k-dpad__btn 恰好就是方向键本身；角落的 ↶ / ↻ 是 .k-btn（借用倒 T 上排两侧的空格）
+    const dpad = pick(Array.from(document.querySelectorAll('.k-dpad__btn')))
     if (dpad.length > 0) {
       dpad[i % dpad.length].click()
       return 'dpad'
@@ -133,7 +134,8 @@ async function interact(index, cellSelectable) {
       items[i % items.length].click()
       return 'duel'
     }
-    const controls = pick(Array.from(document.querySelectorAll('.k-controls button')))
+    // 同样只取玩法自己的动作按钮：.k-controls 整条里还含着方向键与 ↶/↻
+    const controls = pick(Array.from(document.querySelectorAll('.k-controls__actions button')))
     if (controls.length > 0) {
       controls[i % controls.length].click()
       return 'control'
@@ -201,12 +203,32 @@ for (const o of ORIENTATIONS) {
       undo = afterUndo !== afterInputs ? 'ok' : advanced ? 'no-change' : 'nothing-to-undo'
     }
 
-    // 重开（按标签找 ↻）
+    /*
+     * 重开。两条要点：
+     *   1. 现在会先弹确认框（正文是玩法自己的 `<ns>.rules.restart`），得点掉它；
+     *   2. **无关卡玩法重开就该换一局** —— 扫雷换雷图、记忆重洗、数织换题。
+     *      所以"回到初始局面"只对关卡制成立，无关卡玩法反过来要断言"变了"。
+     */
     let restart = 'n/a'
     if (await clickShellAction('↻')) {
-      await page.waitForTimeout(320)
-      if (autoTick) restart = 'skipped(auto)'
-      else restart = (await snap()) === initial ? 'ok' : 'not-initial'
+      await page.waitForTimeout(250)
+      const confirmed = await page.evaluate(() => {
+        const panel = document.querySelector('.k-dialog__panel')
+        const btn = panel && Array.from(panel.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === '重新开始')
+        if (!btn) return false
+        btn.click()
+        return true
+      })
+      await page.waitForTimeout(400)
+      if (!confirmed) restart = 'no-confirm'
+      else if (autoTick) restart = 'skipped(auto)'
+      else {
+        const hasLevels = /\d+\s*\/\s*\d+\s*关/.test(
+          await page.evaluate(() => (document.querySelector('.k-topbar__title') || {}).textContent || ''),
+        )
+        const same = (await snap()) === initial
+        restart = hasLevels ? (same ? 'ok(本关)' : 'not-initial') : same ? 'not-new-game' : 'ok(新一局)'
+      }
     }
 
     const finalState = await readState()
@@ -235,7 +257,9 @@ for (const o of ORIENTATIONS) {
     if (state.error) note(`${o.name}/${id}`, '进入了错误页（screen error）')
     if (finalState.missingKeys || finalState.unreplaced) note(`${o.name}/${id}`, '有缺键或未替换参数')
     if (undo === 'no-change') note(`${o.name}/${id}`, '局面推进过，但点撤销后没回到上一步')
-    if (restart === 'not-initial') note(`${o.name}/${id}`, '点了重开但没回到初始局面')
+    if (restart === 'not-initial') note(`${o.name}/${id}`, '关卡制玩法点了重开但没回到本关初始局面')
+    if (restart === 'not-new-game') note(`${o.name}/${id}`, '无关卡玩法点了重开却还是同一局')
+    if (restart === 'no-confirm') note(`${o.name}/${id}`, '点了 ↻ 但没有出现确认框')
     if (jsErrors.length) note(`${o.name}/${id}`, `JS 错误: ${jsErrors.slice(0, 2).join(' | ')}`)
     await page.screenshot({ path: `${SHOTS}${o.name}-${id}.png` })
   }
@@ -284,6 +308,88 @@ for (const o of ORIENTATIONS) {
   await page.screenshot({ path: `${SHOTS}${o.name}-result.png` })
 }
 
+// ---------- 种子：开新局换一局，重开也要换 ----------
+/*
+ * 这一轮的真实缺陷来源：会话里四处都写死 `game.create(0, difficulty)`，
+ * 于是扫雷雷区、记忆洗牌、2048 出块、斗地主牌、轮盘赌装填**每局完全一样**；
+ * 而 core 的 mulberry32 里 `state = (seed >>> 0) || 0x9e3779b9` 让"种子 0"
+ * 落到固定常量上 —— 那是"唯一那一局"，不是"某一局"。
+ */
+const seedPhase = []
+{
+  const readSave = (id) =>
+    page.evaluate((g) => {
+      const raw = window.localStorage.getItem('moqu:1:save:' + g)
+      return raw ? JSON.parse(raw) : null
+    }, id)
+  const clickDialog = (label) =>
+    page.evaluate((t) => {
+      const panel = document.querySelector('.k-dialog__panel')
+      const btn = panel && Array.from(panel.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === t)
+      if (!btn) return false
+      btn.click()
+      return true
+    }, label)
+
+  await page.setViewportSize({ width: ORIENTATIONS[0].width, height: ORIENTATIONS[0].height })
+  // 开三次新局：种子与局面都必须各不相同
+  const seeds = []
+  const states = []
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => window.__moquApp.navigate('game', { gameId: 'minesweeper', difficulty: 'starter', fresh: true }))
+    await page.waitForTimeout(400)
+    await page.evaluate(() => document.querySelector('.k-board__cell').click())
+    await page.waitForTimeout(400)
+    const env = await readSave('minesweeper')
+    seeds.push(env && env.seed)
+    states.push(env && JSON.stringify(env.state))
+  }
+  seedPhase.push({ where: '开三次新局', ok: new Set(seeds).size === 3 && new Set(states).size === 3, detail: `种子 ${seeds.join(',')}` })
+  if (new Set(seeds).size !== 3 || new Set(states).size !== 3) {
+    note('种子/开新局', `三次新局的种子或局面重复：${seeds.join(',')}`)
+  }
+
+  // 重开：无关卡玩法必须换一局
+  const before = await readSave('minesweeper')
+  await page.evaluate(() => {
+    const b = Array.from(document.querySelectorAll('button')).find((x) => (x.textContent || '').trim() === '菜单')
+    if (b) b.click()
+  })
+  await page.waitForTimeout(250)
+  await clickDialog('重新开始')
+  await page.waitForTimeout(250)
+  await clickDialog('重新开始')
+  await page.waitForTimeout(500)
+  const after = await readSave('minesweeper')
+  const changed = !!(before && after && before.seed !== after.seed)
+  seedPhase.push({ where: '扫雷重开', ok: changed, detail: changed ? '换了新一局' : `仍是 ${before && before.seed}` })
+  if (!changed) note('种子/重开', '无关卡玩法点了重开却还是同一局')
+
+  // 重开：有关卡玩法必须仍在本关
+  await page.evaluate(() => window.__moquApp.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true }))
+  await page.waitForTimeout(450)
+  const levelBefore = await page.evaluate(() => ({
+    title: (document.querySelector('.k-topbar__title') || {}).textContent || '',
+    board: (document.querySelector('.k-board') || {}).outerHTML || '',
+  }))
+  await page.evaluate(() => {
+    const b = Array.from(document.querySelectorAll('button')).find((x) => (x.textContent || '').trim() === '菜单')
+    if (b) b.click()
+  })
+  await page.waitForTimeout(250)
+  await clickDialog('重新开始')
+  await page.waitForTimeout(250)
+  await clickDialog('重新开始')
+  await page.waitForTimeout(500)
+  const levelAfter = await page.evaluate(() => ({
+    title: (document.querySelector('.k-topbar__title') || {}).textContent || '',
+    board: (document.querySelector('.k-board') || {}).outerHTML || '',
+  }))
+  const stayed = levelBefore.title === levelAfter.title && levelBefore.board === levelAfter.board
+  seedPhase.push({ where: '推箱子重开', ok: stayed, detail: stayed ? '仍在本关初始局面' : '换了关或换了局面' })
+  if (!stayed) note('种子/重开', '有关卡玩法点了重开却没回到本关初始局面')
+}
+
 await browser.close()
 
 // ---------- 报告 ----------
@@ -304,11 +410,21 @@ for (const r of rows) {
       r.notice,
   )
 }
+console.log('\n种子（每局必须是不一样的局）：\n')
+for (const s of seedPhase) console.log(`  ${s.where.padEnd(14)} ${s.ok ? '✅' : '❌'}  ${s.detail}`)
+
 console.log('\n终局路径（打到结束 → 结果面板 → 战绩落盘）：\n')
 for (const e of endgame) {
   console.log(`  ${e.where.padEnd(22)} 结束=${e.finished ? '是' : '否'}  结果面板=${e.dialogLen}字  战绩落盘=${e.saved ? '是' : '否'}`)
 }
-const bad = rows.filter((r) => r.advanced === 'NO' || r.undo === 'no-change' || r.restart === 'not-initial')
+const bad = rows.filter(
+  (r) =>
+    r.advanced === 'NO' ||
+    r.undo === 'no-change' ||
+    r.restart === 'not-initial' ||
+    r.restart === 'not-new-game' ||
+    r.restart === 'no-confirm',
+)
 console.log(`\n统计：${rows.length} 组（${gameIds.length} 款 × ${ORIENTATIONS.length} 方向），异常 ${bad.length} 组`)
 if (problems.length === 0) {
   console.log('\n✅ 玩法实测未发现问题')

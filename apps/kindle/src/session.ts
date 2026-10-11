@@ -160,10 +160,28 @@ function readSeed<S>(state: S): number {
   return 0
 }
 
+/**
+ * 新一局的种子。
+ *
+ * 这里原先四处都写死 `game.create(0, difficulty)` —— 后果不是"稍微单调"，
+ * 而是**所有靠种子生成的玩法每一局完全一样**：扫雷的雷区、记忆配对的洗牌、
+ * 2048 的出块、斗地主的牌、恶魔轮盘赌的装填顺序全部固定，玩家第二次打开还是同一局。
+ *
+ * 更糟的是 core 的 mulberry32 里有一句 `state = (seed >>> 0) || 0x9e3779b9`
+ * —— 种子 0 会落到那个固定常量上，所以"种子 0"不是"某一个随机局"，而是"唯一那一局"。
+ *
+ * 种子会跟着存档一起写进信封，因此"读档时棋盘不变"这条性质不受影响：
+ * 只有**开新局**（含重开、跳关）才换种子。
+ */
+function nextSeed(): number {
+  return Date.now() % 0x7fffffff
+}
+
 export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A> {
   const game = options.game
   let difficulty = options.difficulty
-  let state: S
+  // 由 startNewGame() / 读档分支负责赋值；用确定赋值断言让类型检查认账
+  let state!: S
   let envelope: SaveEnvelopeV1 | null = null
   let status: GameStatus
   let paused = false
@@ -173,9 +191,23 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
   let progress: GameProgress = loadProgress()
   let newRecord = false
   let canPersist = storageAvailable()
+  // 本局实际使用的种子：新局时取新种子，读档时沿用存档里的
+  let currentSeed = 0
   let finishedHandled = false
   let clockStart = Date.now()
   let storedElapsed = 0
+
+  /**
+   * 开新局。
+   *
+   * 必须**只经过这一个入口** —— 现代版当初就踩过"存档里写了新种子、界面却还是
+   * 用字面量 0 生成的局面"的坑（同一个错误在两处修过、第三处又漏了）。
+   * 这里把"取种子"和"建局面"绑死，就不会再出现两者不一致。
+   */
+  function startNewGame(): void {
+    currentSeed = nextSeed()
+    state = game.create(currentSeed, difficulty)
+  }
 
   // ---------- 载入或新建 ----------
   if (options.resume) {
@@ -184,27 +216,29 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       try {
         state = game.decode(loaded.envelope.state)
         envelope = loaded.envelope
+        // 读档：沿用存档里的种子，棋盘与离开时完全一致
+        currentSeed = loaded.envelope.seed
         storedElapsed = loaded.envelope.session.elapsedMs
         const envProgress = loaded.envelope.progress as GameProgress
         if (envProgress && envProgress.completed) progress = envProgress
         difficulty = loaded.envelope.difficulty
       } catch (e) {
         // 存档解不开：**保留原档不覆盖**，本局从新局开始，并明确提示
-        state = game.create(0, difficulty)
+        startNewGame()
         envelope = null
         saveStatus = 'corrupt'
         noticeKey = 'shell.storage.corruptHint'
       }
     } else if (loaded.status === 'corrupt') {
-      state = game.create(0, difficulty)
+      startNewGame()
       envelope = null
       saveStatus = 'corrupt'
       noticeKey = loaded.reason === 'unsupported-version' ? 'shell.storage.unsupportedHint' : 'shell.storage.corruptHint'
     } else {
-      state = game.create(0, difficulty)
+      startNewGame()
     }
   } else {
-    state = game.create(0, difficulty)
+    startNewGame()
     // 「开新局」要真的丢掉旧档，否则下次进来又变成「继续」
     deleteSave(game.id)
   }
@@ -264,7 +298,7 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
         game.rulesVersion,
         game.contentVersion,
         difficulty,
-        readSeed(state),
+        currentSeed,
         game.encode(state),
         progressBag,
       )
@@ -536,7 +570,14 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       deleteSave(game.id)
       envelope = null
       finishedHandled = false
-      state = game.create(Math.floor(Math.random() * 2147483647), difficulty)
+      startNewGame()
+      /*
+       * 计时归零。
+       * 「重开」现在会走到这里（无关卡玩法都是换新一局），不归零的话新局的
+       * 「用时」会带上上一局的时间 —— 玩家看到刚开局就显示 3 分钟，只会以为坏了。
+       */
+      storedElapsed = 0
+      clockStart = Date.now()
       status = game.status(state)
       noticeKey = null
       commit()

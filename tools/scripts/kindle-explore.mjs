@@ -162,18 +162,33 @@ for (const id of targets) {
   await invariants(`${where}/点棋盘`)
 
   // ---- 点普通控件（跳过结果面板里的）----
-  const controls = await page.$$('.k-controls button')
+  /*
+   * 只点**玩法自己的动作按钮**：选择器是 `.k-controls__actions button`。
+   *
+   * 不能写 `.k-controls button` —— `.k-controls` 是整条控制区，里面同时装着
+   * `.k-dpad`（方向键 + 借放在角落的 ↶/↻）。按 `.k-controls button` 点会连
+   * 「重开」一起点，而重开现在会弹确认框；确认框一盖，后面的点击全部作废，
+   * 报出来就是"点了方向键毫无反应"这种假缺陷。
+   */
+  const controls = await page.$$('.k-controls__actions button')
   for (let i = 0; i < controls.length; i++) {
-    await tap('.k-controls button', i)
+    await tap('.k-controls__actions button', i)
     await invariants(`${where}/控件#${i}`)
   }
 
-  // ---- 方向键：同样要求"点了要有反应"（移动 / 转向 / 至少一句提示）----
-  const dpad = await page.$$('.k-dpad button')
+  /*
+   * 方向键：同样要求"点了要有反应"（移动 / 转向 / 至少一句提示）。
+   *
+   * 选择器必须是 `.k-dpad__btn` —— 那是**方向键本身**。
+   * 倒 T 布局把 ↶/↻ 借放在上排两侧的空格子里，它们也匹配 `.k-dpad button`，
+   * 于是按序点会把「重开」也点一遍；而重开现在会弹确认框，
+   * 确认框一盖上，后面的方向键就全被挡住 —— 报出来就是"点了 6 个方向键毫无反应"。
+   */
+  const dpad = await page.$$('.k-dpad__btn')
   if (dpad.length > 0) {
     const before = await snapshot()
     for (let i = 0; i < dpad.length; i++) {
-      await tap('.k-dpad button', i)
+      await tap('.k-dpad__btn', i)
       if ((await snapshot()) !== before) break
     }
     if ((await snapshot()) === before) {
@@ -189,10 +204,10 @@ for (const id of targets) {
   // ---- 撤销 / 重开：这两个入口在壳层里被重新接线过，必须真的生效 ----
   {
     const afterMoves = await snapshot()
-    const undoBtn = await page.$$('.k-dpad button')
+    const undoBtn = await page.$$('.k-dpad button') // ↶ 在倒 T 的上排左侧
     // 倒 T 的左上角是「撤销」、右上角是「重开」（controls.ts 把两者放进同一张表）
     const labels = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.k-dpad button, .k-controls button')).map((b) =>
+      Array.from(document.querySelectorAll('.k-dpad__btn, .k-controls__actions button')).map((b) =>
         (b.textContent || '').trim(),
       ),
     )
@@ -209,6 +224,24 @@ for (const id of targets) {
       }
     }
     void undoBtn
+  }
+
+  /*
+   * 方向键连点可能已经把这一局打死了（贪吃蛇撞墙、俄罗斯方块堆满）——
+   * 结果面板是盖在整屏上的，会挡住顶栏的「菜单」按钮，后面的暂停菜单就点不到。
+   *
+   * 这一条是**种子改成随机之后才暴露出来的**：以前每局都是同一个种子 0，
+   * 贪吃蛇的食物位置固定，我的连点恰好不会撞死，于是从来没碰上过这个状态。
+   * 现在每局不一样，"游戏在暂停阶段之前就结束"是常态，必须处理。
+   */
+  if (await page.$('.k-dialog__panel')) {
+    const firstLabel = await page.evaluate(() => {
+      const b = document.querySelector('.k-dialog__panel button')
+      return b ? (b.textContent || '').trim() : ''
+    })
+    await tap('.k-dialog__panel button', 0) // 结果面板的第一个动作＝「再来一次」
+    await page.waitForTimeout(400)
+    if (await page.$('.k-dialog__panel')) note(where, `结果面板点了「${firstLabel}」之后没关掉`)
   }
 
   // ---- 暂停菜单 ----
@@ -230,7 +263,8 @@ for (const id of targets) {
       await invariants(`${where}/关菜单`)
     }
   } else {
-    note(where, '顶栏找不到「菜单」按钮')
+    const blocked = await page.evaluate(() => !!document.querySelector('.k-dialog__panel'))
+    note(where, blocked ? '有对话框盖住顶栏，点不到「菜单」' : '顶栏找不到「菜单」按钮')
   }
 
   await page.screenshot({ path: `${SHOTS}${id}.png` })
@@ -261,7 +295,7 @@ for (const id of targets) {
     )
     await page.waitForTimeout(400)
     const box = await (await page.$('.k-board'))?.boundingBox()
-    const hasDpad = (await page.$$('.k-dpad button')).length > 0
+    const hasDpad = (await page.$$('.k-dpad__btn')).length > 0
     if (!box) continue
     const shouldSwipe = !caps.selectable && hasDpad
     const cx = box.x + box.width / 2
