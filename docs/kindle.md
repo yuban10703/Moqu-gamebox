@@ -6,6 +6,26 @@
 > 目标设备：Kindle Paperwhite 6（KPW6）一类**封闭、老引擎**的阅读器。
 > 它装不了我们的 APK，只能用自带浏览器打开一个网页 —— 这就是这一版存在的全部理由。
 
+## 技术选型对照（需求里那张表 → 实际实现）
+
+| 需求里的模块 | 建议方案 | 实际做了什么 | 说明 |
+|---|---|---|---|
+| 页面结构 | HTML5 | `<html>` + 经典脚本 + `<noscript>` 兜底 | **不用** `type="module"`：Kindle 会整段忽略模块脚本，这正是当初白屏的根因 |
+| 页面样式 | CSS | `kindle.css` 1414 行 | 纯遗留 CSS：无变量、无 grid、无 `calc()`、无容器查询、无 `gap`（守卫测试钉住） |
+| 游戏逻辑 | JavaScript | **原样复用** 20 款玩法的 TypeScript 规则层 | 规则层本来就与呈现技术无关，这版一行没改 —— 现有 1800+ 条测试继续有效 |
+| 棋盘渲染 | DOM 元素 | `<table>` + 内联 SVG，按格渲染 | 不用 Canvas（无法承诺局部刷新）、不用覆盖层（两套坐标系在真机错过位） |
+| 网络请求 | XMLHttpRequest | 自检页与诊断页用它探测 XHR / XHR2 能力 | 应用本身**不发任何网络请求**（100% 离线，见下面一行）；XHR 在这里是"能力探针"而不是"资源加载器" |
+| 实时通信 | HTTP 轮询 / WebSocket 可选 | **不做** | 按确认的范围：保持 100% 离线，不引入联机后端。斗地主的联机骨架（`packages/games/doudizhu/src/net`）在 Kindle 版里没有被接线 |
+| 本地存储 | localStorage（需实测） | localStorage + core 的存档信封 | 自检页会实测读写；写入失败（配额/隐私模式）降级为"可玩但不落盘"并明确提示。**没有** IndexedDB、没有 CAS |
+| 后端接口 | HTTP/HTTPS + JSON | **不要后端** | 产物是纯静态文件，可丢到任意托管；没有账号、没有权限、没有服务端 |
+| Android 端 | Kotlin/Java + WebView | 不适用 | 沿用仓库既有的 APK 线（BOOX）；Kindle 是封闭平台装不了 APK，所以这条线存在的意义就是"网页" |
+| 构建工具 | TypeScript、Vite 等，仅开发期 | **TypeScript + tsc**（不用 Vite） | 实测 Vite 8 的 rolldown **不支持 ES2015 以下**，无法产出 ES5；改用 `tsc --target ES5 --module AMD --outFile` |
+
+> 需求里那句「以上是建议的技术选型，并不代表 KPW6 已经支持所有对应 API」正是这一版的出发点：
+> 目标基线取的是**最保守的一档**（纯 ES5 + 无变量/无 grid 的 CSS），
+> 这样无论 KPW6 的引擎新旧都能跑 —— ES5 是新引擎的子集。
+> 真实能力由 `check.html` 在设备上测，不靠型号猜。
+
 ## 为什么是"第二套壳层"而不是"再降级一次 Web 版"
 
 `docs/A01-device-baseline.md` 里记着之前的结论：**明确不支持 Kindle 自带浏览器**。
