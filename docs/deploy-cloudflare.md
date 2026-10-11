@@ -63,6 +63,24 @@ Pages 的构建配置里只有「构建命令 + 构建输出目录」，没有�
 
 非生产分支 / PR 自动得到预览地址 `https://<分支名>.<项目名>.pages.dev`，不覆盖生产。
 
+### Kindle 版是**第二个** Pages 项目
+
+Kindle 版（见 [kindle.md](kindle.md)）产物完全不同，必须单开一个 Pages 项目，
+**不要**和 Web 版共用，也不要走 Workers 那条路（上面的 `wrangler.jsonc` 指向 `apps/web/dist`）：
+
+| 字段 | 值 |
+|---|---|
+| 生产分支 | `kindle` |
+| 框架预设 | **None** |
+| 根目录 | 留空 |
+| 构建命令 | `npm run build:kindle` |
+| 构建输出目录 | `apps/kindle/dist` |
+| 环境变量 | `NODE_VERSION` = `24` |
+
+这一个**不要开 SPA 回退**：`/check.html` 是零依赖的设备自检页，要靠真实路径访问到。
+产物文件名没有内容哈希，所以构建时会带一个 `_headers` 把所有响应设成 `max-age=0, must-revalidate`，
+避免重新部署后设备上仍是旧版。
+
 ## 三、命令行（本地 / CI，两种项目都适用）
 
 ```bash

@@ -30,6 +30,7 @@
     "serve:web": "node tools/scripts/serve-web.mjs apps/web/dist 8790",
     "preview:cf": "npm run build:web && npx --yes wrangler dev",
     "deploy:cf": "npm run build:web && npx --yes wrangler pages deploy apps/web/dist --project-name=moqu --branch=main",
+    "deploy:cf:kindle": "npm run build:kindle && npx --yes wrangler pages deploy apps/kindle/dist --project-name=moqu-kindle",
     "explore": "node tools/scripts/explore-ui.mjs && node tools/scripts/explore-data.mjs && node tools/scripts/explore-flows.mjs && node tools/scripts/explore-maxscale.mjs && node tools/scripts/explore-landscape.mjs",
     "verify": "node tools/scripts/verify-all.mjs",
     "check:docs": "node tools/scripts/check-docs.mjs",

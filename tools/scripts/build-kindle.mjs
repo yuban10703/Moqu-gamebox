@@ -67,6 +67,8 @@ const assets = [
   ['src/styles/kindle.css', 'kindle.css'],
   ['index.html', 'index.html'],
   ['check.html', 'check.html'],
+  // Cloudflare Pages 的响应头配置（见 public/_headers 里的说明：产物名没有内容哈希）
+  ['public/_headers', '_headers'],
 ]
 for (const [from, to] of assets) {
   const source = `${APP}${from}`

@@ -211,6 +211,66 @@ Kindle 上的用法：把 `apps/kindle/dist/` 丢到任意静态托管（和 Web
 
 `dist/` 是纯静态产物（`index.html` + 4 个 JS/CSS + `check.html`），没有服务端、没有权限要求。
 
+## 部署到 Cloudflare Pages
+
+Kindle 版与 Web 版是**两个独立的 Pages 项目**（产物不同：`apps/kindle/dist` vs `apps/web/dist`），
+不要指向同一个项目。分支用 `kindle`。
+
+### 面板里怎么填（Git 集成）
+
+| 字段 | 值 |
+|---|---|
+| 连接仓库 | 同一个仓库 |
+| 生产分支（Production branch） | `kindle` |
+| 框架预设（Framework preset） | `None` |
+| 根目录（Root directory） | 留空（仓库根） |
+| 构建命令（Build command） | `npm run build:kindle` |
+| 构建输出目录（Build output directory） | `apps/kindle/dist` |
+
+依赖安装不用自己加：Pages 检测到 `package-lock.json` 会先跑 `npm ci`。
+如果构建日志里报找不到 `tsc`，把构建命令改成 `npm ci && npm run build:kindle` 即可。
+
+**环境变量**：`NODE_VERSION` = `24`（与 Web 版那个 Pages 项目、以及仓库根的 `.nvmrc` 保持一致；
+`.nvmrc` 不一定被构建镜像读取，显式设最稳。这套构建只用到 `tsc` 与 Node 自带的 fs/child_process）。
+
+### 三个容易踩的点
+
+1. **别走 Workers 那条路，也别和 Web 版共用项目。**
+   仓库根的 `wrangler.jsonc` 声明的是一个 **Worker**，它的静态资源目录写死指向 `apps/web/dist`
+   —— 那是现代版。Kindle 走的是 **Pages**，Pages 的构建配置只有「构建命令 + 输出目录」，
+   不读这个文件（两套路线的关系与既有结论见 [deploy-cloudflare.md](deploy-cloudflare.md)）。
+   真正要核对的是面板里那两格：构建命令 `npm run build:kindle`、输出目录 `apps/kindle/dist`。
+2. **不要开 SPA 回退（Single-page application fallback）**。这个站点是多页静态：
+   `/` 是 index.html、`/check.html` 是自检页，没有客户端路由，回退只会把 404 变成首页。
+3. **产物文件名没有内容哈希**（`kindle.js` / `kindle.css` 名字固定），
+   Pages 默认的长缓存会让你重新部署后、设备上仍是旧版。
+   构建时已经带了一个 `_headers`（见 `apps/kindle/public/_headers`），
+   把所有响应设成 `max-age=0, must-revalidate`：没变就是一次廉价的 304，变了立刻生效。
+
+### 部署完，先在设备上做什么
+
+用 Kindle 打开 `https://<你的域名>/check.html`（零依赖的自检页），**不要先开首页**：
+
+- 能打开 = TLS / 网络 / 渲染链路都是通的（很老的 Kindle 上，HTTPS 本身可能就是第一道坎，
+  这与我们的代码无关，但会先表现为"打不开"）；
+- 再按自检页的结论判断能力；
+- 最后才打开首页；如果首页白屏但自检页正常，那就是 bundle 层面的问题，
+  把自检页底部那段报告抄下来即可定位。
+
+### 换个方式：本地构建后直传
+
+不想让 Cloudflare 跑构建（或者想在本地先看一眼）时，产物目录被 gitignore，所以要先本地构建：
+
+```bash
+npm run deploy:cf:kindle    # = build:kindle + wrangler pages deploy（项目名 moqu-kindle）
+```
+
+首次要先把项目建出来：
+
+```bash
+npx --yes wrangler pages project create moqu-kindle --production-branch=kindle
+```
+
 ## 测试
 
 新增两道守卫，都挂在 `npm test` 里：

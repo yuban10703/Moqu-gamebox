@@ -96,7 +96,8 @@
 
   设备能力**没有在本仓库实测过**（手头只有 BOOX），所以内置了一个不依赖任何外部文件的
   设备自检页 `check.html`，先在 Kindle 上打开它就能看清这台设备到底支持什么。
-  细节与已知限制见 [docs/kindle.md](docs/kindle.md)。
+  细节与已知限制见 [docs/kindle.md](docs/kindle.md)，部署到 Cloudflare Pages 的填法见该文档的
+  「部署到 Cloudflare Pages」一节（构建命令 `npm run build:kindle`、输出目录 `apps/kindle/dist`）。
 
 ## 自己构建
 
