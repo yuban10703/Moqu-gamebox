@@ -50,9 +50,7 @@ var GAP = 6
 interface StealHost extends HTMLElement {
   __kStealMode?: boolean
   /** 上一次画出来的记录条数：只有**新记录**才把记录框拉到底（React 的 useLayoutEffect 依赖 log.length） */
-  __kLogLen?: number
   /** 记录框上次的滚动位置：整块 DOM 是重建的，不记住的话「往上翻」一重渲染就跳回顶部 */
-  __kLogTop?: number
 }
 
 function px(value: number): string {
@@ -355,8 +353,6 @@ function logNode(
   log: readonly DuelLine[],
   height: number,
   base: number,
-  host: StealHost,
-  out: { scroll: HTMLElement | null },
 ): HTMLElement {
   var box = el('div', {
     class: 'k-duel__log',
@@ -367,15 +363,6 @@ function logNode(
   })
   box.setAttribute('role', 'log')
   box.setAttribute('aria-label', ctx.t('shell.duel.recent'))
-  out.scroll = box
-  // 玩家往上翻时记住位置：这块 DOM 下次是清空重建的，位置只能存在容器上（见 renderDuel 末尾）
-  box.addEventListener(
-    'scroll',
-    function onScroll(): void {
-      host.__kLogTop = box.scrollTop
-    },
-    false,
-  )
 
   var groups: Array<{ highlight: boolean; lines: Array<{ line: DuelLine; index: number }> }> = []
   var i: number
@@ -947,8 +934,7 @@ export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCt
    */
   root.appendChild(stage)
 
-  var scroll: { scroll: HTMLElement | null } = { scroll: null }
-  root.appendChild(logNode(ctx, duel.log, geom.logH, geom.base, host, scroll))
+  root.appendChild(logNode(ctx, duel.log, geom.logH, geom.base))
 
   if (bottom) root.appendChild(sideNode(ctx, bottom, armed, geom, pickFor(bottom), stealAt))
 
@@ -961,15 +947,5 @@ export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCt
    * 这里比 React 多一句「恢复」：React 是原地更新、同一个节点自己保住滚动位置，
    * 而这块 DOM 每次都是清空重建的 —— 不记住的话，往上翻之后一重渲染就跳回顶部。
    */
-  if (scroll.scroll) {
-    if (host.__kLogLen !== duel.log.length) {
-      scroll.scroll.scrollTop = scroll.scroll.scrollHeight
-    } else if (host.__kLogTop !== undefined) {
-      scroll.scroll.scrollTop = host.__kLogTop
-    } else {
-      scroll.scroll.scrollTop = scroll.scroll.scrollHeight
-    }
-    host.__kLogLen = duel.log.length
-    host.__kLogTop = scroll.scroll.scrollTop
-  }
+
 }

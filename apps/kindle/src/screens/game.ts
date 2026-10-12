@@ -368,6 +368,12 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     }
     root.appendChild(body)
 
+    // 战斗日志自动滚到最新一条：renderDuel 在容器挂进文档**之前**渲染，
+    // 那时盒子高度还是 0，scrollTop 赋值无效——必须在挂进文档之后设（原实现就卡在这）。
+    // 每次重绘都停到最新一条：战斗日志只会追加，最新的一条就是玩家最关心的。
+    const duelLog = body.querySelector('.k-duel__log') as HTMLElement | null
+    if (duelLog) duelLog.scrollTop = duelLog.scrollHeight
+
     if (view.captured) {
       const bottomStyle =
         'min-height:20px;padding:2px 8px;font-size:15px;letter-spacing:2px;text-align:right;' +
