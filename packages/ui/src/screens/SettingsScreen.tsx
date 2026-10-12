@@ -39,11 +39,13 @@ export function SettingsScreen({ onBack, onOpenHelp, onBackupsChanged }: Setting
   const applyImportText = async (text: string, strategy: ConflictStrategy): Promise<void> => {
     const outcome = await storage.applyImport(text, strategy)
     if (outcome.ok) {
-      setMessage(
-        i18n.t('shell.storage.importOk', {
-          count: outcome.summary.added + outcome.summary.overwritten + outcome.summary.keptBoth,
-        }),
-      )
+      // keptBoth 是「旧进度保留为副本」，不是新增导入 —— 单独说明，数字才不失真
+      const settled = outcome.summary.added + outcome.summary.overwritten
+      const keptNotice =
+        outcome.summary.keptBoth > 0
+          ? i18n.t('shell.storage.importKeptBoth', { count: outcome.summary.keptBoth })
+          : ''
+      setMessage(i18n.t('shell.storage.importOk', { count: settled }) + keptNotice)
       await reloadBackups()
       onBackupsChanged()
     } else {

@@ -35,7 +35,6 @@ export * from './observe.js'
 export * from './ai.js'
 export * from './rules.js'
 export * from './view.js'
-export * as net from './net/index.js'
 
 export const doudizhuGame: GameDef<DoudizhuState, DoudizhuAction> = {
   id: GAME_ID,

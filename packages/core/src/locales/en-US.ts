@@ -98,6 +98,7 @@ export const enUS: Dict = {
   'shell.storage.notPersistent': 'Progress cannot be persisted. Consider exporting a backup.',
   'shell.storage.exported': 'Backup exported',
   'shell.storage.importOk': 'Imported {count} entries',
+  'shell.storage.importKeptBoth': ' (+ {count} old saves kept as copies)',
   'shell.storage.importFailed': 'Import failed: {reason}',
   'shell.storage.conflict': 'Conflicting progress found',
   'shell.storage.conflict.overwrite': 'Overwrite with backup',

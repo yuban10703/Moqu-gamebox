@@ -1,3 +1,5 @@
+import { MIN_WEBVIEW_MAJOR } from '@eink/core'
+
 /**
  * 系统 WebView 能力探测（对应 A01 的「最低要求 WebView ≥ Chrome 110」）。
  *
@@ -13,12 +15,11 @@
  */
 
 /**
- * 最低可用的 WebView（Chromium）主版本号。
- *
- * 与 `apps/web/vite.config.ts` 的 `target: ['chrome110', ...]`、
- * 以及原生闸 `MainActivity.MIN_WEBVIEW_MAJOR` 同步 —— 三处必须一起改。
+ * 最低可用的 WebView（Chromium）主版本号 —— **唯一数值来源是 core**（这里只是转发，
+ * 连同诊断页与原生 `MainActivity.MIN_WEBVIEW_MAJOR`，全局共四处；改数字只改 core 那一处，
+ * 其余三处都是同步点：vite `target: chrome110`、原生闸、以及这里的转发出口）。
  */
-export const MIN_WEBVIEW_MAJOR = 110
+export { MIN_WEBVIEW_MAJOR }
 
 /** 探测输入：缺省读真实的 navigator / CSS.supports，测试可注入假环境 */
 export interface WebViewSupportEnv {

@@ -100,6 +100,7 @@ export const zhCN: Dict = {
   'shell.storage.notPersistent': '本次进度无法持久化，建议导出备份后再继续。',
   'shell.storage.exported': '备份已导出',
   'shell.storage.importOk': '已导入 {count} 条进度',
+  'shell.storage.importKeptBoth': '（另有 {count} 份旧进度保留为副本）',
   'shell.storage.importFailed': '导入失败：{reason}',
   'shell.storage.conflict': '发现同游戏的进度冲突',
   'shell.storage.conflict.overwrite': '用备份覆盖',

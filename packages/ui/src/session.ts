@@ -387,6 +387,19 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
        * （见 nextLevel 分支），语义仍然正确。
        */
       levelStartRef.current = 0
+      if (
+        existing.contentVersion !== undefined &&
+        game.contentVersion !== undefined &&
+        existing.contentVersion > game.contentVersion
+      ) {
+        // 存档来自**更新**的应用：旧代码读不懂它的新内容语义 —— 与规则版本不一致同口径：
+        // 保留原档、给导出入口，不静默误读。（旧 contentVersion 的存档仍允许解码：内容演进是增量的）
+        corruptRef.current = true
+        setCorrupt(true)
+        setCorruptReason('unsupported-version')
+        setReady(true)
+        return
+      }
       if (existing.rulesVersion !== game.rulesVersion) {
         // 规则版本变了：这不是「数据损坏」，而是旧存档需要被明确说明（并保留原档可导出）
         corruptRef.current = true

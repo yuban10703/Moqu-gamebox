@@ -217,7 +217,7 @@ export function GameScreen({
 
   useKeyboardControls({
     onMove,
-    ...(undoAvailable ? { onUndo: () => session.undo() } : {}),
+    ...(undoAvailable ? { onUndo: () => { session.clearNotice(); session.undo() } } : {}),
     onRestart: () => setConfirmRestart(true),
     onEscape: () => (session.paused ? session.resume() : session.pause()),
     enabled: session.ready && !session.corrupt,

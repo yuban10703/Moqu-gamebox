@@ -1167,3 +1167,13 @@ CDP / 真机的真实触摸不行），而 `addEventListener` 两种流都稳定
 > `nextCoverStyle()`、`shell.cover.*` 文案与 `html[data-cover='…']` 那几组 CSS 都已移除）——
 > 覆盖格的呈现现在只有一种：整盘对齐的单斜纹。要再改先问用户要哪一种。
 
+
+
+## 契约补充：终局后的 undo/restart 与「走不通」提示（2026-10 全量评审）
+
+- GameDef 的 `status` 名义上单向 playing → won/lost；**唯一例外**是结果面板里的壳层
+  `undo` / `restart` 控件：把已终局的局面送回 playing 是控件语义，不是「复活缺陷」。
+  写「status 只能单向迁移」这类契约断言时必须带上这个例外（审计 A 的教训）。
+- 方向键在某些局面「点了没反应、只弹一句走不通」是**设计内反馈**（2048 / sokoban /
+  tetris 均有采样证实）：非法 move 被 reduce 拒绝时，壳层把异常转成可见提示 ——
+  1-bit 屏上宁可文字确认，也不要赌玩家没注意到棋盘没动。
