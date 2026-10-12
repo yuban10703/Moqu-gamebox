@@ -653,7 +653,16 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
         session.resume()
       },
     })
-    if (!undoHidden) {
+    /*
+     * 撤销与结果面板/U 键共用同一套判据（未判胜 + 玩法未隐藏 + 此刻有一步可撤）。
+     * 这个菜单在**终局后仍能被点开**（顶栏「菜单」还在），赢局玩家从这里撤销
+     * 会跟刚落盘的通关记录打架 —— React 用同一个 undoAvailable 把这条路一并关掉。
+     */
+    if (
+      !session.solved &&
+      !undoHidden &&
+      hasEnabledControl('undo')
+    ) {
       actions.push({
         label: ctx.t('shell.game.undo') ?? ctx.t('shell.common.confirm'),
         onClick: function undo(): void {
@@ -692,6 +701,27 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       lines.push(detailText(view.result.details[i]))
     }
     const actions: Array<{ label: string; onClick: () => void; primary?: boolean }> = []
+    /*
+     * **输/平之后给出撤销**（用户反馈：游戏输后不能撤销，与现代版不一致）。
+     *
+     * React 结果面板的同一条规则：
+     *   · **已判胜不给** —— 通关记录刚刚落盘，撤回去会跟完成记录打架；
+     *   · 玩法声明 hideShellControls:['undo'] 不给；
+     *   · 游戏此刻必须自己给出一个**可用的** undo 控件（有一步可撤）。
+     * 三个条件都满足时它是面板上的主按钮 —— 输掉的这一刻，玩家最想要的就是上一手。
+     * 会话侧终局白名单本来就包含 undo：撤回到位后面板关闭、对局恢复进行中。
+     */
+    if (outcome !== 'won' && (entry.hideShellControls ?? []).indexOf('undo') < 0 && hasEnabledControl('undo')) {
+      actions.push({
+        label: ctx.t('shell.game.undo'),
+        primary: true,
+        onClick: function undoAfterLoss(): void {
+          // dispatch 不放行 undo 之外的动作；撤完 status 回 playing，本面板已随点击关闭
+          session.undo()
+          draw()
+        },
+      })
+    }
     const hasNext = hasControlId('nextLevel') || hasControlId('next-level')
     if (hasNext) {
       actions.push({
@@ -730,6 +760,15 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     return false
   }
 
+  /** 控件存在且**当前可用**（撤销入口要求"现在真的有一步可撤"） */
+  function hasEnabledControl(id: string): boolean {
+    const controls = session.controls
+    for (let i = 0; i < controls.length; i++) {
+      if (controls[i].id === id && controls[i].enabled === true) return true
+    }
+    return false
+  }
+
   // 物理键：方向键 = 方向 / U = 撤销 / R = 重开 / Esc = 菜单
   unbinds.push(
     on(document, 'keydown', function keydown(event: Event): void {
@@ -742,8 +781,19 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
         return
       }
       if (code === 85) {
-        e.preventDefault()
-        session.undo()
+        /*
+         * U 键与结果面板的撤销共用同一套判据（React 的 undoAvailable 一个开关管两条路）：
+         * 未判胜（赢之后不能撤，通关记录已落盘）+ 玩法未声明隐藏 + 此刻确实有一步可撤。
+         * 判据在**按下时现算**——这里闭包存活整场对局，状态会一路变化，不能抓快照。
+         */
+        if (
+          !session.solved &&
+          (entry.hideShellControls ?? []).indexOf('undo') < 0 &&
+          hasEnabledControl('undo')
+        ) {
+          e.preventDefault()
+          session.undo()
+        }
         return
       }
       if (code === 82) {

@@ -514,6 +514,19 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       return status !== 'playing'
     },
     get solved(): boolean {
+      /*
+       * 「是否算通关」：**优先用玩法如实上报的 outcomeOf**，而不是只认 status。
+       * 棋类把和局并进了 status()==='won'（只为让结果面板出现），但和局不是通关 ——
+       * 只看 status 会把和局玩家挡在撤销门外（输局/和局才给撤销）。
+       * 与 React 版 session.solved 同一条口径（outcomeOf 优先，缺钩子的玩法看 status）。
+       */
+      if (game.outcomeOf) {
+        try {
+          return game.outcomeOf(state) === 'won'
+        } catch (e) {
+          /* 读取失败就退回 status */
+        }
+      }
       return status === 'won'
     },
     get elapsedMs(): number {

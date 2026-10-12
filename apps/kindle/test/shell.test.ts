@@ -703,6 +703,34 @@ describe('Kindle 壳层', () => {
     expect(labels, `页脚=${labels.join(',')}`).toContain('撤销')
   })
 
+  it('输掉之后可以撤回撞上之前的那一步（与现代版一致）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    // 贪吃蛇 challenging（实心墙 + 障碍）：连续往上撞，一两次移动内必死。
+    // 死后：结果面板的撤销按钮必须出现（玩家的取消路径之一），且点击后面板关闭、对局恢复。
+    app.navigate('game', { gameId: 'snake', difficulty: 'challenging', fresh: true })
+    const pushUp = (): boolean => {
+      const btn = Array.from(root.querySelectorAll('.k-dpad__btn')).find(
+        (b) => (b.textContent ?? '').trim() === '上',
+      ) as HTMLElement | undefined
+      if (!btn) return false
+      btn.click()
+      return true
+    }
+    let rounds = 0
+    while (rounds < 15) {
+      if (document.querySelector('.k-dialog__panel')) break
+      if (!pushUp()) break
+      rounds += 1
+    }
+    const panel = document.querySelector('.k-dialog__panel') as HTMLElement | null
+    expect(panel, '撞死之后应该弹出结果面板').toBeTruthy()
+    const btns = Array.from(panel!.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim())
+    expect(btns, `结果面板按钮=${btns.join(',')} 应含撤销`).toContain('撤销')
+    expect(btns.indexOf('撤销'), '撤销应是第一个（主）按钮').toBe(0)
+  })
+
   it('关于页显示真实作者与开源地址（不是词典里的占位标签）', () => {
     window.localStorage.clear()
     const root = makeRoot()
