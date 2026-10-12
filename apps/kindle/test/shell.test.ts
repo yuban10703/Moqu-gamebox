@@ -347,6 +347,56 @@ describe('Kindle 壳层', () => {
     }
   })
 
+  /*
+   * 未翻开的格子必须与已翻开的空格**看得出区别**。
+   *
+   * 扫雷的未翻格与已翻开空格原本都是一样的白底细边框，玩家分不清哪格还没点。
+   * 做法是整盘铺一层 45° 斜纹（逐格铺会让线在格边错位），未翻格透明透出斜纹、
+   * 已翻格白底盖住它。这里断言的就是这个"成对"的关系 ——
+   * 只改一半（例如只在样式表里写透明，而格子背景是行内白）就会失效：
+   * 先前正是如此，样式表那条规则被行内样式压过去，等于没写。
+   */
+  it('未翻格与已翻开格有区分（扫雷 / 记忆）', () => {
+    const styleOf = (el: Element | null): string => (el ? el.getAttribute('style') ?? '' : '')
+    for (const id of ['minesweeper', 'memory']) {
+      window.localStorage.clear()
+      const root = makeRoot()
+      startApp(root, library).navigate('game', { gameId: id, difficulty: 'starter', fresh: true })
+      const table = root.querySelector('.k-board') as HTMLElement
+      expect(styleOf(table), `${id} 没铺斜纹`).toContain('background-image')
+
+      const hidden = root.querySelector('.k-board__cell[data-kind="hidden"]')
+      expect(hidden, `${id} 没有未翻格`).toBeTruthy()
+      expect(styleOf(hidden), `${id} 的未翻格不是透明的（斜纹会被盖住）`).toContain('background:transparent')
+
+      // 翻一格，同一块盘上直接对比"未翻 vs 已翻"
+      ;(root.querySelector('.k-board__cell') as HTMLElement).click()
+      const revealed = root.querySelector(
+        '.k-board__cell[data-kind="empty"], .k-board__cell[data-kind="number"], .k-board__cell[data-kind="tile"]',
+      )
+      expect(revealed, `${id} 翻不开格子`).toBeTruthy()
+      expect(styleOf(revealed), `${id} 的已翻格应该是白底（好把斜纹盖住）`).toContain('background:#fff')
+    }
+  })
+
+  /*
+   * 倒 T 方向键上排的 ↶ / ↻ 必须与方向键**同尺寸**。
+   *
+   * 它们带的是 .k-btn（下限 48×48），方向键是 .k-dpad__btn（下限 72×72）——
+   * 差这一档，上排就成 48/72/48、下排 72/72/72，三列边界对不上，
+   * 「上」没有对在「下」正上方（用户报的"按钮错位"）。
+   * 加这个类，样式表才能把两者拉到同一尺寸（几何断言在 kindle-audit.mjs 里）。
+   */
+  it('倒 T 方向键的角落按钮带 k-dpad__corner（与方向键同尺寸）', () => {
+    const root = makeRoot()
+    startApp(root, library).navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+    const pad = root.querySelector('.k-dpad--tee') as HTMLElement | null
+    expect(pad, '推箱子应该有倒 T 方向键').toBeTruthy()
+    const corners = pad!.querySelectorAll('.k-dpad__corner')
+    expect(corners.length, '上排两侧的 ↶ / ↻ 没有 k-dpad__corner 类').toBe(2)
+    expect(pad!.querySelectorAll('.k-dpad__btn').length, '方向键数量不对').toBe(4)
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)

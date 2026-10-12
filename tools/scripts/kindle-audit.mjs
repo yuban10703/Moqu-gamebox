@@ -184,6 +184,38 @@ for (const o of ORIENTATIONS) {
     )
     await page.waitForTimeout(420)
     assertMeasure(`${o.name}/对局·${id}`, await measure())
+
+    /*
+     * 倒 T 方向键的**几何对齐**：三列必须等宽，且上排的键要正对下排的键。
+     *
+     * 这一条只能靠真实浏览器量：jsdom 没有布局引擎。
+     * 之前上排是 48/72/48、下排是 72/72/72 —— 因为角落的 ↶/↻ 带的是 .k-btn（下限 48），
+     * 而方向键是 .k-dpad__btn（下限 72），样式表又是按浮动结构写的、渲染器输出的却是表格。
+     * 结果「上」没有对在「下」正上方，↻ 还压在「上」的右边缘上。
+     */
+    const pad = await page.evaluate(() => {
+      const tee = document.querySelector('.k-dpad--tee')
+      if (!tee) return null
+      const box = (el) => {
+        const r = el.getBoundingClientRect()
+        return { l: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), cx: Math.round(r.left + r.width / 2) }
+      }
+      return {
+        btns: Array.from(tee.querySelectorAll('.k-dpad__btn')).map(box),
+        corners: Array.from(tee.querySelectorAll('.k-dpad__corner')).map(box),
+      }
+    })
+    if (pad && pad.btns.length === 4 && pad.corners.length === 2) {
+      const [up, left, down, right] = pad.btns
+      const [cLeft, cRight] = pad.corners
+      const widths = pad.btns.concat(pad.corners).map((b) => b.w)
+      const heights = pad.btns.concat(pad.corners).map((b) => b.h)
+      if (new Set(widths).size !== 1) note(`${o.name}/对局·${id}`, `方向键与角落按钮宽度不一致：${widths.join('/')}`)
+      if (new Set(heights).size !== 1) note(`${o.name}/对局·${id}`, `方向键与角落按钮高度不一致：${heights.join('/')}`)
+      if (Math.abs(up.cx - down.cx) > 2) note(`${o.name}/对局·${id}`, `「上」没有对在「下」正上方（${up.cx} vs ${down.cx}）`)
+      if (Math.abs(cLeft.cx - left.cx) > 2) note(`${o.name}/对局·${id}`, `↶ 没有对在「左」正上方（${cLeft.cx} vs ${left.cx}）`)
+      if (Math.abs(cRight.cx - right.cx) > 2) note(`${o.name}/对局·${id}`, `↻ 没有对在「右」正上方（${cRight.cx} vs ${right.cx}）`)
+    }
     await page.screenshot({ path: `${SHOTS}${o.name}-game-${id}.png` })
   }
 

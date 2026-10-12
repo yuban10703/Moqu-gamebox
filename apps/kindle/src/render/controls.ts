@@ -120,6 +120,25 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
       return btn
     }
 
+    /*
+     * 角落按钮：打上 k-dpad__corner，并把**通用按钮写下的行内尺寸清掉**。
+     *
+     * 为什么必须清：通用按钮（`button()`）会把 height / line-height / margin / padding
+     * 写成**行内样式**，而行内样式压过样式表 —— 于是 CSS 里怎么写都没用
+     * （实测 height 一直是 34、margin-right 一直是 3px，两处都改不动）。
+     * 清掉之后尺寸完全由 CSS 的 `.k-dpad--tee .k-dpad__corner` 决定，
+     * 与方向键取同一套数值：上排三列因此与下排三列对齐。
+     */
+    const markCorner = function markCorner(node: HTMLElement): void {
+      const cls = node.getAttribute('class') ? node.getAttribute('class') + ' ' : ''
+      node.setAttribute('class', cls + 'k-dpad__corner')
+      node.style.height = ''
+      node.style.lineHeight = ''
+      node.style.margin = ''
+      node.style.padding = ''
+      node.style.display = ''
+    }
+
     if (options.layout === 'row') {
       const row = el('div', { class: 'k-dpad k-dpad--row', role: 'group' })
       row.setAttribute('aria-label', ctx.t(options.padLabelKey))
@@ -138,8 +157,12 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
           if (dir !== null) {
             td.appendChild(key(dir))
           } else if (r === 0 && c === 0 && options.cornerLeft) {
+            // 角落的 ↶/↻ 借放在上排两侧的空格里：**必须与方向键同尺寸**，
+            // 否则上排是 48/72/48、下排是 72/72/72，三列边界对不上（用户报的"按钮错位"）
+            markCorner(options.cornerLeft)
             td.appendChild(options.cornerLeft)
           } else if (r === 0 && c === 2 && options.cornerRight) {
+            markCorner(options.cornerRight)
             td.appendChild(options.cornerRight)
           }
           tr.appendChild(td)

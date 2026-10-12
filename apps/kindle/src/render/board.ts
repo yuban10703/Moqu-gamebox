@@ -239,13 +239,24 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
       break
     }
   }
-  // 有未翻格时在**整盘**铺一次斜纹：逐格铺会让 45° 线在格边错位（真机反馈过）
+  /*
+   * 有未翻格时在**整盘**铺一次斜纹：逐格铺会让 45° 线在格边错位（真机反馈过）。
+   *
+   * 两个必须成对的条件，缺一个斜纹就看不见：
+   *   1. 这里给表格铺 background-image；
+   *   2. `.k-board__cell[data-kind="hidden"]` 必须是**透明**背景（见 CSS），
+   *      否则每一格都用不透明的白把自己盖住 —— 用户报的"未翻格没区分"就是这个：
+   *      未翻开和已翻开的空格看起来一模一样。
+   *
+   * 线用**纯黑**而不是浅灰：1-bit 墨水屏上灰色靠抖动模拟，容易糊成噪点；
+   * 斜纹本来就是靠"形状"区分，用黑色最稳（仓库的 1-bit 规则：别只靠灰阶）。
+   */
   if (hasCovered) {
     table.setAttribute(
       'style',
       'border-collapse:collapse;table-layout:fixed;margin:0 auto;' +
         'background-image:url("data:image/svg+xml;utf8,' +
-        encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><path d="M-2 2 L2 -2 M0 8 L8 0 M6 10 L10 6" stroke="#bbb" stroke-width="1"/></svg>') +
+        encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><path d="M-2.5 2.5 L2.5 -2.5 M0 10 L10 0 M7.5 12.5 L12.5 7.5" stroke="#000" stroke-width="1"/></svg>') +
         '");',
     )
   } else {
@@ -345,7 +356,19 @@ function renderCell(
 
   const flash = cellView.flash === true
   if (flash) css += 'background:#000;color:#fff;'
-  else css += 'background:#fff;color:#000;'
+  else if (cellView.kind === 'hidden') {
+    /*
+     * 未翻开：**故意不涂白**，让整盘那层斜纹透出来。
+     *
+     * 这里必须写成 transparent，不能指望样式表 —— 每个格子的背景都是**行内**写的，
+     * 行内样式压过任何选择器（先前在 CSS 里加了一条 `[data-kind=hidden]{background:transparent}`，
+     * 计算值仍然是白的，等于没写）。而"铺不铺斜纹"也是这个渲染器决定的，
+     * 两件事放在一起才不会各说各话。
+     *
+     * 扫雷的未翻格、记忆的背面卡片都走这条；已翻开的格子仍是白底，正好把斜纹遮掉。
+     */
+    css += 'background:transparent;color:#000;'
+  } else css += 'background:#fff;color:#000;'
 
   if (cellView.selected === true) css += 'box-shadow:inset 0 0 0 2px #000;'
 

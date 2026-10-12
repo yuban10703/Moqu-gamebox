@@ -1216,58 +1216,90 @@ body {
   color: #666;
 }
 
-/* 平铺摆法（上/下不是空间方向的玩法）：四个键等分一行，顺序无关 */
+/*
+ * 平铺摆法（上/下不是空间方向的玩法，例如俄罗斯方块：左/转/落/右）：四键等分一行。
+ *
+ * 原先写的是 `display: table` + 子元素 `display: table-cell`，但渲染器给按钮写了
+ * 行内 `display: inline-block`（行内样式优先），于是四个按钮不是单元格、
+ * 而是被表格包成匿名单元格 —— 表格宽度写的是 100%（最大 560px），
+ * 匿名列却只按内容撑开，结果整排按钮**偏在左边**（实测按钮结束于 398px，而块中心在 380px）。
+ * 现在直接用行内块 + text-align 居中，老 WebKit 上最稳。
+ */
 .k-dpad--row {
-  display: table;
+  display: block;
   width: 100%;
-  max-width: 560px;
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 10px 0;
-  margin: 0 auto;
+  text-align: center;
+  font-size: 0; /* 消掉行内块之间的空白间隙，改由外边距控制间距 */
 }
 
 .k-dpad--row .k-dpad__btn {
-  display: table-cell;
-  width: 25%;
-  margin: 0;
-  padding: 22px 4px;
+  margin: 0 5px 10px 5px;
 }
 
 /*
  * 倒 T 摆法：上排中间是「上」，下排「左、下、右」（与键盘方向键同位置）。
- * 老 WebKit 没有网格区域，只能按 DOM 次序摆位，因此**依赖顺序：上、左、下、右**
- * （与内核 DpadLayout 的声明顺序一致）；屏幕层若换顺序，下面三条 nth-child 要同步改。
- * 三列宽度用百分比凑：32% × 3 + 2% 右外边距 × 2 = 100%。
+ *
+ * 渲染器输出的是**表格**（老 WebKit 的 flex/grid 都不可靠），所以这里按表格写。
+ * 原先写的是浮动方案（float:left + width:32% + 用 margin-left:34% 把「上」推到中间），
+ * 而且依赖 nth-child —— 那是给"只有四个方向键"的 DOM 写的；渲染器实际把 ↶/↻
+ * 借放在上排两侧的格子里，DOM 是 6 个按钮，nth-child 全错位；浮动在表格单元格里
+ * 又把上排拉成 48/72/48 三列，与下排的 72/72/72 对不齐 —— 就是用户报的"按钮错位"。
+ *
+ * 现在：三列**等宽**（table-layout: fixed），内容各自居中。
+ * 上下两排的列边界因此必然重合，「上」正对「下」。
  */
 .k-dpad--tee {
   display: block;
   width: 100%;
-  max-width: 320px;
+  max-width: 360px;
   margin: 0 auto;
   overflow: hidden;
 }
 
+.k-dpad--tee table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.k-dpad--tee td {
+  padding: 0 0 10px 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/*
+ * 方向键：去掉基础样式里的 `margin-right: 8px`。
+ * inline-block 被 text-align 居中时，居中的是**外边距盒**，
+ * 那 8px 右外边距会让每个键整体左偏 4px（实测「左」在 388，而列中心是 392）。
+ */
 .k-dpad--tee .k-dpad__btn {
-  float: left;
-  width: 32%;
-  margin: 0 2% 10px 0;
+  margin: 0;
 }
 
-/* 1 上：第一行居中（左外边距 34% 把 32% 宽的键推到中间） */
-.k-dpad--tee .k-dpad__btn:first-child {
-  margin-left: 34%;
-}
-
-/* 2 左：换行（清除浮动），回到第一列 */
-.k-dpad--tee .k-dpad__btn:nth-child(2) {
-  clear: left;
-  margin-left: 0;
-}
-
-/* 4 右：行尾，不留右外边距 */
-.k-dpad--tee .k-dpad__btn:nth-child(4) {
-  margin-right: 0;
+/*
+ * 角落的 ↶ / ↻ 与方向键**同尺寸、同列中心**。
+ *
+ * 两件事要同时满足，缺一个就错位（用户报的"按钮错位"）：
+ *   1. 尺寸：它们带的是 .k-btn（下限 48×48），方向键是 .k-dpad__btn（下限 72×72）
+ *      —— 差这一档，上排就成了 48/72/48，与下排的 72/72/72 对不齐；
+ *   2. 居中：实测这两个按钮在表格单元格里被当作**块盒**（计算 display 是 block，
+ *      尽管行内写的是 inline-block），于是贴左边缘、text-align 推不动它 ——
+ *      实测偏左 22px。所以这里按块盒居中写：定宽 + `margin: 0 auto`，
+ *      对 table-cell 里的块盒一定有效；方向键那边继续用 inline-block 居中。
+ */
+.k-dpad--tee .k-dpad__corner {
+  min-width: 72px;
+  min-height: 72px;
+  /* `margin: 0 auto` 与 td 上的 text-align:center 同时给上：
+     这个按钮在表格单元格里究竟被当成块盒还是行内块，实测与直觉不一致
+     （行内写 inline-block、计算值却是 block）。两种盒模型各有一条居中路径，
+     两条都写上，无论按哪种解释都居中。 */
+  margin: 0 auto;
+  padding: 0;
+  font-size: 1.3em;
+  line-height: 1.2;
 }
 
 /* ======================================================= 8 屏幕适配 */
@@ -1320,7 +1352,15 @@ body {
     clear: left;
   }
 
-  .k-controls__pad {
+  /*
+   * 横屏：方向键靠左、动作按钮靠右，左右并排 —— 省下的高度给棋盘。
+   *
+   * 这里原先写的是 `.k-controls__pad`，那是**现代版（React 壳层）的类名**，
+   * 本壳层的方向键容器叫 `.k-dpad` —— 于是这条规则一直是死规则，
+   * 横屏下方向键居中、动作按钮贴右，两者离得老远（看着像没排好）。
+   * 这一轮查"按钮错位"时顺出来的：样式表按另一套 DOM 写，是这类问题的总根源。
+   */
+  .k-dpad {
     float: left;
   }
 
@@ -1343,8 +1383,21 @@ body {
     margin: 0 10px 10px 0;
   }
 
+  /*
+   * 页脚按钮排成一行（图书馆 / 设置那类页面：翻页条 + 几个按钮）。
+   *
+   * 但**不能伸进控件区**：对局页脚里装的是方向键与动作按钮，
+   * 把每个 .k-btn 都浮动，会让倒 T 上排的角落按钮（↶ / ↻）脱离单元格居中、
+   * 贴到左边 —— 竖屏正常、横屏错位 22px（用户报的"按钮错位"就是这么来的：
+   * 这条规则只在横屏媒体查询里，所以只有横屏会歪）。
+   * 下面这条用三class选择器压过它，与源码顺序无关。
+   */
   .k-footer .k-btn {
     float: left;
+  }
+
+  .k-footer .k-controls .k-btn {
+    float: none;
   }
 
   .k-main {
@@ -1422,5 +1475,12 @@ body {
   .k-dpad__btn {
     min-height: 48px;
     padding: 10px 6px;
+  }
+
+  /* 矮屏里方向键降到 48：角落按钮必须同步，否则又对不齐 */
+  .k-dpad--tee .k-dpad__corner {
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
   }
 }
