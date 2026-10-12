@@ -27,6 +27,13 @@ import { topBar, button, showDialog, progressBar } from './common.js'
  * 所以渲染完还要**按实测的可用带子收敛一次**（见 fitToViewport）。
  */
 const CHROME_TOP = 52
+/*
+ * 手机/窄竖窗的**紧凑档**：视口宽 <500 且高 <760 时生效（BOOX 等大屏阅读器不受影响）。
+ * 动机：同屏高下骨架合计占比 50%（web 版 32%）——用户反馈「下方按键比例过大、
+ * 挡住游戏画面」。紧凑档把 通知条/统计条/方向键 各块按 web 口径收紧。
+ */
+const COMPACT_MAX_W = 500
+const COMPACT_MAX_H = 760
 const CHROME_STATS = 30
 /**
  * 提示条预留的一行高度（px）：13px 字 × 1.4 行高 + 上下内边距 12 + 下边框 1 ≈ 32，取 34 留余量。
@@ -256,6 +263,9 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
         : session.saveStatus === 'failed' ? ctx.t('shell.storage.statusFailed')
           : session.saveStatus === 'saved' ? ctx.t('shell.storage.saved')
             : undefined
+    // 手机/窄竖窗紧凑档：骨架按比例收敛（同视口下 web 版合计 25%，本版原为 40%+）
+    const compact = ctx.width < COMPACT_MAX_W && ctx.height < COMPACT_MAX_H
+
     root.appendChild(
       topBar(ctx, {
         title: titleParts.join(' · '),
@@ -284,7 +294,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const noticeBand = el('div', {
       class: 'k-notice k-notice--band',
       style:
-        'box-sizing:border-box;min-height:' + NOTICE_LINE + 'px;margin:0 0 6px 0;padding:6px 10px;' +
+        'box-sizing:border-box;min-height:' + (compact ? 20 : NOTICE_LINE) + 'px;margin:' + (compact ? '0 0 2px 0' : '0 0 6px 0') + ';padding:' + (compact ? '2px 8px' : '6px 10px') + ';' +
         'border:none;border-bottom:1px solid #000;font-size:13px;line-height:1.4;overflow:visible;',
     })
     if (statusText) noticeBand.appendChild(el('span', {}, statusText))
@@ -315,7 +325,12 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
 
     // 统计
     if (view.stats.length > 0) {
-      const stats = el('div', { class: 'k-stats', style: 'padding:4px 8px;font-size:13px;line-height:1.5;border-bottom:1px solid #000;' })
+      const stats = el('div', {
+        class: 'k-stats',
+        style:
+          (compact ? 'padding:2px 6px;font-size:12px;line-height:1.3;' : 'padding:4px 8px;font-size:13px;line-height:1.5;') +
+          'border-bottom:1px solid #000;',
+      })
       for (let i = 0; i < view.stats.length; i++) {
         const stat = view.stats[i]
         stats.appendChild(el('span', { class: 'k-stat', style: 'margin-right:12px;white-space:nowrap;' },
@@ -346,7 +361,16 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     // 棋盘 / 牌桌 / 对决
     // 棋盘/牌桌/对决都放进 .k-main：页脚是绝对定位的预算栏，靠它让位
     const body = el('div', { class: 'k-main', style: 'padding:4px 6px;' })
-    const chromeBottom = dpadOn && hasDpad() ? (dpadLayout === 'row' ? CHROME_BOTTOM_ROW : CHROME_BOTTOM_TEE) : CHROME_BOTTOM_MIN
+    /*
+     * 控制区高度：紧凑档按"两行 44 键 + 缝"重算（web 版同一视口合计 ~124——
+     * 写死的 CHROME_BOTTOM_TEE=150 在 50% 视口占比里是骨架最大的那块）。
+     */
+    const ctrlKey = compact ? 44 : 52
+    const chromeBottom = dpadOn && hasDpad()
+      ? dpadLayout === 'row'
+        ? (compact ? 52 : CHROME_BOTTOM_ROW)
+        : (compact ? 104 : CHROME_BOTTOM_TEE)
+      : (compact ? 40 : CHROME_BOTTOM_MIN)
     const statsH = view.stats.length > 0 ? CHROME_STATS : 0
     const estimated = ctx.height - CHROME_TOP - statsH - chromeBottom - 24
     // 收敛后的预算优先（fitToViewport 会把它压小）
@@ -411,7 +435,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const controlBar = renderControls(session.controls, renderCtx(ctx.width - 12, boardHeight), {
       dpad: dpadOn && !session.finished,
       layout: dpadLayout,
-      size: dpadLayout === 'row' ? 44 : 52,
+      size: dpadLayout === 'row' ? (compact ? 40 : 44) : (compact ? 44 : 52),
       padLabelKey: ns + '.dpad.label',
       onMove: function onMove(dir: MoveDir): void {
         session.move(dir)
