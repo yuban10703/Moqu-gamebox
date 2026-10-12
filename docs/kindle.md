@@ -820,6 +820,18 @@ vs web 213（32%）——三大块：空通知条 +34、统计条 +37、控制�
 
 实测同视口对照：骨架 335 → 262（39%），棋盘 405（**已超过 web 版的 332**）。
 审计/玩法实测/探索复跑全绿（紧凑档的手感：键 44 仍够墨水屏点准）。
+
+**用户二轮反馈（象棋点击后棋盘被按键遮住）：**手机 WebView 的字体放大
+（`text-size-adjust:100%` 在部分内置浏览器不生效）把 通知条/页脚/统计条
+撑高——而页脚是「min-height 预算栏」：内容一涨就**向上长**，盖住棋盘；
+`.k-notice { min-height: 48px }` 的类规则也把空通知条顶到 48。
+
+修法（钉死 + 裁切，涨出来的部分永远裁在框内）：
+· 页脚：显式 `height + min-height: chromeBottom + overflow:hidden`；
+· 通知条：显式 `height/min-height`（紧凑 20 / 常规 48→ 由背景/边距呈现）
+  + nowrap/ellipsis/overflow:hidden；
+· 模拟 font boosting 的探针：放大前后 通知条 20 → 20、页脚 44 → 44、
+  棋盘零遮挡（boardCoveredByFooter=false）。
 另压掉类样式的干扰：`.k-board__wrong` 的类样式是白底+3px 黑框的 inline-block
 角标（2048 的文字角标遗留），把 100%×100% 的叉容器垫成了不透明白板——
 内联样式显式置 background:transparent / border:none。

@@ -293,7 +293,8 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const noticeBand = el('div', {
       class: 'k-notice k-notice--band',
       style:
-        'box-sizing:border-box;min-height:' + (compact ? 20 : NOTICE_LINE) + 'px;margin:' + (compact ? '0 0 2px 0' : '0 0 6px 0') + ';padding:' + (compact ? '2px 8px' : '6px 10px') + ';' +
+        'box-sizing:border-box;height:' + (compact ? 20 : NOTICE_LINE) + 'px;min-height:0;line-height:' + (compact ? 20 : NOTICE_LINE) + 'px;' +
+        'margin:' + (compact ? '0 0 2px 0' : '0 0 6px 0') + ';padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;' +
         'border:none;border-bottom:1px solid #000;font-size:13px;line-height:1.4;overflow:visible;',
     })
     if (statusText) noticeBand.appendChild(el('span', {}, statusText))
@@ -367,7 +368,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const ctrlKey = compact ? 44 : 52
     const chromeBottom = dpadOn && hasDpad()
       ? dpadLayout === 'row'
-        ? (compact ? 52 : CHROME_BOTTOM_ROW)
+        ? (compact ? 112 : CHROME_BOTTOM_ROW)
         : (compact ? 104 : CHROME_BOTTOM_TEE)
       : (compact ? 40 : CHROME_BOTTOM_MIN)
     const statsH = view.stats.length > 0 ? CHROME_STATS : 0
@@ -463,10 +464,24 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
      * 一大块空页脚硬顶出来（用户真机截图：撤销 下方一整段空白）。
      * 逐屏声明后：紧凑档 40 / 常规 60 / tee 104 / row 52，各玩法的页脚都贴合内容。
      */
+    /*
+     * 页脚钉死高度 + 溢出裁切：手机 WebView 的字体放大（font boosting /
+     * 系统字号档）会把按钮与文字撑高——页脚贴底、内容一涨就向上生长，
+     * 直接盖到棋盘上（用户真机反馈「下方按键遮住游戏画面」×2）。
+     * 显式 height + overflow:hidden：涨出来的部分裁在页脚框内，棋盘永不被盖。
+     */
     const footer = root.appendChild(
-      el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar),
+      el(
+        'div',
+        {
+          class: 'k-footer',
+          style:
+            'border-top:1px solid #000;padding:4px 8px;box-sizing:border-box;' +
+            'height:' + (chromeBottom + 4) + 'px;min-height:0;overflow:hidden;',
+        },
+        controlBar,
+      ),
     )
-    footer.style.minHeight = chromeBottom + 'px'
 
     // DOM 已经进文档，可以量真实高度了
     fitToViewport()
