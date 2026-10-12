@@ -85,13 +85,15 @@ export const renderSettings: Screen = function renderSettings(root: HTMLElement,
 
     // 存储
     body.appendChild(el('div', { class: 'k-section__title', style: 'font-size:15px;font-weight:700;margin:14px 0 6px;' }, ctx.t('shell.storage.title')))
-    body.appendChild(field(ctx.t('shell.common.version'), ctx.t('shell.storage.saved')))
+
     const available = storageAvailable()
     if (!available) {
       body.appendChild(el('div', { style: 'border:1px dashed #000;padding:8px;margin:6px 0;font-size:13px;' }, ctx.t('shell.storage.notPersistent')))
     }
     const saves = listSaves()
-    body.appendChild(field(ctx.t('shell.diagnostics.saves'), String(saves.length)))
+    // 「存档状态：已保存」那种写法已在全量检查里修掉 —— 设置页没有会话，
+    // 写死的"已保存"并不反映真实状态；这里只陈述事实：设备上有几份存档。
+    body.appendChild(field(ctx.t('shell.storage.count'), String(saves.length)))
 
     const dataRow = el('div', { style: 'margin-top:8px;' })
     dataRow.appendChild(

@@ -85,9 +85,40 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
 
   const dpadControls: ControlSpec[] = []
   const actionControls: ControlSpec[] = []
+  /*
+   * 页脚动作行**排除壳层自己渲染的 id**（与现代版 GameScreen 的 SHELL_CONTROL_IDS 同一套规则）：
+   *   · next-level —— 结果面板专用。玩法注释写明「对局页不会重复渲染（壳层把它当自己的按钮）」；
+   *     壳层不滤的话，空当接龙/斗地主的页脚会常驻一个重复按钮（实测：「换一局」×2）。
+   *   · undo / restart —— 只在**有方向键**的玩法排除（倒 T 上排两侧的 ↶/↻ 已经是它们）；
+   *     没有方向键的玩法（如扫雷）没有别的入口，必须保留玩法自己声明的按钮。
+   *   · nextLevel（驼峰变体）一并排除：两种写法在不同玩法的 view 里语义相同。
+   */
+  const shellOnly: Record<string, boolean> = {}
+  shellOnly['next-level'] = true
+  shellOnly['nextLevel'] = true
+  /*
+   * 只在**真的有角落 ↶/↻** 时才滤掉 undo/restart：角落只在倒 T 布局里渲染
+   * （平铺布局没有角落；没有方向键的玩法更没有）。
+   * 判断条件不能用 options.dpad 这个开关 —— 它默认为 true，
+   * 空当接龙（没有方向键）会被误判，唯一的「撤销」按钮跟着消失（实测踩过）。
+   */
   for (let i = 0; i < controls.length; i++) {
-    if (controls[i].role === 'dpad') dpadControls.push(controls[i])
-    else actionControls.push(controls[i])
+    const spec = controls[i]
+    if (spec.role === 'dpad') {
+      dpadControls.push(spec)
+      continue
+    }
+    if (shellOnly[spec.id] === true) continue
+    /*
+     * 玩法声明的 undo / restart：只有**角落 ↶/↻ 真的会渲染**时才省下
+     * （tee 布局 + 存在方向键）。**注意条件在这里写** ——
+     * 原先在循环前就判断 `dpadControls.length > 0`，那时它还是 0，
+     * 于是 sokoban 的页脚撤销/重开永远滤不掉（视觉检查发现的）。
+     */
+    if ((spec.id === 'undo' || spec.id === 'restart') && options.layout === 'tee' && dpadControls.length > 0) {
+      continue
+    }
+    actionControls.push(spec)
   }
 
   // 方向键：没有方向控件时整块不渲染，避免在窄屏上白占一块高度

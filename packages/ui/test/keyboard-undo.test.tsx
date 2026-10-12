@@ -182,9 +182,17 @@ describe('U 键与「撤销」按钮的开关一致', () => {
     move()
     await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
     pressUndoKey()
-    // 按键被忽略：局面一动不动（旧行为会退回 0）
-    await new Promise((resolve) => setTimeout(resolve, 30))
-    expect(await gameMoves(platform)).toBe(1)
+    /*
+     * 按键被忽略：局面一动不动（旧行为会退回 0）。
+     *
+     * 先给足时间让可能发生的写入落地（原来只等 30ms，并行跑时不够），**再轮询**断言：
+     * 存档是两阶段提交（先写 pending 再 CAS 提交），写入方在「开始新游戏」等路径上
+     * 还有"先删旧档再写新档"的步骤 —— 任一时刻单次读取都可能拿到 -1（empty/corrupt）。
+     * 原先"睡 30ms 读一次"因此会偶发 `expected -1 to be 1`（全量并行跑时约 1/3 概率）。
+     * 轮询只在读到已提交状态时断言：读到值就必须是 1，旧行为（U 键真的撤销）依然会被抓住。
+     */
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
   })
 
   it('已判胜：U 键不再撤销（结果面板故意不给撤销）', async () => {

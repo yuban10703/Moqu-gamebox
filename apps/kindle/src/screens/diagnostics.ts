@@ -286,7 +286,7 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
     }
 
     blocks.push(section('shell.diagnostics.saves'))
-    blocks.push(line(ctx.t('shell.diagnostics.saves') + ': ' + String(listSaves().length)))
+    blocks.push(line(ctx.t('shell.storage.count') + ': ' + String(listSaves().length)))
     const progress = loadProgress()
     blocks.push(line(ctx.t('shell.detail.progress') + ': ' + String((progress.completed ?? []).length)))
     blocks.push(line(ctx.t('shell.common.version') + ': ' + APP_VERSION))

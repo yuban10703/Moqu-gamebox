@@ -86,6 +86,7 @@ export const zhCN: Dict = {
   'shell.storage.clearConfirm': '将删除所有进行中的进度与完成记录，且无法撤销。',
   'shell.storage.clearDone': '已清除',
   'shell.storage.saved': '已保存',
+  'shell.storage.count': '已有存档',
   'shell.storage.saving': '保存中…',
   'shell.storage.failed': '保存失败：{reason}',
   'shell.storage.reason.io': '存储写入失败',
@@ -191,6 +192,7 @@ export const zhCN: Dict = {
   'shell.cards.suit.diamond': '方块',
   'shell.cards.hidden': '未公开的牌',
   'shell.cards.hand': '我的手牌',
+  'shell.cards.count__one': '{count} 张',
   'shell.cards.count__other': '{count} 张',
 
   // 对决面板（恶魔轮盘赌这类双方各有血量与道具的玩法）

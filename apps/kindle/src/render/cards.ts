@@ -62,8 +62,16 @@ var MAX_SMALL_CARD = 56
 var MAX_PILE_CARD = 84
 /** 牌堆之间的缝（React: --pile-gap = min(6px, 1.3cqw)） */
 var PILE_GAP = 4
-/** 提示行常驻高度：没有提示时也占着 —— 提示出现 / 消失时下面两排不会跳一下（墨水屏上跳动很显眼） */
-var HINT_H = 20
+/**
+ * 提示行**基础**高度。
+ *
+ * 实际槽位高度按当前字号现算（见 renderPiles 里的 hintSlotH）：
+ * 提示框 = 字号 × 1.2 的行高 + 内边距 2 + 边框 6；
+ * 原先写死 20px，而提示字号随棋盘高度走（实测 25px），框比槽高出一倍 ——
+ * 溢出的下半截正好压在「抽牌堆 / 弃牌堆 / 基础堆」那排文字上，两组字叠成一团。
+ * 高度仍随提示出现/消失**保持不变**（常驻占位的初衷保留）。
+ */
+var HINT_BASE = 20
 
 function px(value: number): string {
   return Math.round(value) + 'px'
@@ -768,7 +776,10 @@ function renderPiles(container: HTMLElement, table: CardTableView, ctx: RenderCt
 
   // 牌列能用的高度：扣掉提示行、上排牌堆（堆名 + 张数两行 + 牌）与几条缝
   var headH = Math.round(base * 2.1)
-  var usedTop = HINT_H + (rows.length > 0 ? headH + rowCardH + PILE_GAP * 2 : 0)
+  // 提示槽位高度 = 按当前字号现算（框 = 字号×1.2 行高 + 内边距 2 + 边框 6）
+  var hintFont = Math.max(9, Math.round(base))
+  var hintSlotH = Math.round(hintFont * 1.2) + 10
+  var usedTop = hintSlotH + (rows.length > 0 ? headH + rowCardH + PILE_GAP * 2 : 0)
   var stackBodyH = height > 0 ? Math.max(stackCardH + 8, height - usedTop - headH - PILE_GAP * 2) : 0
 
   var root = el('div', { class: 'k-piles', style: 'display:block;width:100%;box-sizing:border-box;' })
@@ -776,7 +787,7 @@ function renderPiles(container: HTMLElement, table: CardTableView, ctx: RenderCt
   // 提示行常驻占位：没有提示时它是空的，但高度一直占着 —— 提示出现 / 消失时下面两排不会跳一下
   var hintSlot = el('div', {
     class: 'k-piles__hint-slot',
-    style: 'display:block;height:' + px(HINT_H) + ';text-align:center;',
+    style: 'display:block;height:' + px(hintSlotH) + ';line-height:' + px(Math.round(hintFont * 1.2)) + ';text-align:center;overflow:hidden;',
   })
   if (table.bannerKey) {
     var hint = el(

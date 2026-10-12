@@ -639,23 +639,41 @@ export function useSession<S, A>(options: SessionOptions<S, A>): SessionApi<S, A
   }, [commitNow, storage, game])
 
   const discardAndRestart = useCallback(async () => {
-    await storage.saves.remove(game.id)
+    /*
+     * **原地替换，不要"先删旧档再异步写入"**。
+     *
+     * 原先是 `await remove()` 之后 `void commitNow(fresh)`：这两步之间存在一个
+     * "存档不存在"的窗口，任何读者（详情页的「继续」按钮、首页「继续上一局」、
+     * 测试里的 loadResult）在这一刻都会看到 empty。写入又是 fire-and-forget，
+     * 窗口长度取决于调度 —— 全量并行跑测试时实测偶发读到"没有存档"
+     * （keyboard-undo 里那句 `expected -1 to be 1`，注释把它归因于超时，
+     * 其实是这个窗口）。
+     * 现在：先读当前提交编号，用同一个编号盖章后交给 CAS 原地替换（与 retrySave 同一套）；
+     * 只有旧档**损坏或不存在**时才真的删除 —— 那种情况下 CAS 的期望值对不上，写不进去。
+     */
+    const stored = await storage.saves.loadResult(game.id)
+    const baseCommitId = stored.status === 'ok' ? stored.envelope.commitId : 0
+    if (stored.status !== 'ok') await storage.saves.remove(game.id)
     const seed = nextSeed()
     // 「重开/再来一局」丢掉的是这一局的局面，不是跨局战绩 —— 历史记录、最高纪录、
     // 已通关记录与最佳步数都跟着新存档继续（carriedProgress 的口径）
     const carried: GameProgress = carriedProgress(progress as Record<string, unknown>) as GameProgress
-    const fresh = newEnvelope(
-      {
-        gameId: game.id,
-        rulesVersion: game.rulesVersion,
-        contentVersion: game.contentVersion,
-        difficulty,
-        seed,
-        state: game.encode(game.create(seed, difficulty)),
-      },
-      now(),
-      carried as Record<string, unknown>,
-    )
+    const fresh = reseal({
+      ...newEnvelope(
+        {
+          gameId: game.id,
+          rulesVersion: game.rulesVersion,
+          contentVersion: game.contentVersion,
+          difficulty,
+          seed,
+          state: game.encode(game.create(seed, difficulty)),
+        },
+        now(),
+        carried as Record<string, unknown>,
+      ),
+      // 用已提交的编号盖章：CAS 才能命中现在的记录（原地替换，不经过"空档"）
+      commitId: baseCommitId,
+    })
     envelopeRef.current = fresh
     elapsedRef.current = 0
     levelStartRef.current = 0

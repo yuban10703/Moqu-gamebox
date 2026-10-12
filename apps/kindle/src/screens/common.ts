@@ -122,13 +122,27 @@ export function closeAllDialogs(): void {
 export function showDialog(options: DialogOptions): () => void {
   const overlay = el('div', {
     class: 'k-dialog',
-    style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:1000;',
+    /*
+     * 背景必须**不透明白**：
+     * 本文件下方的 .k-dialog 规则本来就是「整屏不透明白底」（1-bit 屏做不出半透明，
+     * 半透明遮罩会变成一片抖动的灰花），现代版同样如此（eink-dialog 也是纯白）。
+     * 这里原先却写了行内 `rgba(0,0,0,0.45)` —— 行内压过样式表，文档化的决定整个失效，
+     * 弹窗后面的棋盘变成一层灰（视觉检查的截图里看得清清楚楚）。
+     */
+    style: 'position:fixed;left:0;top:0;width:100%;height:100%;background:#fff;z-index:1000;',
   })
   const box = el('div', {
     class: 'k-dialog__panel',
+    /*
+     * **不写行内定位**：样式表里的 `.k-dialog__panel { margin: 8% auto 0 auto }`
+   * 已经把面板排在"距顶 8%、水平居中"的位置 —— 原先行内的
+   * `position:absolute; top:50%; margin-left:-43%` 把面板推到下半屏，
+   * 背景改成不透明白之后，上面那一大片空白就显得特别突兀（视觉检查截图里可见）。
+   * 让类规则管排版。
+   */
     style:
-      'position:absolute;left:50%;top:50%;width:86%;max-width:420px;margin-left:-43%;' +
-      'background:#fff;border:2px solid #000;border-radius:6px;padding:16px;box-sizing:border-box;',
+      'box-sizing:border-box;width:86%;max-width:420px;' +
+      'background:#fff;border:2px solid #000;border-radius:6px;padding:16px;',
   })
   box.appendChild(el('div', { class: 'k-dialog__title', style: 'font-size:17px;font-weight:700;margin-bottom:10px;text-align:center;' }, options.title))
   if (options.body) {

@@ -570,6 +570,102 @@ describe('Kindle 壳层', () => {
     expect(settings.boardMax).toBe(0)
   })
 
+  /*
+   * 视觉检查（把整屏截图逐张过一遍）发现的几类问题，全部钉成守卫。
+   */
+
+  it('弹窗遮罩是不透明白底（1-bit 上不能出现半透明遮罩）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+    const menu = Array.from(root.querySelectorAll('button')).find(
+      (b) => (b.textContent ?? '').indexOf('菜单') >= 0,
+    ) as HTMLElement
+    menu.click()
+    const overlay = document.querySelector('.k-dialog') as HTMLElement
+    expect(overlay, '暂停菜单应当是一个 .k-dialog 遮罩').toBeTruthy()
+    const bg = overlay.style.background || overlay.style.backgroundColor
+    // 半透明遮罩在 1-bit 屏上会变成一片抖动的灰花；现代版与 Kindle 样式表都要求纯白
+    expect(bg).not.toContain('rgba')
+    expect(['#fff', '#ffffff', 'white', 'rgb(255, 255, 255)']).toContain(bg)
+  })
+
+  it('页脚不重复渲染壳层自己的按钮：换一局只出现一次', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'klondike', difficulty: 'starter', fresh: true })
+    const labels = Array.from(root.querySelectorAll('.k-controls__actions button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    )
+    // 玩法同时声明了 next-deal（页脚）与 next-level（结果面板），壳层必须滤掉后者
+    expect(labels.filter((l) => l === '换一局').length, `页脚=${labels.join(',')}`).toBe(1)
+  })
+
+  it('倒 T 方向键玩法：页脚不再重复撤销/重开（角落 ↶/↻ 已经是它们）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+    const labels = Array.from(root.querySelectorAll('.k-controls__actions button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    )
+    expect(labels.indexOf('撤销'), `页脚=${labels.join(',')}`).toBe(-1)
+    expect(labels.indexOf('重新开始')).toBe(-1)
+    expect(root.querySelectorAll('.k-dpad__corner').length, '角落 ↶/↻ 仍应在').toBe(2)
+  })
+
+  /*
+   * 反向守卫：**没有方向键**的玩法必须保留玩法自己声明的撤销/重开。
+   * 中间改错过一次（用 options.dpad 当条件，它默认 true），扫雷的按钮被误滤掉。
+   */
+  it('没有方向键的玩法保留自己声明的撤销/重开（页脚是唯一入口）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'minesweeper', difficulty: 'starter', fresh: true })
+    const labels = Array.from(root.querySelectorAll('.k-controls__actions button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    )
+    expect(labels, `页脚=${labels.join(',')}`).toContain('撤销')
+    expect(labels).toContain('重新开始')
+  })
+
+  it('张数文案不回落英文词典（中文下不出现 "1 card"）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'klondike', difficulty: 'starter', fresh: true })
+    const counts = Array.from(root.querySelectorAll('.k-pile__count')).map((n) => (n.textContent ?? '').trim())
+    expect(counts.length, '空当接龙应当有成对的牌堆张数').toBeGreaterThan(0)
+    for (let i = 0; i < counts.length; i++) {
+      expect(counts[i], `第 ${i} 个张数是英文：${counts[i]}`).not.toContain('card')
+    }
+  })
+
+  it('设置页不再把版本号当存档状态（值来自集中配置）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('settings')
+    const text = root.textContent ?? ''
+    expect(text, '设置页不应出现"版本"字段').not.toContain('版本')
+    expect(text, '应显示存档份数').toContain('已有存档')
+  })
+
+  it('关于页显示真实作者与开源地址（不是词典里的占位标签）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('about')
+    const text = root.textContent ?? ''
+    expect(text).toContain('Yuban10703')
+    expect(text).toMatch(/github\.com/)
+    // 不能出现"作者：作者"这种占位残留
+    expect(text).not.toContain('作者：作者')
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)

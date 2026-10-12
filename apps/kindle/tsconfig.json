@@ -29,6 +29,9 @@
       "@eink/ui": [
         "packages/ui/src/registry.ts"
       ],
+      "@eink/ui/*": [
+        "packages/ui/src/*"
+      ],
       "@eink/sokoban": [
         "packages/games/sokoban/src/index.ts"
       ],

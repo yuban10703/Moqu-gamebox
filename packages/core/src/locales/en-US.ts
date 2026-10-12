@@ -84,6 +84,7 @@ export const enUS: Dict = {
   'shell.storage.clearConfirm': 'This deletes all progress and completion records, and cannot be undone.',
   'shell.storage.clearDone': 'Cleared',
   'shell.storage.saved': 'Saved',
+  'shell.storage.count': 'Saves on this device',
   'shell.storage.saving': 'Saving…',
   'shell.storage.failed': 'Save failed: {reason}',
   'shell.storage.reason.io': 'storage write failed',

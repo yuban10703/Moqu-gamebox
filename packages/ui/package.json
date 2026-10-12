@@ -7,7 +7,9 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./screens/authorInfo.js": "./src/screens/authorInfo.ts",
+    "./screens/projectInfo.js": "./src/screens/projectInfo.ts"
   },
   "dependencies": {
     "@eink/core": "*",
