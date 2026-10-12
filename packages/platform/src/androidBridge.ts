@@ -117,12 +117,18 @@ export function readAndroidBaseline(bridge: EinkNativeBridge): DeviceBaseline | 
  * JavaBridge 线程，如果那里阻塞等待文件对话框，后续所有桥调用（包括自动保存）都会排队卡住。
  * 因此桥立即返回「已发起」，真正的结果由壳层回调 __EINK_EXPORT_RESULT__ 送达。
  */
+let backupTransferBusy = false
+
 export function androidExportBackup(
   bridge: EinkNativeBridge,
   fileName: string,
   text: string,
   timeoutMs = 600_000,
 ): Promise<BridgeResult> {
+  // 导出/导入共用一条 SAF 通道，且回调是全局单槽 —— 并发第二次会顶掉第一次的回调，
+  // 让第一次挂满 10 分钟超时（评审发现）。这里直接拒绝并发（backup-busy）。
+  if (backupTransferBusy) return Promise.resolve({ ok: false, error: 'backup-busy' })
+  backupTransferBusy = true
   return new Promise((resolve) => {
     let settled = false
     const finish = (result: BridgeResult): void => {
@@ -130,6 +136,7 @@ export function androidExportBackup(
       settled = true
       window.clearTimeout(timer)
       delete window.__EINK_EXPORT_RESULT__
+      backupTransferBusy = false
       resolve(result)
     }
     const timer = window.setTimeout(() => finish({ ok: false, error: 'timeout' }), timeoutMs)
@@ -148,6 +155,8 @@ export function androidImportBackup(
   bridge: EinkNativeBridge,
   timeoutMs = 600_000,
 ): Promise<string | null> {
+  if (backupTransferBusy) return Promise.resolve(null)
+  backupTransferBusy = true
   return new Promise((resolve) => {
     let settled = false
     const finish = (payload: string | null): void => {
@@ -155,6 +164,7 @@ export function androidImportBackup(
       settled = true
       window.clearTimeout(timer)
       delete window.__EINK_IMPORT_RESULT__
+      backupTransferBusy = false
       resolve(payload)
     }
     const timer = window.setTimeout(() => finish(null), timeoutMs)

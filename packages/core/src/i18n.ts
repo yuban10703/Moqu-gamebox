@@ -48,7 +48,13 @@ export function createI18n(locale: LocaleId, dicts: DictSet): I18n {
       missing.add(key)
       return `⟦${key}⟧`
     }
-    return interpolate(raw, params)
+    const out = interpolate(raw, params)
+    // 调用方传了 params 仍残留 {token} → 真实的「缺参数」，登记进 missing（诊断页可见）。
+    // 完全不传 params 的调用（字典自检、raw 抽查）不算缺参 —— 那是合法的原文探查。
+    if (params && Object.keys(params).length > 0) {
+      for (const token of out.match(/\{(\w+)\}/g) ?? []) missing.add(`${key}（缺参数 ${token}）`)
+    }
+    return out
   }
 
   const plural = (key: string, count: number, params?: Record<string, string | number>): string => {
@@ -65,7 +71,12 @@ export function createI18n(locale: LocaleId, dicts: DictSet): I18n {
       missing.add(`${key}__${suffix}`)
       return `⟦${key}__${suffix}⟧`
     }
-    return interpolate(raw, { count, ...params })
+    const out = interpolate(raw, { count, ...params })
+    // count 恒注入，不会残留 {count}；这里只抓「额外声明了 params 却仍残留」的真缺参
+    if (params && Object.keys(params).length > 0) {
+      for (const token of out.match(/\{(\w+)\}/g) ?? []) missing.add(`${key}__${suffix}（缺参数 ${token}）`)
+    }
+    return out
   }
 
   return {
