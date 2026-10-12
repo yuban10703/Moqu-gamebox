@@ -105,12 +105,17 @@ export function loadSettings(): KindleSettings {
     autoTick: DEFAULT_SETTINGS.autoTick,
     highContrast: DEFAULT_SETTINGS.highContrast,
   }
-  for (const key in merged) {
-    if (!Object.prototype.hasOwnProperty.call(merged, key)) continue
-    const value = (parsed as Record<string, unknown>)[key]
-    if (value !== undefined && value !== null) {
-      ;(merged as unknown as Record<string, unknown>)[key] = value
-    }
+  /*
+   * 逐项**校验类型**再收下：这里是用户数据的入口，localStorage 里的值可能来自
+   * 旧版本或被改过 —— 例如 locale 若被写成不认识的语言，i18n 会整页落到 fallback，
+   * 设置页也显示不出当前语言。坏值一律退回默认值，而不是原样带进壳层。
+   */
+  if (parsed.locale === 'zh-CN' || parsed.locale === 'en-US') merged.locale = parsed.locale
+  if (typeof parsed.dpad === 'boolean') merged.dpad = parsed.dpad
+  if (typeof parsed.autoTick === 'boolean') merged.autoTick = parsed.autoTick
+  if (typeof parsed.highContrast === 'boolean') merged.highContrast = parsed.highContrast
+  if (typeof parsed.boardMax === 'number' && Number.isFinite(parsed.boardMax) && parsed.boardMax >= 0) {
+    merged.boardMax = parsed.boardMax
   }
   return merged
 }
@@ -152,16 +157,30 @@ export function recordOutcome(
   const history = (progress.history ?? []).slice(0)
 
   let newRecord = false
-  if (outcome === 'won') {
+  if (outcome === 'won' && contentId) {
     if (completed.indexOf(contentId) < 0) completed.push(contentId)
     const prevMoves = bestMoves[contentId]
-    if (prevMoves === undefined || moves < prevMoves) bestMoves[contentId] = moves
+    if (prevMoves === undefined || (typeof moves === 'number' && Number.isFinite(moves) && moves < prevMoves)) {
+      bestMoves[contentId] = moves
+    }
   }
-  if (score !== null && score !== undefined) {
+  if (
+    contentId &&
+    typeof score === 'number' &&
+    Number.isFinite(score) &&
+    score >= 0
+  ) {
+    /*
+     * 破纪录语义与现代版一致：**第一次拿到正分也算破纪录**（此前"必须先有旧纪录"，
+     * 于是无限模式的第 1 轮赢了不显示"新纪录"，第 2 轮反而显示）。
+     * 入库前取整（分数来自玩法，可能与"轮数"一样本就是整数，但别依赖这一点）。
+     */
+    const clean = Math.floor(score)
     const prevScore = bestScore[contentId]
-    if (prevScore === undefined || score > prevScore) {
-      bestScore[contentId] = score
-      if (prevScore !== undefined) newRecord = true
+    const beaten = clean > 0 && (prevScore === undefined || clean > prevScore)
+    if (beaten) {
+      bestScore[contentId] = clean
+      newRecord = true
     }
   }
   history.unshift({ gameId: gameId, difficulty: difficulty, outcome: outcome, moves: moves, at: Date.now() })

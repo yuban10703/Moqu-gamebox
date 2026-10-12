@@ -633,6 +633,46 @@ params 里也就没有页号。所以 app 另外按屏幕名记一份"最后一�
 （`pkill` 清掉后才继续）。所以现在的判断是：那是**负载导致的偶发**，
 不是逻辑缺陷 —— 但失败用例名仍未截获，**依然算"未定位"**，不算"已解决"。
 
+## 全量检查记录（shell 源码逐文件过一遍）
+
+应要求对 kindle 分支做了一次全量检查：`apps/kindle/src` 25 个文件 7031 行逐文件过，
+手写的 `polyfills.js` / `amd-shim.js` / 两级兜底 HTML 一并看，产物级的
+"用到的 ES2015+ 方法"与补齐清单做了**交叉核对**，并实测了监听器泄漏。
+
+### 修掉的 5 处
+
+| # | 问题 | 根因 | 守卫 |
+|---|---|---|---|
+| 1 | **暂停后离开，用时翻几倍**（玩 1 分钟 + 暂停 5 分钟 → 存档记 7 分钟） | 用时在三处各算一遍且口径不一：getter 看 status，`commit()` 用 `storedElapsed + (now - clockStart)`（**不看暂停**），`dispose()` 又加一遍（暂停后 `clockStart` 没重置，同一段时间被**再**算一次） | 统一成唯一的 `elapsedNow()`（`clockActive()` = 进行中且未暂停才走表）；暂停/终局停表。撤掉修复：实测 420000ms（应为 60000） |
+| 2 | 终局后停在结果面板多久，离开时「用时」就多算多久 | `commit()` 不看终局状态 | 同上：`finish()` 先把表定格 |
+| 3 | 无限模式**首次得分不算破纪录**（现代版算） | 壳层自己写的战绩逻辑与现代版口径不一致：现代版是 `score > 0 && (无旧纪录 ‖ 更高)` | 对齐现代版 + 入库取整。撤掉修复就红 |
+| 4 | localStorage 里的坏设置值原样带进壳层 | `loadSettings` 只做合并不校验：locale 若被写成不认识的语言，i18n 整页落到 fallback | 逐项校验类型（locale / 两个布尔 / boardMax 必须是有限非负数），坏值退默认 |
+| 5 | 死代码两处 | `settle()` 的 if/else 两支一字不差；`clearSaveFailure()` 无任何调用方 | 清掉 |
+
+### 核对过、确认干净的
+
+- **polyfill 覆盖**：对 `dist/kindle.js` 全文检索"用到的 ES2015+ 方法"（includes 105 处、
+  Array.from 8、Math.trunc 12、findIndex 3、startsWith 4、at/flatMap/repeat/padStart/
+  codePointAt/fromEntries…），每一个都有对应补丁——**没有缺口**。
+  `flat/flatMap/Set/Map/classList` 目前产物未用到，属冗余兜底（无害，已注明）。
+- **监听器泄漏**：启动后与反复进出对局四次，document 上存活的 keydown 监听恒为 2
+  （app 层 1 个 + 当前屏幕 1 个）——对局页的键盘监听确实随 cleanup 解绑。
+- **innerHTML 壳层零使用**（只在 dom.ts 的规则注释里出现）；
+  无 console/debugger/TODO 残留；无 `for...of`（源码一致性）。
+- **check.html**：全 ES5、零外部依赖、每个探测都有 try/catch —— 自洽。
+- **amd-shim.js**：依赖不齐→放回 pending 重放；重复 define 防重入；三选一导出规则正确。
+- **子代理写的 cards / duel 渲染器**：无 while(true)、无越界模式、
+  唯一的监听器挂在会被重建的节点上（随节点销毁，不泄漏）。
+- **事件属性约定**（`el()` 里 `on*` 前缀即事件）有一个理论缺口
+  （将来若出现 `only` 这类以 on 开头却不是事件的属性会被误判）——目前无人使用，未改。
+
+### 记录在案、未动的
+
+- polyfills.js 注释原先指向 `tools/scripts/check-es5-apis.mjs`（已移除，从未进过仓库）——**这个工具并不存在**，
+  实际守卫一直在 `artifact-boot.test.ts`（对真产物断言这些方法存在）。注释已改指向它。
+- `loadSettings` 的校验是防御性的：当前壳层自己写的值都是合法的，
+  这条防的是"旧版本数据 / 被改过的存储"。
+
 ## 已知限制
 
 1. **没有 KPW6 实测**（见上）。当前的验证止步于：

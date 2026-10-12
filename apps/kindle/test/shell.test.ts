@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { library } from '@eink/library'
 import { createI18n } from '@eink/core'
 import { startApp } from '../src/app.js'
+import { loadSettings, recordOutcome } from '../src/store.js'
 
 function makeRoot(): HTMLElement {
   document.body.innerHTML = ''
@@ -487,6 +488,86 @@ describe('Kindle 壳层', () => {
     expect(root.querySelector('.k-pager'), '详情页不该有分页器').toBeNull()
     app.back()
     expect(pagerText(), '从详情页返回后没回到原来那一页').toContain('2 /')
+  })
+
+  /*
+   * 暂停后离开：存档里的「用时」只应包含**实际游玩**的时间。
+   *
+   * pause() 把当前一段累计进 storedElapsed，但 clockStart 要等 resume() 才重置；
+   * 而 dispose() 又执行了一次 `storedElapsed += Date.now() - clockStart` ——
+   * 暂停期间流逝的时间被**再算一遍**：玩 1 分钟、暂停 5 分钟、离开，存档记成 11 分钟。
+   */
+  it('暂停后离开，用时不含暂停期间的时间', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    let clock = 1700000000000
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    try {
+      const app = startApp(root, library)
+      app.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+
+      // 先走一步：存档在这一步才建立（没动过的局离开时不落盘），
+      // 这样才能验证"离开时的提交"里的用时
+      const down = Array.from(root.querySelectorAll('.k-dpad__btn')).find(
+        (b) => (b.textContent ?? '').trim() === '下',
+      ) as HTMLElement
+      down.click()
+      clock += 60_000 // 游玩了 1 分钟
+
+      // 打开暂停菜单（会话随之 pause）
+      const menu = Array.from(root.querySelectorAll('button')).find(
+        (b) => (b.textContent ?? '').indexOf('菜单') >= 0,
+      ) as HTMLElement
+      menu.click()
+      clock += 300_000 // 暂停挂机 5 分钟
+
+      // 从暂停菜单点「游戏库」离开（触发 dispose + 提交）
+      const exit = Array.from(document.querySelectorAll('.k-dialog__panel button')).find(
+        (b) => (b.textContent ?? '').indexOf('游戏库') >= 0,
+      ) as HTMLElement
+      exit.click()
+
+      const raw = window.localStorage.getItem('moqu:1:save:sokoban')
+      expect(raw, '离开时应当写存档').toBeTruthy()
+      const elapsed = (JSON.parse(raw!) as { session: { elapsedMs: number } }).session.elapsedMs
+      expect(elapsed, `用时把暂停时间也算进去了（应为 60000）`).toBe(60_000)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  /*
+   * 破纪录语义与现代版一致：**第一次拿到正分也算破纪录**。
+   * 无限模式（恶魔轮盘赌）第一轮就显示「新纪录」才说得通；
+   * 原先"必须先有旧纪录"，第 1 轮赢了不显示、第 2 轮反而显示。
+   */
+  it('首次得分也算破纪录（恶魔轮盘赌）', () => {
+    window.localStorage.clear()
+    const fresh = recordOutcome('buckshot', 'endless', 'endless', 'lost', 12, 3)
+    expect(fresh.newRecord, '首次得分应当算破纪录').toBe(true)
+    expect(fresh.progress.bestScore && fresh.progress.bestScore['endless'], '分数应当入库').toBe(3)
+
+    // 更低分：不刷新
+    const second = recordOutcome('buckshot', 'endless', 'endless', 'lost', 12, 1)
+    expect(second.newRecord).toBe(false)
+
+    // 0 分不算破纪录（现代版口径：score > 0）
+    window.localStorage.clear()
+    const zero = recordOutcome('buckshot', 'endless', 'endless', 'lost', 12, 0)
+    expect(zero.newRecord, '0 分不应算破纪录').toBe(false)
+  })
+
+  it('设置文件里的坏值一律退回默认（不把非法 locale 带进壳层）', () => {
+    window.localStorage.clear()
+    window.localStorage.setItem(
+      'moqu:1:settings',
+      JSON.stringify({ locale: 'fr-FR', dpad: '是', boardMax: '不限', autoTick: null, extra: 1 }),
+    )
+    const settings = loadSettings()
+    expect(settings.locale, '非法 locale 应回退默认').toBe('zh-CN')
+    expect(settings.dpad, '类型不对的布尔位应回退默认').toBe(true)
+    expect(settings.autoTick).toBe(true)
+    expect(settings.boardMax).toBe(0)
   })
 
   it('设置页能把语言切到英文并即时生效', () => {

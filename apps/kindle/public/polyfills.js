@@ -220,9 +220,12 @@
    * ---------- post-ES5 方法补齐 ----------
    *
    * 这一段的清单不是猜的：是把 packages/core、packages/games/*、packages/library 与
-   * apps/kindle/src 全量扫过一遍、统计实际用到的 ES2015+ **运行时方法**之后列出来的
-   * （见 tools/scripts/check-es5-apis.mjs 的守卫测试，漏一个就会在真机上炸）。
-   * 只补用到的方法，不搬运一整个 core-js。
+   * apps/kindle/src 全量扫过一遍、统计实际用到的 ES2015+ **运行时方法**之后列出来的。
+   * 守卫在两处：
+   *   · apps/kindle/test/artifact-boot.test.ts —— 对**真产物**断言这些方法都存在
+   *     （守卫一直在产物级测试里，见 apps/kindle/test/artifact-boot.test.ts）；
+   *   · 对 apps/kindle/dist/kindle.js 全文检索"用到的 ES2015+ 方法"与这份清单交叉核对。
+   * 只补用到的方法，不搬运一整个 core-js（flat/flatMap/Set/Map 目前产物未用到，属冗余兜底）。
    */
 
   // Array.prototype.includes（ES2016）—— 共用代码里用得最多（100+ 处）

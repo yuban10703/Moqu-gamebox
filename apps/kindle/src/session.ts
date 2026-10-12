@@ -108,8 +108,6 @@ export interface Session<S, A> {
   move(dir: MoveDir): void
   steal(slot: number): void
   hasControl(id: string): boolean
-  /** 保存失败提示已被收掉（壳层重试成功后调用） */
-  clearSaveFailure(): void
   /** 当前内容 id（关卡制 = 关卡 id；无关卡 = 难度 id）。标题与最佳成绩都按它取。 */
   contentId(): string
   undo(): void
@@ -274,6 +272,24 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     }
   }
 
+  /**
+   * 当前累计用时。暂停/终局/坏档时**停表**（不随挂机增长）。
+   *
+   * 原先三处各自手算且口径不一（getter 看 status，commit 用
+   * `storedElapsed + (now - clockStart)`，dispose 再加一遍）：
+   *   · commit 在暂停期间仍会算上暂停时长；
+   *   · dispose 在暂停后把同一段时间**再**算一遍（玩 1 分钟 + 暂停 5 分钟 = 记 11 分钟）；
+   *   · 终局后停在结果页多久，离开时就会多算多久。
+   * 现在只有这一处知道"表在不在走"，其余一律取它。
+   */
+  function clockActive(): boolean {
+    return status === 'playing' && !paused
+  }
+
+  function elapsedNow(): number {
+    return storedElapsed + (clockActive() ? Date.now() - clockStart : 0)
+  }
+
   // ---------- 存档 ----------
   function commit(): void {
     if (disposed && envelope === null) return
@@ -304,7 +320,7 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       )
     } else {
       envelope = updateSave(envelope, game.encode(state), moves, progressBag, {
-        elapsedMs: storedElapsed + (Date.now() - clockStart),
+        elapsedMs: elapsedNow(),
       })
     }
     const written = writeSave(envelope)
@@ -380,13 +396,21 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     if (status !== 'playing' && prev === 'playing') finish()
     commit()
     options.onRender()
-    if (fromTick || game.tickActor !== 'opponent') scheduleTick()
-    else scheduleTick()
+    // 收尾后重新排程；两类玩法（自己步进 / 对手在 tick 里应手）走的都是同一条路，
+    // 原先这里的 if/else 两支一字不差，只会误导读者以为对手玩法有特殊节奏
+    void fromTick
+    scheduleTick()
   }
 
   function finish(): void {
     if (finishedHandled) return
     finishedHandled = true
+    /*
+     * 终局把表**定格**：status 不再是 playing，clockActive() 为 false，
+     * 之后停在结果面板多久，「用时」都不会继续涨
+     * （这一次 settle 里马上还有一次 commit，定格要发生在它之前）。
+     */
+    storedElapsed = elapsedNow()
     let raw: 'won' | 'lost' | 'draw' = status === 'won' ? 'won' : 'lost'
     if (game.outcomeOf) {
       try {
@@ -493,7 +517,7 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       return status === 'won'
     },
     get elapsedMs(): number {
-      return storedElapsed + (status === 'playing' && !paused ? Date.now() - clockStart : 0)
+      return elapsedNow()
     },
     get progress(): GameProgress {
       return progress
@@ -614,11 +638,6 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
       commit()
     },
 
-    /** 只在重试成功后由壳层调用，用来把"保存失败"那条提示收掉 */
-    clearSaveFailure(): void {
-      if (saveStatus === 'failed') saveStatus = 'idle'
-    },
-
     clearNotice(): void {
       setNotice(null)
       options.onRender()
@@ -627,7 +646,13 @@ export function createSession<S, A>(options: SessionOptions<S, A>): Session<S, A
     dispose(): void {
       if (disposed) return
       disposed = true
-      storedElapsed += Date.now() - clockStart
+      /*
+       * 只在**没在暂停**时才把这一段的用时并入。
+       * pause() 已经把当前这一段累计进 storedElapsed，但**没有**重置 clockStart
+       * （要等 resume() 才重置）—— 如果这里不区分，暂停期间流逝的时间会被再算一次：
+       * 玩 1 分钟、暂停 5 分钟、离开，存档里记成 11 分钟。
+       */
+      if (!paused) storedElapsed += Date.now() - clockStart
       stopTick()
       if (canPersist && !(saveStatus === 'corrupt' && envelope === null)) commit()
     },
