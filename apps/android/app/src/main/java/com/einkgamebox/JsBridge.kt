@@ -1,5 +1,6 @@
 package com.einkgamebox
 
+import android.util.Log
 import android.webkit.JavascriptInterface
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,35 +28,50 @@ class JsBridge(
     fun deviceBaseline(): String = DeviceBaseline.collect(host).toString()
 
     // ---------- 存储 ----------
-    @JavascriptInterface
-    fun saveGet(key: String): String? = store.get(key)
+    /**
+     * 存储层（SQLite）抛出的异常**绝不能外抛**：@JavascriptInterface 方法未捕获时
+     * 常见后果是进程崩溃（磁盘满 / DB 损坏正是最该提示而不是闪退的时刻）。
+     * 写操作回报 failure("io")，读操作记日志后按「无数据」处理。
+     */
+    private fun <T> storageGuard(default: () -> T, block: () -> T): T =
+        try {
+            block()
+        } catch (error: Throwable) {
+            Log.w(TAG, "storage operation failed: ${error.message}", error)
+            default()
+        }
 
     @JavascriptInterface
-    fun savePut(key: String, value: String): String {
+    fun saveGet(key: String): String? = storageGuard({ null }) { store.get(key) }
+
+    @JavascriptInterface
+    fun savePut(key: String, value: String): String = storageGuard({ failure("io") }) {
         store.put(key, value)
-        return ok()
+        ok()
     }
 
     @JavascriptInterface
-    fun saveDelete(key: String): String {
+    fun saveDelete(key: String): String = storageGuard({ failure("io") }) {
         store.delete(key)
-        return ok()
+        ok()
     }
 
     @JavascriptInterface
-    fun saveDeletePrefix(prefix: String): String {
+    fun saveDeletePrefix(prefix: String): String = storageGuard({ failure("io") }) {
         store.deletePrefix(prefix)
-        return ok()
+        ok()
     }
 
     @JavascriptInterface
-    fun saveKeys(prefix: String): String = JSONArray(store.keys(prefix)).toString()
+    fun saveKeys(prefix: String): String = storageGuard({ failure("io") }) {
+        JSONArray(store.keys(prefix)).toString()
+    }
 
     @JavascriptInterface
     fun saveCas(key: String, expected: String?, value: String): String {
         val (success, current) = store.cas(key, expected, value)
         return if (success) {
-            JSONObject().put("ok", true).toString()
+            ok()
         } else {
             JSONObject()
                 .put("ok", false)
@@ -65,19 +81,15 @@ class JsBridge(
     }
 
     @JavascriptInterface
-    fun savePutMany(entriesJson: String): String {
+    fun savePutMany(entriesJson: String): String = storageGuard({ failure("bad-entries") }) {
         val entries = ArrayList<Pair<String, String>>()
-        try {
-            val array = JSONArray(entriesJson)
-            for (index in 0 until array.length()) {
-                val pair = array.getJSONArray(index)
-                entries.add(pair.getString(0) to pair.getString(1))
-            }
-        } catch (error: Throwable) {
-            return failure("bad-entries")
+        val array = JSONArray(entriesJson)
+        for (index in 0 until array.length()) {
+            val pair = array.getJSONArray(index)
+            entries.add(pair.getString(0) to pair.getString(1))
         }
         store.putMany(entries)
-        return ok()
+        ok()
     }
 
     // ---------- 设备能力（与刷新无关） ----------
@@ -110,6 +122,7 @@ class JsBridge(
         JSONObject().put("ok", false).put("error", reason).toString()
 
     companion object {
+        private const val TAG = "JsBridge"
         const val BRIDGE_VERSION = "1"
     }
 }
