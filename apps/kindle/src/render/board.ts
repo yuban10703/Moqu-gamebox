@@ -452,6 +452,42 @@ function renderCell(
     td.setAttribute('style', (td.getAttribute('style') ?? '') + outline)
   }
 
+  /*
+   * 填错标记：两条 **1px** 细线转 ±45°，叠在数字上但数字仍可读
+   * （用户反馈：整格粗叉把数字完全挡住了；现代版是细线叉、数字看得清）。
+   *
+   * 画法与 React 样式表逐条对齐（styles.css 的
+   * .eink-board__cell[data-wrong='yes']::before/::after）：
+   *   · 线 high 1px（**不随格子缩放**——粗线在墨水屏上会糊掉数字笔画）；
+   *   · 水平跨度 88%（left/right 6%），垂直居中；
+   *   · ±45° 两条；用格子自己的内层定位（不另铺覆盖层，坐标系不分裂）。
+   * 老 WebKit 用 -webkit-transform 前缀兜底。
+   */
+  if (cellView.wrong === true) {
+    const cross = el('span', {
+      class: 'k-board__wrong',
+      /*
+       * **必须显式压掉类样式的盒属性**：.k-board__wrong 的类样式是一个
+       * 白底 + 3px 黑框的 inline-block 角标（2048 那套「文字角标」的遗留）——
+       * 不压掉的话，这块 100%×100% 的容器就垫上一整块不透明白，
+       * 数字被整体盖住（用户反馈:「完全挡住了，看不见数字」的实际机理）。
+       */
+      style:
+        'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;' +
+        'display:block;background:transparent;border:none;padding:0;margin:0;',
+    })
+    for (const deg of [45, -45]) {
+      cross.appendChild(
+        el('span', {
+          style:
+            'position:absolute;left:6%;right:6%;top:50%;height:1px;margin-top:-1px;background:#000;' +
+            '-webkit-transform:rotate(' + deg + 'deg);transform:rotate(' + deg + 'deg);',
+        }),
+      )
+    }
+    inner.appendChild(cross)
+  }
+
   // 内容：文字类走文字，其余走图形
   const kind = cellView.kind
   if (TEXT_KINDS[kind] === true && cellView.glyph) {

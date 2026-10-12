@@ -37,7 +37,8 @@
     "verify": "node tools/scripts/verify-all.mjs",
     "check:docs": "node tools/scripts/check-docs.mjs",
     "check:games": "node tools/scripts/check-games.mjs",
-    "status": "node tools/scripts/status.mjs"
+    "status": "node tools/scripts/status.mjs",
+    "controls:kindle": "node tools/scripts/kindle-controls.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
