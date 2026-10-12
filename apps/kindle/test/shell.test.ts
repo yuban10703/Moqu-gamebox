@@ -456,6 +456,39 @@ describe('Kindle 壳层', () => {
     expect(after.minHeight, '有提示时预留高度变了（棋盘会被推动）').toBe(before.minHeight)
   })
 
+  /*
+   * 翻页后离开再返回，必须回到原来那一页。
+   *
+   * 页号原先只是书库屏幕函数里的局部变量，于是"翻到第 2 页 → 进详情/对局 → 返回"
+   * 永远回到第 1 页（用户报的）。现在它放在 ScreenParams 里，随返回栈一起保存。
+   *
+   * 顺带守第二条：**翻页不能压栈** —— 否则返回键要按好几次才退得出书库。
+   */
+  it('书库翻页后离开再返回，仍在原来那一页；且翻页不压栈', () => {
+    const root = makeRoot()
+    const app = startApp(root, library)
+    const pagerText = (): string => (root.querySelector('.k-pager') as HTMLElement | null)?.textContent ?? ''
+    const nextPage = (): void => {
+      const btns = Array.from(root.querySelectorAll('.k-pager button'))
+      expect(btns.length, '分页器没渲染出来').toBeGreaterThan(1)
+      ;(btns[btns.length - 1] as HTMLElement).click()
+    }
+
+    expect(pagerText(), '第一页就找不到分页器').toContain('1 /')
+    nextPage()
+    expect(pagerText(), '没能翻到第 2 页').toContain('2 /')
+
+    // 翻页本身不该进返回栈：此时按返回应当原地不动（栈是空的）
+    app.back()
+    expect(pagerText(), '翻页被压进了返回栈（返回键会先在页之间来回走）').toContain('2 /')
+
+    // 进详情再返回：应当回到第 2 页
+    ;(root.querySelector('.k-list__item') as HTMLElement).click()
+    expect(root.querySelector('.k-pager'), '详情页不该有分页器').toBeNull()
+    app.back()
+    expect(pagerText(), '从详情页返回后没回到原来那一页').toContain('2 /')
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)

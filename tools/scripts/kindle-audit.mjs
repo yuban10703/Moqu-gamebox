@@ -256,6 +256,68 @@ for (const o of ORIENTATIONS) {
     }
   }
 
+  /*
+   * 导航：**翻页后离开再返回，必须回到原来那一页**。
+   *
+   * 页号原先只是书库屏幕函数里的局部变量，于是"翻到第 2 页 → 进详情/对局 → 返回"
+   * 永远回到第 1 页（用户报的）。这条只能在真实产物上端到端验：
+   * 翻页 → 进详情 → 返回 → 页号必须还在。
+   */
+  {
+    await page.evaluate(() => window.__moquApp.navigate('library'))
+    await page.waitForTimeout(400)
+    const pagerOf = () =>
+      page.evaluate(() => ((document.querySelector('.k-pager') || {}).textContent || '').replace(/\s+/g, ' '))
+    /*
+     * 先翻回第一页。"下一页"能不能翻，取决于当前在第几页 ——
+     * 而这一轮审计前面的书库阶段已经翻过一次、页号还会跨轮累积，
+     * 直接点"下一页"可能正好停在最后一页，于是把"本来就没下一页"报成缺陷
+     * （横屏实测：离开前「4 / 4」，点后还是「4 / 4」）。
+     */
+    for (let k = 0; k < 12; k++) {
+      const stillCanGoBack = await page.evaluate(() => {
+        const prev = document.querySelector('.k-pager button')
+        if (!prev || prev.hasAttribute('disabled')) return false
+        prev.click()
+        return true
+      })
+      if (!stillCanGoBack) break
+      await page.waitForTimeout(200)
+    }
+    const first = await pagerOf()
+    const turned = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('.k-pager button'))
+      if (btns.length < 2) return false
+      btns[btns.length - 1].click()
+      return true
+    })
+    /*
+     * 横屏是两列布局，20 款一页就放完了 —— 这时"翻不动"是正常的，不该报缺陷。
+     * 从分页器文案里读出总页数（「上一页1 / 3下一页」），只有真的多于 1 页才要求能翻。
+     */
+    const totalPages = Number((first.match(/\/\s*(\d+)/) || [])[1] || 1)
+    if (totalPages <= 1) {
+      // 只有一页：确认分页器没在骗人（按钮不该可点）即可，跳过翻页检查
+    } else if (!turned) note(`${o.name}/导航`, '书库翻不了页（分页器按钮不足两个）')
+    else {
+      await page.waitForTimeout(350)
+      const second = await pagerOf()
+      if (second === first) note(`${o.name}/导航`, `点了下一页但页号没变（离开前「${first}」，点后「${second}」，共 ${totalPages} 页）`)
+      // 进详情再返回
+      await page.evaluate(() => {
+        const item = document.querySelector('.k-list__item')
+        if (item) item.click()
+      })
+      await page.waitForTimeout(400)
+      await page.evaluate(() => window.__moquApp.back())
+      await page.waitForTimeout(400)
+      const back = await pagerOf()
+      if (back !== second) {
+        note(`${o.name}/导航`, `翻页后返回没回到原来那一页：离开时「${second}」，回来「${back}」`)
+      }
+    }
+  }
+
 // ---------- 对话框 ----------
   await page.evaluate(() =>
     window.__moquApp.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true }),

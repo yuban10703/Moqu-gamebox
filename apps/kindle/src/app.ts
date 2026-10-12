@@ -71,6 +71,30 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
 
   let currentCleanup: (() => void) | null = null
   let currentScreen: ScreenName = 'library'
+  /*
+   * 分页是**跨屏状态**：从对局直接回库（暂停菜单的「游戏库」）时，返回栈里根本没有
+   * 书库那一条，页号只能靠 app 记住。按屏幕名分别记，游戏库与诊断页互不干扰。
+   */
+  const pageMemory: Partial<Record<ScreenName, number>> = {}
+
+  /**
+   * 渲染前补上"屏幕自己记着的页号"。
+   *
+   * 只在 params 里**没有**显式页号时补：返回栈里的那一条已经带着当时的页号，
+   * 那条更准（玩家可能又从别处翻了页）。
+   */
+  function withRememberedPage(screen: ScreenName, params: ScreenParams): ScreenParams {
+    if (params.page !== undefined) return params
+    const remembered = pageMemory[screen]
+    if (remembered === undefined) return params
+    const merged: ScreenParams = {}
+    if (params.gameId !== undefined) merged.gameId = params.gameId
+    if (params.difficulty !== undefined) merged.difficulty = params.difficulty
+    if (params.contentId !== undefined) merged.contentId = params.contentId
+    if (params.fresh !== undefined) merged.fresh = params.fresh
+    merged.page = remembered
+    return merged
+  }
   let currentParams: ScreenParams = {}
   const stack: Array<{ screen: ScreenName; params: ScreenParams }> = []
   let statusText: string | null = null
@@ -115,6 +139,7 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
       return {
         screen: currentScreen,
         params: currentParams,
+
         locale: settings.locale,
         games: library.entries.length,
       }
@@ -156,7 +181,11 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
     clear(root)
 
     currentScreen = screen
-    currentParams = params
+    /*
+     * 补上这个屏幕自己记着的页号：从对局直接回库（暂停菜单）时返回栈里没有书库那一条，
+     * 不补的话页号就丢了 —— 玩家翻到第 2 页、进游戏、再回库，又回到第 1 页。
+     */
+    currentParams = withRememberedPage(screen, params)
 
     const size = viewport()
     const ctx: ScreenCtx = {
@@ -184,7 +213,34 @@ export function startApp(root: HTMLElement, library: GameLibrary): AppHandle {
       },
       navigate: handle.navigate,
       back: handle.back,
-      params: params,
+      /*
+       * 必须是 currentParams（已经补过"本屏记着的页号"），不能直接传函数参数 params ——
+       * 参数里没有页号，屏幕读 ctx.params.page 会永远是 undefined，
+       * 表现就是"返回永远回到第 1 页"（我第一版就是这么写错的）。
+       */
+      params: currentParams,
+      /**
+       * 就地更新当前屏幕的 params（**不重新渲染**）。
+       *
+       * 用途：翻页这类"屏幕内部状态"要能被返回栈记住 —— 翻页时调用它写回页号，
+       * 等玩家从这里离开时，压栈的就是最新的 params；返回时页号还在。
+       * 不重新渲染是因为翻页本来就会自己重画，再来一次会闪。
+       */
+      setParams: function setParams(patch: Partial<ScreenParams>): void {
+        const next: ScreenParams = {}
+        if (currentParams.gameId !== undefined) next.gameId = currentParams.gameId
+        if (currentParams.difficulty !== undefined) next.difficulty = currentParams.difficulty
+        if (currentParams.contentId !== undefined) next.contentId = currentParams.contentId
+        if (currentParams.fresh !== undefined) next.fresh = currentParams.fresh
+        if (currentParams.page !== undefined) next.page = currentParams.page
+        if (patch.gameId !== undefined) next.gameId = patch.gameId
+        if (patch.difficulty !== undefined) next.difficulty = patch.difficulty
+        if (patch.contentId !== undefined) next.contentId = patch.contentId
+        if (patch.fresh !== undefined) next.fresh = patch.fresh
+        if (patch.page !== undefined) next.page = patch.page
+        currentParams = next
+        if (next.page !== undefined) pageMemory[currentScreen] = next.page
+      },
       width: size.width,
       height: size.height,
       setStatus: function setStatus(text: string | null): void {

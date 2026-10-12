@@ -15,6 +15,14 @@ export interface ScreenParams {
   contentId?: string
   /** 从详情页进入对局时是否强制开新局（忽略已有存档） */
   fresh?: boolean
+  /**
+   * 屏幕内部的分页页号（游戏库、诊断页）。
+   *
+   * 为什么要放进 params：页号原先只是屏幕函数里的一个局部变量，
+   * 于是"翻到第 2 页 → 进详情/对局 → 返回"总是回到第 1 页（用户报的）。
+   * 放进 params 之后它随返回栈一起保存，返回时能回到原处。
+   */
+  page?: number
 }
 
 export interface ScreenCtx {
@@ -45,6 +53,14 @@ export interface ScreenCtx {
   /** 返回上一屏（历史栈由 app 维护） */
   back(): void
   params: ScreenParams
+  /**
+   * 就地更新当前屏幕的 params（**不重新渲染**）。
+   *
+   * 用途：翻页这类"屏幕内部状态"要能被返回栈记住 —— 翻页时调用它写回页号，
+   * 等玩家从这里离开时，压栈的就是最新的 params；返回时页号还在。
+   * 不重新渲染是因为翻页本来就会自己重画，再来一次会闪。
+   */
+  setParams(patch: Partial<ScreenParams>): void
   /** 当前屏幕可用宽度（像素） */
   width: number
   /** 当前屏幕可用高度（像素） */

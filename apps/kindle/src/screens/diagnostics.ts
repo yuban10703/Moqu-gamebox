@@ -174,7 +174,9 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
   let checks: GameCheck[] | null = null
   let totalMs = 0
 
-  let page = 0
+  // 同游戏库：页号放在 params 里，返回时才能回到原处
+  const startPage = ctx.params.page ?? 0
+  let page = startPage >= 0 ? startPage : 0
 
   function draw(): void {
     clear(root)
@@ -211,6 +213,7 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
       footer.appendChild(
         pager(ctx, page, pages.length, function go(next: number): void {
           page = next
+          ctx.setParams({ page: next })
           draw()
         }),
       )

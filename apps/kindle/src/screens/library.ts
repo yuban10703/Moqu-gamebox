@@ -34,7 +34,12 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
   let rowHeight = 100
   let pageSize = pageSizeFor(ctx.height - 260, rowHeight).size
   let pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
-  let page = 0
+  /*
+   * 页号来自 params（返回栈会带着它），越界时夹回范围内 ——
+   * 页数会随实测行高变化，栈里存的页号有可能已经超出新的页数。
+   */
+  const startPage = ctx.params.page ?? 0
+  let page = startPage >= 0 && startPage < pageCount ? startPage : 0
   let selected = 0
   let measured = false
   const unbinds: Array<() => void> = []
@@ -134,6 +139,8 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
       pager(ctx, page, pageCount, function go(next: number): void {
         page = next
         selected = 0
+        // 写回 params：从这里离开时压栈的就是最新的页号，返回时才能回到这一页
+        ctx.setParams({ page: next })
         draw()
       }),
     )
