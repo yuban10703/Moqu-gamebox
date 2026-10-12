@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.7",
   "type": "module",
-  "description": "墨趣（Moqu）：Web(PWA) 与 Android(BOOX) 双端的离线游戏合集",
+  "description": "墨趣（Moqu）：墨水屏离线游戏合集 —— 本分支交付 Kindle 版；Web(PWA) 与 Android(BOOX) 见主分支",
   "workspaces": [
     "packages/*",
     "packages/games/*",
