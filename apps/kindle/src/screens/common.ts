@@ -80,7 +80,13 @@ export function pager(ctx: ScreenCtx, page: number, pageCount: number, onGo: (ne
   wrap.appendChild(button(ctx.t('shell.pager.prev'), function prev(): void {
     if (page > 0) onGo(page - 1)
   }, { small: true, disabled: page <= 0 }))
-  wrap.appendChild(el('span', { class: 'k-pager__info', style: 'font-size:14px;margin:0 10px;' }, String(page + 1) + ' / ' + String(pageCount)))
+  // 页数文案用完整的「第 x/y 页」 （shell.library.page，与 web 版同一键）：
+  // 原先只有裸数字"1 / 3"，页面顶部还重复放了一份 —— 顶上的拿掉之后，
+  // 底部这一处就是唯一的页数，写成完整句子更清楚。
+  wrap.appendChild(
+    el('span', { class: 'k-pager__info', style: 'font-size:14px;margin:0 10px;' },
+      ctx.t('shell.library.page', { index: page + 1, total: pageCount })),
+  )
   wrap.appendChild(button(ctx.t('shell.pager.next'), function next(): void {
     if (page < pageCount - 1) onGo(page + 1)
   }, { small: true, disabled: page >= pageCount - 1 }))

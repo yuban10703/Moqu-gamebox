@@ -475,19 +475,19 @@ describe('Kindle 壳层', () => {
       ;(btns[btns.length - 1] as HTMLElement).click()
     }
 
-    expect(pagerText(), '第一页就找不到分页器').toContain('1 /')
+    expect(pagerText(), '第一页就找不到分页器').toMatch(/第 1\//)
     nextPage()
-    expect(pagerText(), '没能翻到第 2 页').toContain('2 /')
+    expect(pagerText(), '没能翻到第 2 页').toMatch(/第 2\//)
 
     // 翻页本身不该进返回栈：此时按返回应当原地不动（栈是空的）
     app.back()
-    expect(pagerText(), '翻页被压进了返回栈（返回键会先在页之间来回走）').toContain('2 /')
+    expect(pagerText(), '翻页被压进了返回栈（返回键会先在页之间来回走）').toMatch(/第 2\//)
 
     // 进详情再返回：应当回到第 2 页
     ;(root.querySelector('.k-list__item') as HTMLElement).click()
     expect(root.querySelector('.k-pager'), '详情页不该有分页器').toBeNull()
     app.back()
-    expect(pagerText(), '从详情页返回后没回到原来那一页').toContain('2 /')
+    expect(pagerText(), '从详情页返回后没回到原来那一页').toMatch(/第 2\//)
   })
 
   /*
@@ -642,6 +642,19 @@ describe('Kindle 壳层', () => {
     for (let i = 0; i < counts.length; i++) {
       expect(counts[i], `第 ${i} 个张数是英文：${counts[i]}`).not.toContain('card')
     }
+  })
+
+  it('主页的页数只在底部分页器显示（顶部不再重复）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('library')
+    const topbarText = root.querySelector('.k-topbar')?.textContent ?? ''
+    const pagerText = root.querySelector('.k-pager')?.textContent ?? ''
+    // 顶栏只留标题与设置；页数归底部分页器（用户反馈：把最上面的页数改到下面）。
+    // 页数与视口有关（jsdom 大视口可能整库 1 页），按「第 x/y 页」的形状断言。
+    expect(topbarText, `顶栏不应再有页数：${topbarText}`).not.toMatch(/第 \d+\/\d+ 页/)
+    expect(pagerText, '底部分页器应有完整页数').toMatch(/第 \d+\/\d+ 页/)
   })
 
   it('设置页不再把版本号当存档状态（值来自集中配置）', () => {

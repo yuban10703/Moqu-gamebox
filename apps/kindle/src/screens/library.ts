@@ -96,8 +96,11 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     root.appendChild(
       topBar(ctx, {
         title: ctx.t('shell.app.title'),
-        // 参数名必须与字典一致：shell.library.page 用的是 {index}/{total}
-        subtitle: ctx.t('shell.library.page', { index: page + 1, total: pageCount }),
+        /*
+         * 不在这里放「第 x/y 页」：底部分页器本来就写着同一个信息，顶上再放一份
+         * 属于重复（用户反馈：把最上面的页数改到下面）。词典键 shell.library.page
+         * 保留 —— 它现在是底部分页器的文案（见 common.ts 的 pager）。
+         */
         onBack: null,
         actions: [{ label: ctx.t('shell.nav.settings'), onClick: function toSettings(): void { ctx.navigate('settings') } }],
       }),
