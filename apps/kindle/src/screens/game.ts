@@ -320,8 +320,17 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
 
     // 吃子盘（象棋）：棋盘外侧的空白处，常驻固定高度以免第一次吃子时棋盘跳一下
     if (view.captured) {
+      /*
+       * 空的吃子盘画**虚线**：
+       * 1-bit 界面里"虚线框 = 空位"是既定语言（空棋位、空牌堆、空槽位全都这么画）。
+       * 开局没有人被吃，实线空框看起来像渲染残留；虚线则读得出"这是架子，还没东西"。
+       * 常驻固定高度不变 —— 第一次吃子时棋盘依旧不跳。
+       */
+      const topStyle =
+        'min-height:20px;padding:2px 8px;font-size:15px;letter-spacing:2px;' +
+        (view.captured.top ? '' : 'border-style:dashed;')
       root.appendChild(
-        el('div', { class: 'k-captured k-captured--top', style: 'min-height:20px;padding:2px 8px;font-size:15px;letter-spacing:2px;' },
+        el('div', { class: 'k-captured k-captured--top', style: topStyle },
           view.captured.top ? view.captured.top : ''),
       )
     }
@@ -352,8 +361,11 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     root.appendChild(body)
 
     if (view.captured) {
+      const bottomStyle =
+        'min-height:20px;padding:2px 8px;font-size:15px;letter-spacing:2px;text-align:right;' +
+        (view.captured.bottom ? '' : 'border-style:dashed;')
       root.appendChild(
-        el('div', { class: 'k-captured k-captured--bottom', style: 'min-height:20px;padding:2px 8px;font-size:15px;letter-spacing:2px;text-align:right;' },
+        el('div', { class: 'k-captured k-captured--bottom', style: bottomStyle },
           view.captured.bottom ? view.captured.bottom : ''),
       )
     }

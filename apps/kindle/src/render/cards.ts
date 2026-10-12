@@ -627,7 +627,14 @@ function pileBlock(ctx: RenderCtx, pile: CardPileView, geom: PileGeometry, pileW
   node.setAttribute('role', 'group')
   node.setAttribute('aria-label', ctx.t(pile.labelKey))
 
-  var head = el('div', { class: 'k-pile__head', style: 'display:block;line-height:1.1;' })
+  /*
+   * 抬高标题行的绘制层（z-index）+ 留 2px 底距：
+   * 张数角标是带边框的内联块，比 1.1 的行高**高**，下沿会溢出到紧随其后的
+   * 牌背区域 —— 而牌背在 DOM 里靠后、绘制层级更高，正好把角标盖住一截
+   * （横屏上字号更大、溢出更明显：角标只剩右半截，"牌列"也被压住一条）。
+   * 悬浮层把标题行整体抬到牌背之上（牌背的叠放序号 = 槽位数，最多 19——99 稳压）；底距让排版上也错开。
+   */
+  var head = el('div', { class: 'k-pile__head', style: 'display:block;line-height:1.1;position:relative;z-index:99;padding-bottom:2px;' })
   head.appendChild(
     el(
       'span',

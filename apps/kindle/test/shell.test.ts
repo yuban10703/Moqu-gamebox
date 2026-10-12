@@ -654,6 +654,42 @@ describe('Kindle 壳层', () => {
     expect(text, '应显示存档份数').toContain('已有存档')
   })
 
+  it('棋类双方棋子必须可辨：对手侧的格子反色（disc: dark 黑底白字）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    app.navigate('game', { gameId: 'chess', difficulty: 'starter', fresh: true })
+    // 象棋/国际象棋两侧的 glyph 相同（R/N/B/Q/K、车马炮），
+    // 游戏层用 disc: 'light' | 'dark' 区分红黑 —— Kindle 渲染器原先只透传、没上色，
+    // 双方棋子在全白棋盘上完全无法区分（视觉检查发现）。
+    let dark = 0
+    let light = 0
+    const cells = root.querySelectorAll('.k-board__cell')
+    cells.forEach((cell) => {
+      // 读**原始 style 属性**：jsdom 会把 shorthand 规范化，对不上渲染器写的字符串。
+      // 空格与棋子格都是白底 —— 只统计**有棋子文字**的格子。
+      const css = cell.getAttribute('style') ?? ''
+      const hasGlyph = (cell.textContent ?? '').trim() !== ''
+      if (/background:#000;/.test(css)) dark++
+      else if (hasGlyph && /background:#fff;/.test(css)) light++
+    })
+    expect(dark, `对手 16 枚棋子应当是反色格（实得 ${dark}）`).toBe(16)
+    expect(light, '己方 16 枚棋子应是白底').toBe(16)
+  })
+
+  it('dpadDefault:false 的玩法仍有自己的撤销（方向控件声明了但不渲染，角落不存在）', () => {
+    window.localStorage.clear()
+    const root = makeRoot()
+    const app = startApp(root, library)
+    // 数字华容道：dpadDefault: false + 自己的 undo。过滤条件若只看
+    // "有没有声明方向控件"，会把唯一的撤销也滤掉 —— 控制区整块空白。
+    app.navigate('game', { gameId: 'fifteen', difficulty: 'starter', fresh: true })
+    const labels = Array.from(root.querySelectorAll('.k-controls__actions button')).map((b) =>
+      (b.textContent ?? '').trim(),
+    )
+    expect(labels, `页脚=${labels.join(',')}`).toContain('撤销')
+  })
+
   it('关于页显示真实作者与开源地址（不是词典里的占位标签）', () => {
     window.localStorage.clear()
     const root = makeRoot()

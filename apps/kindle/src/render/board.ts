@@ -369,8 +369,21 @@ function renderCell(
   }
 
   const flash = cellView.flash === true
+  const disc = cellView.disc
   if (flash) css += 'background:#000;color:#fff;'
-  else if (cellView.kind === 'hidden') {
+  else if (disc === 'dark') {
+    /*
+     * 深色圆片：**黑底白字**（相对地，light = 白底黑字）。
+     *
+     * 这是游戏层给 disc 的语义 —— 象棋 view 注释原话：「圆片底色 = 区分红黑的唯一手段」
+     * （两方的马/车/炮是同一个字），国际象棋两侧干脆都是 R/N/B/Q/K。React 的 Board
+     * 一直按这个画；Kindle 渲染器原先只把字段**透传**、从没上过色，于是双方棋子在
+     * Kindle 上除了位置完全无法区分，井字棋赢的三格（disc:'dark' 反白）也不亮。
+     * 现在补上，与「选中反白」「被吃架上下底色相反」是同一套 1-bit 语言。
+     * 只影响设置了 disc 的格子（象棋 / 国际象棋 / 井字棋），其余玩法外观一字不变。
+     */
+    css += 'background:#000;color:#fff;'
+  } else if (cellView.kind === 'hidden') {
     /*
      * 未翻开：**故意不涂白**，让整盘那层斜纹透出来。
      *

@@ -115,7 +115,12 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
      * 原先在循环前就判断 `dpadControls.length > 0`，那时它还是 0，
      * 于是 sokoban 的页脚撤销/重开永远滤不掉（视觉检查发现的）。
      */
-    if ((spec.id === 'undo' || spec.id === 'restart') && options.layout === 'tee' && dpadControls.length > 0) {
+    /*
+     * **必须带上 options.dpad**：dpadDefault: false 的玩法（数字华容道）方向控件
+     * 只是"声明了但不渲染"，角落 ↶/↻ 同样不存在 —— 把它的页脚撤销滤掉，
+     * 玩家就没有任何撤销入口了（视觉检查发现整块控制区空白）。
+     */
+    if ((spec.id === 'undo' || spec.id === 'restart') && options.dpad && options.layout === 'tee' && dpadControls.length > 0) {
       continue
     }
     actionControls.push(spec)
