@@ -12,7 +12,7 @@
  */
 import { IllegalActionError, createRng, type GameStatus } from '@eink/core'
 import { isCardId, sortForDisplay, type CardId } from './cards.js'
-import { beatingPlays, classify, decompose, type Pattern } from './patterns.js'
+import { asPlayAgainst, beatingPlays, classify, decompose, type Pattern } from './patterns.js'
 import { decideMove, type DifficultyId } from './ai.js'
 import { observe } from './observe.js'
 import {
@@ -130,6 +130,20 @@ function humanTurn(table: TableState): boolean {
   return (table.phase === 'bidding' || table.phase === 'playing') && table.turn === HUMAN_SEAT
 }
 
+/**
+ * 选中的牌是不是一手**压得过桌面**的合法出牌。
+ *
+ * 与 `applyMove` 共用同一个判据（`patterns.asPlayAgainst`）—— 这是 legal() 与 reduce() 的
+ * 唯一真值来源。曾经的写法是「只要选了牌就给 play」，于是 legal() 会给出 applyMove 直接拒绝的
+ * 动作（`does not beat the current play`）：随机漫步撞上就抛 IllegalActionError，
+ * 界面上的「出牌」按钮也会在压不过时亮着骗玩家点。
+ */
+export function canPlaySelected(state: DoudizhuState): boolean {
+  const table = tableOf(state)
+  if (table.phase !== 'playing' || !humanTurn(table) || state.selected.length === 0) return false
+  return asPlayAgainst(state.selected, table.top?.pattern ?? null) !== null
+}
+
 /** 把一个座位动作交给牌局引擎，并处理「都不叫重新发牌」「一副牌打完记分」 */
 function commit(state: DoudizhuState, table: TableState, entry: LoggedMove): DoudizhuState {
   const next = applyMove(table, entry.seat, entry.move)
@@ -233,7 +247,7 @@ export function legalActions(state: DoudizhuState): DoudizhuAction[] {
     return [...bids, ...toggles]
   }
   const out: DoudizhuAction[] = [...toggles, { type: 'hint' }]
-  if (state.selected.length > 0) out.push({ type: 'play' })
+  if (canPlaySelected(state)) out.push({ type: 'play' })
   if (table.top && table.top.seat !== HUMAN_SEAT) out.push({ type: 'pass' })
   return out
 }

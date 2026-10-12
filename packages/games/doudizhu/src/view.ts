@@ -7,7 +7,7 @@
 import type { CardFace, CardTableSeat, CardTableView, ControlSpec, GameView, StatView } from '@eink/core'
 import { BIG_JOKER, SMALL_JOKER, rankLabel, rankOf, suitOf, type CardId } from './cards.js'
 import { observe, type SeatView } from './observe.js'
-import { HUMAN_SEAT, hintOptions, statusOf, tableOf, type DoudizhuState } from './rules.js'
+import { HUMAN_SEAT, canPlaySelected, hintOptions, statusOf, tableOf, type DoudizhuState } from './rules.js'
 import { settlement, type Seat } from './table.js'
 
 export function cardFace(card: CardId, selected = false): CardFace {
@@ -117,7 +117,8 @@ export function buildControls(state: DoudizhuState): ControlSpec[] {
       id: 'play',
       labelKey: 'doudizhu.action.play',
       role: 'action',
-      enabled: myTurn && state.selected.length > 0,
+      // 与 legal() 共用同一个判据：压不过桌面时按钮是灰的（否则玩家点下去只会挨一句"不能这样出"）
+      enabled: canPlaySelected(state),
       emphasis: 'primary',
     },
   ]
