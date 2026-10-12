@@ -832,6 +832,19 @@ vs web 213（32%）——三大块：空通知条 +34、统计条 +37、控制�
   + nowrap/ellipsis/overflow:hidden；
 · 模拟 font boosting 的探针：放大前后 通知条 20 → 20、页脚 44 → 44、
   棋盘零遮挡（boardCoveredByFooter=false）。
+
+**用户三轮反馈（2048 第二排方向键 / 象棋撤销框被视口底缘切掉）：**
+「页脚钉死高度 + 溢出裁切」预设了内容 ≤ 预算，而 tee(124) + 撤销行(44+12)
+≈ 170 > 预算 154——内容从框底**戳出视口 13px**（真实测量：撤销行
+bottom=773 > 视口 760；全量审计同帧报出）。终检也换了口径：
+不量 document.scrollHeight（.k-app 的 overflow:hidden 会静默吞掉超出，
+量出来恒等于 0），量**页脚底边 − 视口高**。
+
+最终形态：**页脚自然包住内容**（去掉钉死高度/裁切——那套搬错了对象，
+页脚不是该裁的框，是布局的基准），主区高度由 fitToViewport 按实测页脚顶
+收敛；终检回收兜住估算余差；紧凑档与 text-size-adjust:none 继续生效。
+全量审计/玩法实测/探索/冒烟/npm run check 复跑全绿，
+手机视口探针：2048/象棋所有控件 bottom ≤ 视口，footerBottom = 视口高。
 另压掉类样式的干扰：`.k-board__wrong` 的类样式是白底+3px 黑框的 inline-block
 角标（2048 的文字角标遗留），把 100%×100% 的叉容器垫成了不透明白板——
 内联样式显式置 background:transparent / border:none。

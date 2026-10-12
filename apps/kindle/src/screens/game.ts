@@ -370,7 +370,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       ? dpadLayout === 'row'
         ? (compact ? 112 : CHROME_BOTTOM_ROW)
         : (compact ? 104 : CHROME_BOTTOM_TEE)
-      : (compact ? 40 : CHROME_BOTTOM_MIN)
+      : (compact ? 52 : CHROME_BOTTOM_MIN)  // 40 装不下 44px 的「撤销」按钮——差 12px 被视口切掉
     const statsH = view.stats.length > 0 ? CHROME_STATS : 0
     const estimated = ctx.height - CHROME_TOP - statsH - chromeBottom - 24
     // 收敛后的预算优先（fitToViewport 会把它压小）
@@ -458,29 +458,16 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       cornerRight: restartHidden ? null : button('↻', function restart(): void { askRestart() }, { small: true }),
     })
     /*
-     * 页脚预算**由对局页自己声明**（min-height = 本页的 chromeBottom 预算）：
-     * 样式表里的 .k-footer { min-height: 156px } 是为「书库/带方向盘对局」定的
-     * 预算栏——在只有一行「撤销」的棋类上（无方向盘 + 紧凑档），就把手机屏的
-     * 一大块空页脚硬顶出来（用户真机截图：撤销 下方一整段空白）。
-     * 逐屏声明后：紧凑档 40 / 常规 60 / tee 104 / row 52，各玩法的页脚都贴合内容。
+     * 页脚**自然包住内容**，不要钉死高度（用户二轮真机反馈的最终修法）：
+     * 手机 WebView 的字体放大（font boosting）会把按钮与文字撑高——
+     * 给页脚钉死高度（height + overflow:hidden）时，若内容比预算高，
+     * 超出的部分会从框底戳出视口（真实测量：2048 的撤销行 bottom=773 > 视口 760，
+     * 被裁掉 13px——「下方按键挡住游戏画面」的真正来源）。
+     * 让页脚自然包住内容，主区高度由 fitToViewport 按实测的页脚顶收敛，
+     * 布局必然自洽；页脚下面的 CSS min-height 156px（预算栏基准）继续兜底书库。
      */
-    /*
-     * 页脚钉死高度 + 溢出裁切：手机 WebView 的字体放大（font boosting /
-     * 系统字号档）会把按钮与文字撑高——页脚贴底、内容一涨就向上生长，
-     * 直接盖到棋盘上（用户真机反馈「下方按键遮住游戏画面」×2）。
-     * 显式 height + overflow:hidden：涨出来的部分裁在页脚框内，棋盘永不被盖。
-     */
-    const footer = root.appendChild(
-      el(
-        'div',
-        {
-          class: 'k-footer',
-          style:
-            'border-top:1px solid #000;padding:4px 8px;box-sizing:border-box;' +
-            'height:' + (chromeBottom + 4) + 'px;min-height:0;overflow:hidden;',
-        },
-        controlBar,
-      ),
+    root.appendChild(
+      el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar),
     )
 
     // DOM 已经进文档，可以量真实高度了
@@ -548,6 +535,27 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     main.style.boxSizing = 'border-box'
     main.style.height = Math.floor(band) + 'px'
     main.style.marginBottom = '0'
+
+    /*
+     * **终检回收**：钉死的主区高度来自「页脚顶 − 主区顶」的测量，而这条带子的
+     * 预算链里有几处**估算差值**（顶栏实测常比 CHROME_TOP 常量高 ~13px、
+     * 手机字体放大的余差），收敛后整页仍可能比视口高 4~12px——
+     * 而这页设计上**不可滚动**，超出的那截正好把页脚最后一行按钮切掉
+     * （用户真机截图：2048 第二排方向键、象棋撤销框被视口底缘切掉）。
+     * 以视口为准量一次差值，从主区高度里收回，页面就严格等于一屏。
+     */
+    {
+      /*
+       * 终检量的**不是 document.scrollHeight**——.k-app 的 overflow:hidden 会把
+       * 超出部分静默裁掉，scrollHeight 根本不包含它（用整页高度做判据会得出
+       * "没有超"的假象，而页脚最后一行已经被切掉——用户真机截图）。
+       * 以**页脚底边**为准：页脚贴着 .k-app 的底缘，页脚底 > 视口高 = 超出了。
+       */
+      const over = Math.round(footer.getBoundingClientRect().bottom - window.innerHeight)
+      if (over > 0) {
+        main.style.height = Math.max(120, Math.floor(band) - over) + 'px'
+      }
+    }
 
     /*
      * 可用高度还要再扣两样：
