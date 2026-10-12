@@ -635,90 +635,6 @@ function dudNode(size: number): Node {
   return node
 }
 
-/**
- * 开枪定格画面（React 的 FireScene + fireCaption）：**单独占满「枪 / 弹仓 / 说明」这一段**。
- *
- * 为什么整块仍是白底黑字：黑带白字与整块反色一起在俄罗斯方块的消行特效里做过、被真机否掉
- * （docs/eink-guidelines.md 的口径是「白底黑字」）。所以这里只有**标题带**反白（实弹）——
- * 对比度给足，又不把整屏压黑。空包用白底 + 粗虚线框：实心 vs 空心、实线 vs 虚线，
- * 都是 1-bit 的原生手段，不依赖灰阶。记录与两侧始终露着：用户要求「不要把战斗日志挡住」。
- */
-function fireNode(
-  ctx: RenderCtx,
-  fire: DuelFireScene,
-  geom: DuelGeometry,
-  nameOf: (pos: string) => string,
-): HTMLElement {
-  var live = fire.shell === 'live'
-  var node = el('span', {
-    class: 'k-duel__fire k-duel__fire--' + fire.shell,
-    style:
-      'position:absolute;left:0;top:0;right:0;bottom:0;z-index:3;box-sizing:border-box;display:block;' +
-      'background:#fff;color:#000;text-align:center;overflow:hidden;font-size:' + fontOf(geom.base, 1) + ';' +
-      'border:' + (live ? 5 : 3) + 'px ' + (live ? 'solid' : 'dashed') + ' #000;',
-  })
-  node.setAttribute('data-shell', fire.shell)
-  node.setAttribute('data-lethal', fire.lethal ? 'yes' : 'no')
-  node.setAttribute('role', 'status')
-
-  // 竖排居中：老 WebKit 上没有 flex，用 table / table-cell（最稳的两句 display）
-  var middle = el('div', { style: 'display:table;width:100%;height:100%;' })
-  var cellBox = el('div', { style: 'display:table-cell;vertical-align:middle;text-align:center;' })
-
-  cellBox.appendChild(live ? blastNode(geom.fireIcon) : dudNode(geom.fireIcon))
-
-  // 标题带：大字 + 反白（实弹）/ 粗虚线框（空包）—— 一眼看出「这一枪是什么」
-  cellBox.appendChild(
-    el(
-      'span',
-      {
-        class: 'k-duel__firetitle',
-        style:
-          'display:inline-block;margin:4px 0;padding:2px 12px;font-size:' + fontOf(geom.base, 1.7) + ';' +
-          'font-weight:900;letter-spacing:1px;line-height:1.25;' +
-          (live ? 'background:#000;color:#fff;border:2px solid #000;' : 'background:#fff;color:#000;border:3px dashed #000;'),
-      },
-      ctx.t(live ? 'shell.duel.fire.live' : 'shell.duel.fire.blank') +
-        (fire.damage > 0 ? ' ' + ctx.t('shell.duel.fire.damage', { amount: fire.damage }) : ''),
-    ),
-  )
-
-  // 击倒：反白小标（文字本身已经在下面那行说明里，这里只是把它顶出来）
-  if (fire.lethal) {
-    cellBox.appendChild(
-      el(
-        'div',
-        {},
-        el(
-          'span',
-          {
-            class: 'k-duel__fireknock',
-            style:
-              'display:inline-block;padding:0 8px;font-weight:900;background:#000;color:#fff;border:2px solid #000;' +
-              'font-size:' + fontOf(geom.base, 1) + ';',
-          },
-          ctx.t('shell.duel.fire.knockdown'),
-        ),
-      ),
-    )
-  }
-
-  // 说明行：击倒 · 谁打谁 · 掉几格（说明行本来就占着位置，出现 / 消失都不会让高度跳）
-  cellBox.appendChild(
-    el(
-      'div',
-      {
-        class: 'k-duel__firecaption',
-        style: 'font-weight:800;font-size:' + fontOf(geom.base, 1.05) + ';line-height:1.3;',
-      },
-      fireCaption(ctx, fire, nameOf),
-    ),
-  )
-
-  middle.appendChild(cellBox)
-  node.appendChild(middle)
-  return node
-}
 
 /* ------------------------------------------------------------------ 尺寸 */
 
@@ -819,6 +735,59 @@ function anyStealable(duel: DuelView): boolean {
  * 真正抢的时候只清状态、把槽位号交给壳层（`ctx.onSteal`），由壳层转成动作 ——
  * 渲染器不判断规则，也不认识肾上腺素是什么，只认「这个 labelKey 的那件道具」。
  */
+/**
+ * 开枪结果的**紧凑标签**：枪图旁边的「★ 实弹 −1」/「⊗ 空包」。
+ *
+ * 取代原先的整段开枪定格画面（那是一块绝对定位、盖住"枪/弹仓/说明"的幕布）——
+ * 用户反馈「开枪画面不要遮挡初始画面」：定格期间连膛里剩几发都看不见，
+ * 而这恰恰是开完枪最想核对的信息。现在结果只是枪行里的一个内联标签：
+ *   · 枪图、弹仓、道具、记录全部保持可见；
+ *   · 高度预算不变（标签钉在枪行已有的高度里，出现/消失整行都不跳）；
+ *   · 1-bit 语言沿用既有的一套：实弹反白标签 / 空包虚线框，爆闪与空膛小图随行内联。
+ */
+function fireTagNode(
+  ctx: RenderCtx,
+  fire: DuelFireScene,
+  geom: DuelGeometry,
+): HTMLElement {
+  var live = fire.shell === 'live'
+  var label = ctx.t(live ? 'shell.duel.fire.live' : 'shell.duel.fire.blank')
+  if (fire.damage > 0) label += ' ' + ctx.t('shell.duel.fire.damage', { amount: fire.damage })
+  if (fire.lethal) label += ' ' + ctx.t('shell.duel.fire.knockdown')
+  var boxH = Math.round(geom.gunH * 0.92)
+  var tag = el('span', {
+    class: 'k-duel__fire k-duel__fire--' + fire.shell,
+    style:
+      'display:inline-block;vertical-align:middle;margin-left:6px;box-sizing:border-box;' +
+      'height:' + px(boxH) + ';line-height:' + px(boxH - 4) + ';padding:0 ' + px(Math.round(geom.base * 0.55)) + ';' +
+      'overflow:hidden;font-weight:900;font-size:' + fontOf(geom.base, 1) + ';letter-spacing:1px;' +
+      (live
+        ? 'background:#000;color:#fff;border:2px solid #000;'
+        : 'background:#fff;color:#000;border:3px dashed #000;'),
+  })
+  tag.setAttribute('role', 'status')
+  tag.setAttribute('data-shell', fire.shell)
+  tag.setAttribute('data-lethal', fire.lethal ? 'yes' : 'no')
+  tag.appendChild(document.createTextNode(label))
+  return tag
+}
+
+/** 内联小图：开枪结果的符号（实弹爆闪 / 空包打叉），随枪行排在标签前面 */
+function fireIconInline(ctx: RenderCtx, fire: DuelFireScene, geom: DuelGeometry): HTMLElement {
+  var size = Math.min(geom.fireIcon, 26)
+  var svgNode = (live_of(fire) ? blastNode(size) : dudNode(size)) as SVGElement
+  svgNode.setAttribute('style', 'display:block;')
+  var wrap = el('span', {
+    style: 'display:inline-block;vertical-align:middle;width:' + px(size) + ';height:' + px(size) + ';',
+  })
+  wrap.appendChild(svgNode)
+  return wrap
+}
+
+function live_of(fire: DuelFireScene): boolean {
+  return (fire.shell === 'live') as boolean
+}
+
 export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCtx): void {
   clear(container)
   var host = container as StealHost
@@ -873,6 +842,10 @@ export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCt
     gun.setAttribute('class', 'k-duel__gun')
     gun.setAttribute('style', 'display:inline-block;vertical-align:middle;')
     gunrow.appendChild(gun)
+  }
+  if (duel.fire) {
+    gunrow.appendChild(fireIconInline(ctx, duel.fire, geom))
+    gunrow.appendChild(fireTagNode(ctx, duel.fire, geom))
   }
   if (duel.tags.length > 0) {
     var tags = el('span', {
@@ -967,8 +940,11 @@ export function renderDuel(container: HTMLElement, duel: DuelView, ctx: RenderCt
   table.appendChild(caption)
 
   stage.appendChild(table)
-  // 定格画面盖住「枪 / 弹仓 / 说明」这一段：不挡记录，也不把下面的东西顶动（绝对定位）
-  if (duel.fire) stage.appendChild(fireNode(ctx, duel.fire, geom, nameOf))
+  /*
+   * 开枪结果**不再整段覆盖**：结果标签直接排在枪行的枪图旁边——
+   * 定格期间弹仓（剩几发）、道具、记录全部保持可见，这正是开完枪最想核对的信息；
+   * 说明行原本就会显示 fireCaption（击倒 · 谁打谁 · 掉几格），高度预算一行没变。
+   */
   root.appendChild(stage)
 
   var scroll: { scroll: HTMLElement | null } = { scroll: null }
