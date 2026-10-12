@@ -70,7 +70,9 @@ body {
 }
 
 .k-topbar {
-  /* 浮动 + 溢出裁剪：标题在左、操作在右，不需要伸缩盒 */
+  /* 溢出裁剪：防长标题/长副标题把顶栏撑高。居中由 common.ts 的
+   * 25% | 50% | 25% 三格结构负责（中间格 text-align:center）。
+   */
   overflow: hidden;
   padding: 8px 14px;
   border-bottom: 3px solid #000;
@@ -78,10 +80,18 @@ body {
 }
 
 .k-topbar__title {
-  float: left;
-  /* 标题绝不换行：换行会让顶栏长高、把棋盘或列表挤小（真机上实测过） */
-  max-width: 66%;
-  margin: 0;
+  /*
+   * 标题**居中**（用户反馈：主页标题在横屏不居中）。
+   *
+   * 原先是 float:left——"标题在左、操作在右"的早期设计：标题浮在中间格的左缘，
+   * 视觉位置 = 条带 25% 处。竖屏条带窄看不出来；横屏一宽就明显偏左，
+   * 而标题下方的副标题（保存状态等）没有浮动、是真居中——两个还互相错开。
+   * 现在去掉浮动，跟随中间格 text-align:center 居中；副标题同格同对齐。
+   * max-width + ellipsis 保留：长标题（玩法名 · 难度）折行会把顶栏撑高。
+   */
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
   font-size: 1.2em;
   font-weight: 700;
   line-height: 1.3;
