@@ -32,8 +32,7 @@ const CHROME_TOP = 52
  * 动机：同屏高下骨架合计占比 50%（web 版 32%）——用户反馈「下方按键比例过大、
  * 挡住游戏画面」。紧凑档把 通知条/统计条/方向键 各块按 web 口径收紧。
  */
-const COMPACT_MAX_W = 500
-const COMPACT_MAX_H = 760
+const COMPACT_MAX_W = 520
 const CHROME_STATS = 30
 /**
  * 提示条预留的一行高度（px）：13px 字 × 1.4 行高 + 上下内边距 12 + 下边框 1 ≈ 32，取 34 留余量。
@@ -264,7 +263,7 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
           : session.saveStatus === 'saved' ? ctx.t('shell.storage.saved')
             : undefined
     // 手机/窄竖窗紧凑档：骨架按比例收敛（同视口下 web 版合计 25%，本版原为 40%+）
-    const compact = ctx.width < COMPACT_MAX_W && ctx.height < COMPACT_MAX_H
+    const compact = ctx.width < COMPACT_MAX_W
 
     root.appendChild(
       topBar(ctx, {

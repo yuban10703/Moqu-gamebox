@@ -37,7 +37,8 @@ body {
   font-size: 22px;
   line-height: 1.45;
   /* 老移动 WebKit 会自动放大宽块里的文字（字号档位会因此失控），必须关掉 */
-  -webkit-text-size-adjust: 100%;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
   /* 点按高亮是彩色方块，墨水屏上既闪又留残影 */
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
