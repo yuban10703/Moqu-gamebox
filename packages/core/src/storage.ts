@@ -74,8 +74,6 @@ export interface SaveStore {
   recover(): Promise<RecoveryReport>
   /** 迁移前落一份备份副本 */
   backupBefore(gameId: string, slot: number): Promise<void>
-  /** 诊断用：逐个读取原始文本（含损坏项） */
-  rawAll(): Promise<Array<{ key: string; text: string }>>
 }
 
 export type LoadResult =
@@ -278,16 +276,6 @@ export function createSaveStore(
         if (loaded.status === 'corrupt') report.corrupt.push(gameId)
       }
       return report
-    },
-
-    async rawAll() {
-      const keys = await kv.keys(NS)
-      const out: Array<{ key: string; text: string }> = []
-      for (const key of keys) {
-        const text = await kv.get(key)
-        if (text !== null) out.push({ key, text })
-      }
-      return out
     },
   }
 }

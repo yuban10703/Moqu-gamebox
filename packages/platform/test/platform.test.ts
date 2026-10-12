@@ -227,10 +227,6 @@ describe('Android 桥的存储映射', () => {
         map.delete(key)
         return '{"ok":true}'
       },
-      saveDeletePrefix: (prefix) => {
-        for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key)
-        return '{"ok":true}'
-      },
       saveKeys: (prefix) => JSON.stringify([...map.keys()].filter((key) => key.startsWith(prefix))),
       saveCas: (key, expected, value) => {
         const current = map.get(key) ?? null

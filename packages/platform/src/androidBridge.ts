@@ -23,7 +23,6 @@ export interface EinkNativeBridge {
   saveGet(key: string): string | null
   savePut(key: string, value: string): string
   saveDelete(key: string): string
-  saveDeletePrefix(prefix: string): string
   /** 返回 JSON 数组 */
   saveKeys(prefix: string): string
   /** 返回 JSON：{ok:true} 或 {ok:false,current} */

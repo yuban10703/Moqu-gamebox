@@ -190,7 +190,6 @@ describe('存档提交协议', () => {
 
     await store.clearAll()
     expect(await store.list()).toEqual([])
-    expect((await store.rawAll()).length).toBe(0)
   })
 })
 
