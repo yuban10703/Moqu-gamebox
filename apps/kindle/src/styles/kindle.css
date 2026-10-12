@@ -1089,7 +1089,13 @@ body {
   border: 3px solid #000;
   font-size: 0.8em;
   line-height: 1.4;
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+/* 日志可滚，但**不显示滚动条**：老 WebKit 原生滚动条在墨水屏上又闪又残影；
+ * PC 上滚轮、读器上触摸照常可滚（只是不画那根条）。 */
+.k-duel__log::-webkit-scrollbar {
+  display: none;
 }
 
 .k-duel__caption {

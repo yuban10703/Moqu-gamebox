@@ -368,11 +368,18 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     }
     root.appendChild(body)
 
-    // 战斗日志自动滚到最新一条：renderDuel 在容器挂进文档**之前**渲染，
-    // 那时盒子高度还是 0，scrollTop 赋值无效——必须在挂进文档之后设（原实现就卡在这）。
-    // 每次重绘都停到最新一条：战斗日志只会追加，最新的一条就是玩家最关心的。
-    const duelLog = body.querySelector('.k-duel__log') as HTMLElement | null
-    if (duelLog) duelLog.scrollTop = duelLog.scrollHeight
+    /*
+     * 战斗日志自动滚到最新一条：renderDuel 在容器挂进文档**之前**渲染，
+     * 那时盒子高度还是 0，scrollTop 赋值无效——必须在挂进文档之后设（原实现就卡在这）。
+     * fitToViewport 里缩短记录（shrinkDuelLog）之后还要**再**滚一次：
+     * max-height 变小后可视区变短，只滚一次可能停在未压缩时的位置，最新一条会沉下去。
+     * 每次都停到最新一条：战斗日志只追加，最新的一条就是玩家最关心的。
+     */
+    const scrollDuelLogToBottom = function scrollDuelLogToBottom(): void {
+      const duelLog = body.querySelector('.k-duel__log') as HTMLElement | null
+      if (duelLog) duelLog.scrollTop = duelLog.scrollHeight
+    }
+    scrollDuelLogToBottom()
 
     if (view.captured) {
       const bottomStyle =
@@ -430,6 +437,8 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
 
     // DOM 已经进文档，可以量真实高度了
     fitToViewport()
+    // fitToViewport 可能缩短了对战记录（shrinkDuelLog）：可视区变短，再滚一次到底
+    scrollDuelLogToBottom()
   }
 
   /**
@@ -587,7 +596,11 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     const next = Math.max(floor, Math.round(current - need - 4))
     if (next >= current) return false
     log.style.maxHeight = next + 'px'
-    log.style.overflow = 'hidden'
+    /*
+     * 只缩短、**不关滚动**：这里原先写 `overflow = 'hidden'`（旧口径"战斗记录
+     * 不滚动"的遗留）—— 现在日志是可滚的（自动停在最新一条），压缩后照样
+     * 要能滚；盒子的默认 overflow-y 就是 auto，这里只需不定回去。
+     */
     return true
   }
 
