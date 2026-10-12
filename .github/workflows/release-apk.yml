@@ -1,3 +1,6 @@
+# 【kindle 分支注明】本分支只交付 Kindle 版（apps/kindle/dist），不发布 APK。
+# 这个文件**故意保留**：① 触发已限定 main 分支，在 kindle 分支上不会运行；
+# ② 合并回 main 时发布线不能因为这次分支工作而丢掉。
 name: 打包 APK 并发布 Release
 
 # 发布规则：**只有版本号变了才发布**。

@@ -15,9 +15,18 @@
   <img alt="permissions" src="https://img.shields.io/badge/Android%20permissions-0-111111?style=flat-square">
 </p>
 
+> **[本分支](../../tree/kindle)是 Kindle 专属版。**
+>
+> 交付物只有一个：`apps/kindle/dist` —— 纯 ES5、无模块脚本、无 CSS 变量 / grid 的静态文件，
+> 部署到 Cloudflare Pages（构建命令 `npm run build:kindle`，步骤见 [docs/kindle.md](docs/kindle.md)）。
+> 玩法与逻辑和 Web / Android 共用同一套引擎（packages/core + packages/games），
+> 因此仓库里保留着那两个形态的源码与说明，**只作为共享引擎的上下文与契约测试**；
+> 要装 Web PWA 或 APK，请到[主分支](https://github.com/yuban10703/Moqu-gamebox/tree/main)。
+
 ### ▶ [在线试玩 · moqu.2333.world](https://moqu.2333.world/)
 
-浏览器打开就能玩。在阅读器上打开后选「添加到主屏幕」，之后**断网也能玩**。
+部署的是**本分支的 Kindle 构建**：阅读器与桌面浏览器打开即玩。
+（Web 版的「添加到主屏幕」安装是主分支的形态 —— 本分支产物没有 Service Worker。）
 
 [游戏一览](#游戏一览) · [装到墨水屏](#装到墨水屏阅读器) · [自己构建](#自己构建)
 
@@ -84,32 +93,28 @@
 
 ## 装到墨水屏阅读器
 
-- **最省事**：用阅读器自带的浏览器打开 <https://moqu.2333.world/>，菜单里选「添加到主屏幕」——之后就当一个离线应用在用。
-- **想要独立图标**：从 [Releases](https://github.com/yuban10703/Moqu-gamebox/releases) 下载 `moqu-<版本>.apk`，传到阅读器上点开安装即可（Android 6.0 以上都行，BOOX 全系适配）。想自己构建见 [docs/android.md](docs/android.md)。
-- **Kindle**：Kindle 自带浏览器装不了 APK，也跑不动上面那个现代版网页（它不认模块脚本、没有 CSS 变量）。
-  另有一条**兼容优先**的构建线，产出纯 ES5 + 无变量/无 grid 的静态文件，玩法与逻辑完全共用：
-
-  ```bash
-  npm run build:kindle    # → apps/kindle/dist/（纯静态，丢到任意静态托管即可）
-  npm run serve:kindle    # 起一个绑定 0.0.0.0 的局域网服务，并打印 Kindle 能用的地址
-  ```
-
+- **Kindle（本分支的交付形态）**：先把产物部署到任意静态托管（Cloudflare Pages 的填法见
+  [docs/kindle.md](docs/kindle.md) 的「部署到 Cloudflare Pages」一节），再用 Kindle 自带浏览器打开网址即可。
+  产物要求极低：纯 ES5、无模块脚本、无 CSS 变量 / grid。
   设备能力**没有在本仓库实测过**（手头只有 BOOX），所以内置了一个不依赖任何外部文件的
-  设备自检页 `check.html`，先在 Kindle 上打开它就能看清这台设备到底支持什么。
-  细节与已知限制见 [docs/kindle.md](docs/kindle.md)，部署到 Cloudflare Pages 的填法见该文档的
-  「部署到 Cloudflare Pages」一节（构建命令 `npm run build:kindle`、输出目录 `apps/kindle/dist`）。
+  设备自检页 [`check.html`](check.html) —— 先在 Kindle 上打开它，就能看清这台设备到底支持什么。
+  细节、已知限制与自检方法见 [docs/kindle.md](docs/kindle.md)。
+- **BOOX 等 Android 阅读器 / Web PWA（主分支的形态）**：「添加到主屏幕」当离线应用用，或从
+  [Releases](https://github.com/yuban10703/Moqu-gamebox/releases) 下载 `moqu-<版本>.apk`
+  （Android 6.0 以上都行；APK 由**主分支**的 CI 发布，本分支不打包）。见 [docs/android.md](docs/android.md)。
 
 ## 自己构建
 
 ```bash
 npm ci
-npm run dev:web      # 本地开发 → http://127.0.0.1:5173
-npm run build:web    # Web 产物（可部署到任意静态托管）
-npm run build:kindle # Kindle 产物（ES5，含语法守卫与体积报告）
+npm run build:kindle # **本分支的产物**（ES5，含语法守卫与体积报告）→ apps/kindle/dist/
+npm run check        # 门禁：类型检查 + 全部测试（含 web 侧契约）+ i18n + 文档/游戏完整性
+npm run serve:kindle # 局域网服务，打印 Kindle 能用的地址
 npm run verify       # 提交前：类型检查 + 全部测试 + 五套真浏览器巡检
 ```
 
-Android APK：`npm run setup:android` 装构建链，再 `npm run build:apk`。
+Web 与 Android 的构建（`dev:web` / `build:web` / `build:apk` 等）是**共享引擎的开发与契约工具**，
+保留在本仓库，但不是这条分支的交付物（Web 产物/发布走主分支）。
 项目全貌与真机流程见 [docs/handover.md](docs/handover.md)，架构见 [docs/architecture.md](docs/architecture.md)，
 Kindle 版见 [docs/kindle.md](docs/kindle.md)。
 
