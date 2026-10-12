@@ -190,19 +190,25 @@ class MainActivity : Activity() {
     /**
      * 读系统 WebView 的主版本号；**读不到返回 null**（调用方据此放行）。
      *
-     * 两条路覆盖全部 API 段，不需要引入任何新依赖（不用 androidx.webkit）：
-     * - API 26+：`WebView.getCurrentWebViewPackage()` 的 versionName，取**开头数字**
-     *   （"156.0.8078.4" → 156）；WebView 未选定/被禁用时它返回 null；
-     * - API 23~25：`WebSettings.getDefaultUserAgent()` 里正则取 `Chrome/(\d+)`。
+     * 读法按可信度排序（不需要 androidx.webkit，覆盖全部 API 段）：
+     * - **UA 优先**：`WebSettings.getDefaultUserAgent()` 里的 `Chrome/(\d+)`，引擎自报的实际内核；
+     * - 退路：API 26+ 的 `WebView.getCurrentWebViewPackage()?.versionName` 取**开头数字**
+     *   （"156.0.8078.4" → 156）；WebView 未选定/被禁用时它返回 null。
      *
      * 整段包在 try/catch 里：读版本号失败绝不能变成启动失败（那才是真的白屏）。
      */
     private fun currentWebViewMajor(): Int? = try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // 两个来源都就地读：**UA 优先** —— 包 versionName 在魔改 ROM 上未必是 Chromium 版本
+        // （有厂商用自己的 1.x/2.x 编号），UA 里的 Chrome/x 才是引擎自报的实际内核；
+        // 只有 UA 读不出 Chromium 版本时才退回包 versionName。两个都拿不到 → null（放行）。
+        val fromPackage: Int? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WebView.getCurrentWebViewPackage()?.versionName?.let(::leadingMajor)
         } else {
-            CHROME_UA_REGEX.find(WebSettings.getDefaultUserAgent(this))?.groupValues?.get(1)?.toIntOrNull()
+            null
         }
+        val fromUa: Int? = CHROME_UA_REGEX.find(WebSettings.getDefaultUserAgent(this))
+            ?.groupValues?.get(1)?.toIntOrNull()
+        fromUa ?: fromPackage
     } catch (error: Throwable) {
         Log.w(TAG, "cannot read system webview version - letting it through", error)
         null
