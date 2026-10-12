@@ -233,30 +233,44 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
   table.setAttribute('aria-colcount', String(cols))
 
   let hasCovered = false
+  let hasWall = false
   for (let i = 0; i < board.cells.length; i++) {
-    if (board.cells[i].kind === 'hidden') {
-      hasCovered = true
-      break
-    }
+    const kind = board.cells[i].kind
+    if (kind === 'hidden') hasCovered = true
+    else if (kind === 'wall') hasWall = true
   }
   /*
-   * 有未翻格时在**整盘**铺一次斜纹：逐格铺会让 45° 线在格边错位（真机反馈过）。
+   * 斜纹底纹，铺在**整盘**上（逐格铺会让 45° 线在格边错位，真机反馈过）。
    *
-   * 两个必须成对的条件，缺一个斜纹就看不见：
+   * 两种用途共用这一层：
+   *   · 未翻格（hidden，扫雷的未翻开格、记忆的背面卡片）→ 细纹
+   *   · 墙 / 障碍（wall，推箱子的墙、贪吃蛇的障碍）→ 粗纹
+   * 贪吃蛇的视图注释里写的就是「障碍 = 斜纹底（kind 'wall'，壳层用纹理而不是灰度）」，
+   * 这是玩法与壳层之间的约定。
+   *
+   * **墙原先根本没画**（`wall` 在图形分支里直接 return null，格子又是白底）——
+   * 于是推箱子有一圈看不见的墙，玩家"还没走到边框就被拦住"（用户报的）。
+   *
+   * 两个必须成对的条件，缺一个纹就看不见：
    *   1. 这里给表格铺 background-image；
-   *   2. `.k-board__cell[data-kind="hidden"]` 必须是**透明**背景（见 CSS），
-   *      否则每一格都用不透明的白把自己盖住 —— 用户报的"未翻格没区分"就是这个：
-   *      未翻开和已翻开的空格看起来一模一样。
+   *   2. 未翻格与墙格必须是**透明**背景 —— 否则每一格都用不透明的白把自己盖住。
+   *      （这正是"未翻格没区分"的原因：那条规则我一度写在样式表里，而行内背景压过它。）
    *
-   * 线用**纯黑**而不是浅灰：1-bit 墨水屏上灰色靠抖动模拟，容易糊成噪点；
-   * 斜纹本来就是靠"形状"区分，用黑色最稳（仓库的 1-bit 规则：别只靠灰阶）。
+   * 线用**纯黑**而不是浅灰：1-bit 墨水屏上灰色靠抖动模拟、容易糊成噪点，
+   * 而斜纹本来就是靠"形状"区分（仓库的 1-bit 规则：别只靠灰阶）。
    */
-  if (hasCovered) {
+  if (hasCovered || hasWall) {
+    // 有未翻格时用细纹（未翻格是"待办"，视觉上要轻）；只有墙时用粗纹（墙是实体障碍）
+    const stroke = hasCovered ? 1 : 2.6
     table.setAttribute(
       'style',
       'border-collapse:collapse;table-layout:fixed;margin:0 auto;' +
         'background-image:url("data:image/svg+xml;utf8,' +
-        encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><path d="M-2.5 2.5 L2.5 -2.5 M0 10 L10 0 M7.5 12.5 L12.5 7.5" stroke="#000" stroke-width="1"/></svg>') +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><path d="M-2.5 2.5 L2.5 -2.5 M0 10 L10 0 M7.5 12.5 L12.5 7.5" stroke="#000" stroke-width="' +
+            stroke +
+            '"/></svg>',
+        ) +
         '");',
     )
   } else {
@@ -367,6 +381,9 @@ function renderCell(
      *
      * 扫雷的未翻格、记忆的背面卡片都走这条；已翻开的格子仍是白底，正好把斜纹遮掉。
      */
+    css += 'background:transparent;color:#000;'
+  } else if (cellView.kind === 'wall') {
+    // 墙 / 障碍：同样透明，让整盘那层**粗**斜纹透出来（见上面的说明）
     css += 'background:transparent;color:#000;'
   } else css += 'background:#fff;color:#000;'
 

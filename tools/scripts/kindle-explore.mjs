@@ -301,27 +301,41 @@ for (const id of targets) {
     const cx = box.x + box.width / 2
     const cy = box.y + box.height / 2
     const before = await swipeSnap()
-    await page.evaluate(
-      ([sx, sy, ex, ey]) => {
-        const el = document.querySelector('.k-board')
-        const mk = (type, x, y) => {
-          const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y })
-          return new TouchEvent(type, {
-            touches: type === 'touchend' ? [] : [t],
-            targetTouches: type === 'touchend' ? [] : [t],
-            changedTouches: [t],
-            bubbles: true,
-            cancelable: true,
-          })
-        }
-        el.dispatchEvent(mk('touchstart', sx, sy))
-        el.dispatchEvent(mk('touchmove', (sx + ex) / 2, (sy + ey) / 2))
-        el.dispatchEvent(mk('touchend', ex, ey))
-      },
-      [cx, cy, cx - 120, cy],
-    )
-    await page.waitForTimeout(350)
-    const changed = (await swipeSnap()) !== before
+    /*
+     * **逐个方向试**，不要只试左滑。
+     * 开局局面随种子变：2048 偶尔两颗子本来就都在最左列，这时左滑**本来就动不了**
+     * —— 只试左滑会把这种正常局面报成"滑动没反应"（实测约 5% 的概率）。
+     */
+    const DIRS = [
+      [cx - 120, cy],
+      [cx, cy - 120],
+      [cx + 120, cy],
+      [cx, cy + 120],
+    ]
+    let changed = false
+    for (let d = 0; d < DIRS.length && !changed; d++) {
+      await page.evaluate(
+        ([sx, sy, ex, ey]) => {
+          const el = document.querySelector('.k-board')
+          const mk = (type, x, y) => {
+            const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y })
+            return new TouchEvent(type, {
+              touches: type === 'touchend' ? [] : [t],
+              targetTouches: type === 'touchend' ? [] : [t],
+              changedTouches: [t],
+              bubbles: true,
+              cancelable: true,
+            })
+          }
+          el.dispatchEvent(mk('touchstart', sx, sy))
+          el.dispatchEvent(mk('touchmove', (sx + ex) / 2, (sy + ey) / 2))
+          el.dispatchEvent(mk('touchend', ex, ey))
+        },
+        [cx, cy, DIRS[d][0], DIRS[d][1]],
+      )
+      await page.waitForTimeout(350)
+      if ((await swipeSnap()) !== before) changed = true
+    }
     if (shouldSwipe && !changed) {
       note(`${id}/滑动`, '详情页承诺可以滑动，但滑了棋盘毫无变化')
     }

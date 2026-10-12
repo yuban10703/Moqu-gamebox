@@ -219,7 +219,44 @@ for (const o of ORIENTATIONS) {
     await page.screenshot({ path: `${SHOTS}${o.name}-game-${id}.png` })
   }
 
-  // ---------- 对话框 ----------
+    /*
+   * 提示出现**不能推动画面**。
+   *
+   * 提示条原先只在有内容时才插进文档流，一出现就把棋盘往下推 74px（实测），
+   * 而且主内容高度是钉死的、棋盘还会跟着缩小 —— 墨水屏上等于"眼睛刚对准就换了一屏"。
+   * 这条只能在真实浏览器里量：jsdom 没有布局引擎，量不出"动了多少"。
+   * 用推箱子开局往右走（右边就是边框墙，必定被拒 → 必定出提示）。
+   */
+  {
+    await page.evaluate(() =>
+      window.__moquApp.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true }),
+    )
+    await page.waitForTimeout(450)
+    const before = await measure()
+    await page.evaluate(() => {
+      const right = Array.from(document.querySelectorAll('.k-dpad__btn')).find(
+        (b) => (b.textContent || '').trim() === '右',
+      )
+      if (right) right.click()
+    })
+    await page.waitForTimeout(450)
+    const after = await measure()
+    const noticeShown = await page.evaluate(() => {
+      const n = document.querySelector('.k-notice--band')
+      return n ? (n.textContent || '').trim().length > 0 : false
+    })
+    if (!noticeShown) note(`${o.name}/提示`, '撞墙之后没有出现提示（测不到布局是否移动）')
+    else if (before.surface && after.surface) {
+      if (before.surface.top !== after.surface.top) {
+        note(`${o.name}/提示`, `提示出现把棋盘推移了 ${after.surface.top - before.surface.top}px`)
+      }
+      if (before.surface.h !== after.surface.h) {
+        note(`${o.name}/提示`, `提示出现让棋盘高度从 ${before.surface.h} 变成 ${after.surface.h}`)
+      }
+    }
+  }
+
+// ---------- 对话框 ----------
   await page.evaluate(() =>
     window.__moquApp.navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true }),
   )

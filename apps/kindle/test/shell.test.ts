@@ -397,6 +397,65 @@ describe('Kindle 壳层', () => {
     expect(pad!.querySelectorAll('.k-dpad__btn').length, '方向键数量不对').toBe(4)
   })
 
+  /*
+   * 墙 / 障碍必须画出来。
+   *
+   * `wall` 是玩法与壳层的约定：贪吃蛇的视图注释写着「障碍 = 斜纹底（kind 'wall'，
+   * 壳层用纹理而不是灰度）」，推箱子的墙同样是 `wall`。
+   * 而渲染器原先在图形分支里对 `wall` 直接 return null、格子又是白底 ——
+   * 于是**墙是隐形的**：推箱子看起来"还没走到边框就被拦住"（用户报的），
+   * 贪吃蛇会撞上看不见的东西。
+   */
+  it('墙 / 障碍有可见纹理（推箱子 / 贪吃蛇）', () => {
+    const cases: Array<[string, string]> = [
+      ['sokoban', 'starter'],
+      ['snake', 'challenging'], // 入门档是「可穿墙」，本来就没障碍；挑战档才有
+    ]
+    for (const [id, difficulty] of cases) {
+      window.localStorage.clear()
+      const root = makeRoot()
+      startApp(root, library).navigate('game', { gameId: id, difficulty, fresh: true })
+      const walls = root.querySelectorAll('.k-board__cell[data-kind="wall"]')
+      expect(walls.length, `${id} 这一档应该有墙/障碍`).toBeGreaterThan(0)
+      const table = root.querySelector('.k-board') as HTMLElement
+      expect(table.getAttribute('style') ?? '', `${id} 没铺斜纹（墙看不见）`).toContain('background-image')
+      const style = walls[0].getAttribute('style') ?? ''
+      expect(style, `${id} 的墙格不是透明的（斜纹会被自己的白底盖住）`).toContain('background:transparent')
+    }
+  })
+
+  /*
+   * 提示条必须**常驻占位**，高度不随提示出现而变。
+   *
+   * 原先它只在有内容时才插进文档流，于是每次「这个方向走不通」都把棋盘往下推 74px
+   * （实测），而且 .k-main 的高度是钉死的、棋盘还会跟着缩小 ——
+   * 墨水屏上等于"眼睛刚对准就换了一屏"。
+   * 几何断言（真实浏览器量棋盘有没有动）在 kindle-audit.mjs 里；
+   * 这里守的是 DOM 层面的前提：无论有没有提示，这个盒子都在、且 min-height 一样。
+   */
+  it('提示条常驻占位：有没有提示都在，且预留高度一致', () => {
+    const root = makeRoot()
+    startApp(root, library).navigate('game', { gameId: 'sokoban', difficulty: 'starter', fresh: true })
+    const readBand = (): { count: number; minHeight: string } => {
+      const bands = root.querySelectorAll('.k-notice--band')
+      const el0 = bands[0] as HTMLElement | undefined
+      return { count: bands.length, minHeight: el0 ? el0.style.minHeight : '' }
+    }
+    const before = readBand()
+    expect(before.count, '没有提示时提示条就不见了').toBe(1)
+    expect(before.minHeight, '提示条没有预留高度').not.toBe('')
+
+    // 撞墙 → 出提示
+    const right = Array.from(root.querySelectorAll('.k-dpad__btn')).find(
+      (b) => (b.textContent ?? '').trim() === '右',
+    ) as HTMLElement | undefined
+    expect(right, '找不到「右」方向键').toBeTruthy()
+    right!.click()
+    const after = readBand()
+    expect(after.count, '有提示时提示条数量变了').toBe(before.count)
+    expect(after.minHeight, '有提示时预留高度变了（棋盘会被推动）').toBe(before.minHeight)
+  })
+
   it('设置页能把语言切到英文并即时生效', () => {
     const root = makeRoot()
     const app = startApp(root, library)

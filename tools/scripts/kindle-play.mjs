@@ -104,14 +104,33 @@ async function interact(index, cellSelectable) {
        * 而扫雷/数织的未翻开格又是 `hidden` 而不是 `empty` —— 这条启发式两头都不讨好。
        * 把整块盘点一遍最稳：能动的那些格自然会动。
        */
-      const store = window.__kProbeClicked || (window.__kProbeClicked = {})
-      const fresh = boards.filter((c, idx) => !store[idx])
-      const pool = fresh.length > 0 ? fresh : boards
-      if (fresh.length === 0) { for (const k in store) delete store[k] }
-      const chosen = pool[i % pool.length]
-      const pos = boards.indexOf(chosen)
-      store[pos >= 0 ? pos : i] = true
-      chosen.click()
+      /*
+       * 顺序打散后再点，**不要从 index 0 顺着点**。
+       *
+       * 象棋 / 象棋类玩法要"先选自己的子、再点落点"两步；从 0 顺序点的话，
+       * 前 18 次全落在对方棋子和空格上，永远选不到自己的子 ——
+       * 于是把"探针不会下棋"报成了"局面毫无推进"（实测 0→48 两步是能走成的）。
+       * 打散之后 18 次点击能铺满整盘，选中自己的子会立刻让快照变化（选中态有描边）。
+       */
+      const order = window.__kProbeOrder || (window.__kProbeOrder = (function () {
+        const arr = []
+        for (let k = 0; k < boards.length; k++) arr.push(k)
+        /*
+         * 固定种子的洗牌：可复现、与时间无关。
+         * 用 MINSTD（48271 × 2147483647 ≈ 1e14 < 2^53）—— 换成常见的
+         * `seed * 1103515245` 会**超出 JS 安全整数范围**，乘法丢精度、序列退化，
+         * 洗出来的顺序几乎还是原来的顺序（象棋因此一直点不到自己的子）。
+         */
+        let seed = 12345
+        for (let k = arr.length - 1; k > 0; k--) {
+          seed = (seed * 48271) % 2147483647
+          const j = seed % (k + 1)
+          const t = arr[k]; arr[k] = arr[j]; arr[j] = t
+        }
+        return arr
+      })())
+      const pos = order[i % order.length]
+      boards[pos].click()
       return 'board'
     }
     const cards = pick(Array.from(document.querySelectorAll('.k-card, .k-pile')))
@@ -171,7 +190,7 @@ for (const o of ORIENTATIONS) {
     await page.evaluate((g) => window.__moquApp.navigate('game', { gameId: g, difficulty: 'starter', fresh: true }), id)
     await page.waitForTimeout(450)
 
-    await page.evaluate(() => { window.__kProbeClicked = {} })
+    await page.evaluate(() => { window.__kProbeClicked = {}; window.__kProbeOrder = null })
     const initial = await snap()
     // 自动步进的玩法（贪吃蛇/俄罗斯方块/对手回合）不动也会自己变
     await page.waitForTimeout(1300)

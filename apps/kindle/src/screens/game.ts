@@ -28,6 +28,13 @@ import { topBar, button, showDialog, progressBar } from './common.js'
  */
 const CHROME_TOP = 52
 const CHROME_STATS = 30
+/**
+ * 提示条预留的一行高度（px）：13px 字 × 1.4 行高 + 上下内边距 12 + 下边框 1 ≈ 32，取 34 留余量。
+ *
+ * 这个值**必须够放下常见提示的一行**，否则"有提示"会比"没提示"高，棋盘又开始动。
+ * 各玩法非法动作提示最长 19.2 个全角字（英文），在 600px 宽的屏上也只占一行。
+ */
+const NOTICE_LINE = 34
 const CHROME_BOTTOM_TEE = 150
 const CHROME_BOTTOM_ROW = 110
 const CHROME_BOTTOM_MIN = 60
@@ -252,12 +259,28 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       }),
     )
 
+    /*
+     * 提示条：**高度先按一行预留，空着也占位**。
+     *
+     * 原先只在有内容时才把这行插进文档流，后果是每次「走不通」都把棋盘往下推 74px
+     * （实测），而且 .k-main 的高度是钉死的、棋盘还会跟着缩小 ——
+     * 墨水屏上这等于"眼睛刚对准就换了一屏"，玩家报的就是这个。
+     * 现代版的做法同样是"状态条高度始终不变"（见 packages/ui/src/styles.css）。
+     *
+     * 用 min-height 而不是 height：常见提示（「这个方向走不通」7 字、各玩法的非法动作
+     * 提示最长 19 字）一行足够，于是"有提示"和"没提示"的盒子高度**完全相同**，
+     * 棋盘一动不动；坏档说明那类长文案（最长 96 字）允许把它撑高 ——
+     * 那是一次性的、发生在开局，撑高一次可以接受，总比把字静默切掉好。
+     */
     const statusText = pendingStatus ? ctx.t(pendingStatus) : session.noticeKey ? ctx.t(session.noticeKey) : null
-    if (statusText) {
-      root.appendChild(
-        el('div', { class: 'k-notice', style: 'padding:6px 10px;border-bottom:1px solid #000;font-size:13px;line-height:1.4;' }, statusText),
-      )
-    }
+    const noticeBand = el('div', {
+      class: 'k-notice k-notice--band',
+      style:
+        'box-sizing:border-box;min-height:' + NOTICE_LINE + 'px;margin:0 0 6px 0;padding:6px 10px;' +
+        'border:none;border-bottom:1px solid #000;font-size:13px;line-height:1.4;overflow:visible;',
+    })
+    if (statusText) noticeBand.appendChild(el('span', {}, statusText))
+    root.appendChild(noticeBand)
 
     /*
      * 存档写不进去：常驻一行警告 + 重试。
