@@ -497,21 +497,7 @@ function renderCell(
     inner.appendChild(banner)
   }
 
-  // 填错标记：1px 的叉**覆盖**住数字（黑白屏上不能靠颜色，用形状）
-  if (cellView.wrong === true) {
-    const cross = el('span', { class: 'k-board__wrong', style: 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;' })
-    if (svgSupported()) {
-      const node = svg({})
-      node.setAttribute('width', '100%')
-      node.setAttribute('height', '100%')
-      node.appendChild(shape('line', { x1: 4, y1: 4, x2: 20, y2: 20, stroke: '#000', 'stroke-width': 1.6 }))
-      node.appendChild(shape('line', { x1: 20, y1: 4, x2: 4, y2: 20, stroke: '#000', 'stroke-width': 1.6 }))
-      cross.appendChild(node)
-    } else {
-      cross.appendChild(el('span', { style: 'font-size:' + Math.round(size * 0.9) + 'px;line-height:' + size + 'px;' }, '×'))
-    }
-    inner.appendChild(cross)
-  }
+
 
   td.appendChild(inner)
 
