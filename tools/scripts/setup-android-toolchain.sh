@@ -2,7 +2,7 @@
 # 安装 Android 构建链到工作区内的 .toolchain/（不依赖 apt，不使用 /tmp，可重复执行）。
 #
 # 版本是本仓库锁定并经实测的组合：
-#   JDK 17 (Temurin) + Android SDK platform 35 / build-tools 35.0.0 + Gradle 8.14.3 + AGP 8.13.2
+#   JDK 17 (Temurin) + Android SDK platform 35 / build-tools 35.0.0 + Gradle 8.14.3 + AGP 8.7.3
 #
 # 用法：
 #   bash tools/scripts/setup-android-toolchain.sh

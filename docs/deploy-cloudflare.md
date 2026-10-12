@@ -22,10 +22,10 @@
 |---|---|
 | 构建命令（Build command） | `npm run build:web` —— **必填**：Workers Builds 里这是"可选"字段，留空会直接跳到部署，报 `assets.directory ... does not exist` |
 | 部署命令（Deploy command） | 留默认 `npx wrangler deploy` |
-| 预览命令（Preview command） | 留默认 `npx wrangler preview`（非生产分支的预览构建用它；也可改成 `npx wrangler versions upload` 拿版本 URL） |
+| 预览命令（Preview command） | 留默认 `npx wrangler versions upload`（非生产分支的预览构建用它；也可改成 `npx wrangler versions upload` 拿版本 URL） |
 | 根目录（Root directory） | 留空（npm workspaces 单仓，依赖必须在根装） |
 | 构建变量 | 一般不用设：镜像默认 **Node 24.18**，且会读仓库根的 `.nvmrc`（本仓库写了 `24`）。要固定则设 `NODE_VERSION=24`（Vite 8 需要 ≥ 20.19 / 22.12） |
-| 构建监视路径（可选） | `apps/web/*`、`packages/*`、`package-lock.json` |
+| 构建监视路径（可选） | `apps/web/**`、`packages/**`、`package-lock.json`、`tsconfig.json`、`tools/scripts/generate-sw.mjs` |
 
 **`wrangler.jsonc` 里的 `name` 必须与你 Cloudflare 上那个 Worker 同名**（现为 `moqu`），否则会去部署/新建另一个 Worker。
 

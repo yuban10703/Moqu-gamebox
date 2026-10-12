@@ -12,6 +12,8 @@
 | Vitest / jsdom | 5.0.x / 30.x | 测试 | MIT |
 | @testing-library/react / @testing-library/dom | 16.x / 10.x | 组件测试 | MIT |
 | fake-indexeddb | 6.x | IndexedDB 测试替身 | Apache-2.0 |
+| `@types/node` | ^26.6.4 | Node API 类型声明（构建脚本 / 探针） | MIT |
+| `@types/react` / `@types/react-dom` | 19.3.x | React 类型声明 | MIT |
 | androidx.webkit | 1.12.1 | WebViewAssetLoader（https 源加载内置资源） | Apache-2.0 |
 | Kotlin stdlib | 2.2.21 | Android 壳 | Apache-2.0 |
 | JUnit | 4.13.2 | 壳层单元测试 | EPL-1.0 |

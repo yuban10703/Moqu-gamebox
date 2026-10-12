@@ -62,9 +62,9 @@ class JsBridge(
     }
 
     @JavascriptInterface
-    fun saveCas(key: String, expected: String?, value: String): String {
+    fun saveCas(key: String, expected: String?, value: String): String = storageGuard({ failure("io") }) {
         val (success, current) = store.cas(key, expected, value)
-        return if (success) {
+        if (success) {
             ok()
         } else {
             JSONObject()
