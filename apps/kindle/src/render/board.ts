@@ -398,6 +398,17 @@ function renderCell(
   } else if (cellView.kind === 'wall') {
     // 墙 / 障碍：同样透明，让整盘那层**粗**斜纹透出来（见上面的说明）
     css += 'background:transparent;color:#000;'
+  } else if (cellView.kind === 'mine') {
+    /*
+     * 地雷格/固化格：**实心黑块 + 白字**（React 样式表同一条规则：
+     * .eink-board__cell[data-kind='mine'] { background: var(--ink-black) }）。
+     *
+     * 两种用法：扫雷翻出雷 = 白字"●"压在黑块上；俄罗斯方块落定后的方块
+     * （kind 'mine' + 空 glyph）= 一块纯黑。**这条样式缺了，固化块就整块消失**
+     * —— Kindle 渲染器原先漏了它：俄罗斯方块“落地就消失”（用户反馈），
+     * 而同一份视图数据在 web 上一直是黑块。
+     */
+    css += 'background:#000;color:#fff;'
   } else css += 'background:#fff;color:#000;'
 
   if (cellView.selected === true) css += 'box-shadow:inset 0 0 0 2px #000;'

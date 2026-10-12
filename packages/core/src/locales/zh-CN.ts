@@ -88,6 +88,7 @@ export const zhCN: Dict = {
   'shell.storage.saved': '已保存',
   'shell.storage.count': '已有存档',
   'shell.storage.saving': '保存中…',
+  'shell.storage.statusFailed': '存档失败',
   'shell.storage.failed': '保存失败：{reason}',
   'shell.storage.reason.io': '存储写入失败',
   'shell.storage.reason.quota': '存储空间不足',

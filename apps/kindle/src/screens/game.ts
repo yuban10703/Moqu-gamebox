@@ -246,12 +246,20 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
     } else if (!entry.hideDifficulty && session.difficulty) {
       titleParts.push(ctx.t(ns + '.difficulty.' + session.difficulty))
     }
-    const saveMark =
-      session.saveStatus === 'saved' ? ' ✓' : session.saveStatus === 'saving' ? ' …' : session.saveStatus === 'failed' ? ' ✗' : ''
+    /*
+     * 顶栏保存状态用**状态词**：已保存 / 保存中… / 存档失败。
+     * 原先借的是 shell.storage.title（「数据管理」）+ ✓ —— 用户看到的是一个
+     * 莫名其妙的「数据管理 ✓」，既不是状态也不是动作（视觉检查发现的）。
+     */
+    const saveStatusText =
+      session.saveStatus === 'saving' ? ctx.t('shell.storage.saving')
+        : session.saveStatus === 'failed' ? ctx.t('shell.storage.statusFailed')
+          : session.saveStatus === 'saved' ? ctx.t('shell.storage.saved')
+            : undefined
     root.appendChild(
       topBar(ctx, {
         title: titleParts.join(' · '),
-        subtitle: saveMark ? ctx.t('shell.storage.title') + saveMark : undefined,
+        subtitle: saveStatusText,
         onBack: function openMenu(): void {
           openPauseMenu()
         },

@@ -32,6 +32,8 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
    * 也不要先多放 —— 多放的那一帧会把分页器顶出屏幕，看起来就像"翻不了页"。
    */
   let rowHeight = 100
+  let columns = 1
+  let measureRuns = 0
   let pageSize = pageSizeFor(ctx.height - 260, rowHeight).size
   let pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
   /*
@@ -65,7 +67,29 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     const pagerEl = root.querySelector('.k-pager') as HTMLElement | null
     if (!topbar || !firstRow) return
 
-    const rowPx = firstRow.offsetHeight + 6 // 6 = 行间距（margin-bottom）
+    /*
+     * 行高取**最高的一行**而不是第一行：横屏两列时卡片只有一半宽，
+     * 16 格进度条（推箱子）会在窄卡里换行，那一行比别的行高 ——
+     * 按第一行算会把整页排得太密，最后一行被页脚裁掉。
+     */
+    let rowPx = firstRow.offsetHeight + 6 // 6 = 行间距（margin-bottom）
+    const allRows = root.querySelectorAll('.k-list__item')
+    for (let i = 0; i < allRows.length; i++) {
+      const h = (allRows[i] as HTMLElement).offsetHeight + 6
+      if (h > rowPx) rowPx = h
+    }
+
+    /*
+     * 列数按**实际渲染宽度**推：横屏媒体查询把条目压到 48%（两列），
+     * 而上面的 pageSizeFor 只算了**单列**行数 —— 横屏一页实容纳是它的两倍，
+     * 照旧只排 rows 个，右半屏整片空着（用户反馈：屏幕明明放得下更多）。
+     * 奇数页大小还会让两列 4/3 不均衡 —— 容量乘上列数后，两列各满一列。
+     */
+    const list = root.querySelector('.k-list') as HTMLElement | null
+    if (list && firstRow.offsetWidth > 0) {
+      const cols = Math.round(list.clientWidth / firstRow.offsetWidth)
+      columns = cols >= 2 ? 2 : 1
+    }
     if (rowPx <= 10) return // 还没布局（隐藏/零尺寸）：下次再说
 
     const bandTop = topbar.getBoundingClientRect().bottom
@@ -73,16 +97,21 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     const pagerPx = pagerEl ? pagerEl.offsetHeight + 8 : 52
     const available = bandBottom - bandTop - pagerPx - 12
     const next = pageSizeFor(available, rowPx)
+    const size = Math.max(1, next.rows * columns)
 
-    measured = true
-    if (next.size !== pageSize) {
+    // 容量变化后行高可能随宽度再变（进度条不再换行，行会变矮）：允许再量一轮，
+    // 三轮封顶 —— 反复重排在墨水屏上就是闪烁，必须收敛。
+    measureRuns += 1
+    if (size !== pageSize && measureRuns < 3) {
       rowHeight = rowPx
-      pageSize = next.size
+      pageSize = size
       pageCount = Math.max(1, Math.ceil(entries.length / pageSize))
       if (page >= pageCount) page = pageCount - 1
       selected = 0
       draw()
+      return
     }
+    measured = true
   }
 
   function draw(): void {

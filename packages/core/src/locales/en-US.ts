@@ -86,6 +86,7 @@ export const enUS: Dict = {
   'shell.storage.saved': 'Saved',
   'shell.storage.count': 'Saves on this device',
   'shell.storage.saving': 'Saving…',
+  'shell.storage.statusFailed': 'Save failed',
   'shell.storage.failed': 'Save failed: {reason}',
   'shell.storage.reason.io': 'storage write failed',
   'shell.storage.reason.quota': 'not enough storage space',
