@@ -456,7 +456,17 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
       cornerLeft: undoHidden ? null : button('↶', function undo(): void { session.undo() }, { small: true, disabled: !session.hasControl('undo') }),
       cornerRight: restartHidden ? null : button('↻', function restart(): void { askRestart() }, { small: true }),
     })
-    root.appendChild(el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar))
+    /*
+     * 页脚预算**由对局页自己声明**（min-height = 本页的 chromeBottom 预算）：
+     * 样式表里的 .k-footer { min-height: 156px } 是为「书库/带方向盘对局」定的
+     * 预算栏——在只有一行「撤销」的棋类上（无方向盘 + 紧凑档），就把手机屏的
+     * 一大块空页脚硬顶出来（用户真机截图：撤销 下方一整段空白）。
+     * 逐屏声明后：紧凑档 40 / 常规 60 / tee 104 / row 52，各玩法的页脚都贴合内容。
+     */
+    const footer = root.appendChild(
+      el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar),
+    )
+    footer.style.minHeight = chromeBottom + 'px'
 
     // DOM 已经进文档，可以量真实高度了
     fitToViewport()
