@@ -76,15 +76,22 @@ export function createAndroidKv(bridge: EinkNativeBridge): KvBackend {
       if (!result.ok) throw new Error(result.error ?? 'bridge delete failed')
     },
     async keys(prefix) {
+      let parsed: unknown
       try {
-        const parsed = JSON.parse(bridge.saveKeys(prefix)) as unknown
-        return Array.isArray(parsed) ? parsed.map((item) => String(item)).sort() : []
+        parsed = JSON.parse(bridge.saveKeys(prefix)) as unknown
       } catch {
-        return []
+        throw new Error('bridge keys failed: bad response')
       }
+      if (!Array.isArray(parsed)) throw new Error('bridge keys failed: bad response')
+      return parsed.map((item) => String(item)).sort()
     },
     async commitCas(key, expectedValue, newValue) {
       const result = parseResult(bridge.saveCas(key, expectedValue, newValue))
+      // 带 error 的失败是**真错误**（I/O / 坏响应），必须上抛让上层归类成 io；
+      // 只有「无 error 的 not ok」才是真正的 CAS 冲突（另一处已写入）
+      if (!result.ok && result.error !== undefined && result.error.length > 0) {
+        throw new Error(result.error)
+      }
       if (result.ok) return { ok: true }
       return { ok: false, current: result.current ?? null }
     },

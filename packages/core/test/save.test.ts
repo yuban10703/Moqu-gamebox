@@ -322,3 +322,42 @@ describe('设置模型', () => {
     expect(effectiveSettings(parsed, 'sokoban').difficulty).toBe('skilled')
   })
 })
+
+describe('recover() 的损坏档保护（评审发现：陈旧 pending 曾覆盖损坏 committed）', () => {
+  it('committed 外部损坏时：原文先归档进 backup（字节保留），pending 救回进度，corrupt 有上报', async () => {
+    const kv = createMemoryKv()
+    const store = createSaveStore(kv, { now: () => NOW })
+    let walked = envelope()
+    for (let id = 1; id <= 5; id++) {
+      await store.commit(step(walked, { type: 'move', dir: 'up' }, NOW + id))
+      walked = (await store.load('sokoban'))!
+    }
+    const committedKey = 'save:1:committed:sokoban'
+    kv.setMany([[committedKey, 'corrupted{']])
+    // 残留一份旧的 pending（模拟崩溃窗口里的未提交意图）
+    kv.setMany([['save:1:pending:sokoban', JSON.stringify({ target: JSON.parse(JSON.stringify(envelope())) })]])
+
+    const report = await store.recover()
+    expect(report.recovered).toContain('sokoban')
+    expect(report.corrupt).toContain('sokoban')
+
+    // 损坏原文按字节归档进 backup 槽，绝不随覆盖丢失
+    const backupKeys = await kv.keys('save:1:backup:sokoban:')
+    expect(backupKeys.length).toBeGreaterThan(0)
+    expect(await kv.get(backupKeys[0]!)).toBe('corrupted{')
+
+    // 进度救回：pending 的 envelope 已成为 committed
+    const loaded = await store.load('sokoban')
+    expect(loaded).not.toBeNull()
+  })
+
+  it('QuotaExceededError 按 name 归类为 quota（message 不含关键词时也要认出来）', async () => {
+    const kv = createMemoryKv()
+    const store = createSaveStore(kv, { now: () => NOW })
+    const error = new Error('cas write failed')
+    error.name = 'QuotaExceededError'
+    kv.failNext(error)
+    const result = await store.commit(envelope())
+    expect(result).toMatchObject({ ok: false, reason: 'quota' })
+  })
+})

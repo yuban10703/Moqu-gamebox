@@ -84,6 +84,13 @@ export type LoadResult =
   | { status: 'corrupt'; reason: 'corrupt' | 'unsupported-version' }
 
 const NS = 'save:1'
+
+/** 配额错误分类：优先看 error.name —— QuotaExceededError 的 message 各家实现不一，只看文案会把空间不足误报成 I/O */
+function isQuotaError(error: unknown): boolean {
+  if (error instanceof Error && error.name === 'QuotaExceededError') return true
+  const message = error instanceof Error ? error.message : String(error)
+  return /quota|exceeded|space/i.test(message)
+}
 const committedKey = (gameId: string) => `${NS}:committed:${gameId}`
 const pendingKey = (gameId: string) => `${NS}:pending:${gameId}`
 const backupKey = (gameId: string, slot: number) => `${NS}:backup:${gameId}:${slot}`
@@ -130,7 +137,7 @@ export function createSaveStore(
         return { ok: true, commitId: target.commitId }
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
-        return { ok: false, reason: /quota|exceeded|space/i.test(detail) ? 'quota' : 'io', detail }
+        return { ok: false, reason: isQuotaError(error) ? 'quota' : 'io', detail }
       }
     },
 
@@ -162,9 +169,11 @@ export function createSaveStore(
         await kv.del(pendingKey(envelope.gameId))
         return { ok: true, commitId: target.commitId }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        const quota = /quota|exceeded|space/i.test(message)
-        return { ok: false, reason: quota ? 'quota' : 'io', detail: message }
+        return {
+          ok: false,
+          reason: isQuotaError(error) ? 'quota' : 'io',
+          detail: error instanceof Error ? error.message : String(error),
+        }
       }
     },
 
@@ -234,6 +243,21 @@ export function createSaveStore(
           continue
         }
         const committed = await readEnvelope(committedKey(gameId))
+        if (committed.status === 'corrupt') {
+          // 首章声明「损坏档不自动删除、给导出入口」：pending 不能**静默覆盖**损坏的已提交档 ——
+          // 先把原文归档进 backup 槽（CAS 只认领空槽，不会踩到已存在的备份），归档成功才继续救回；
+          // 归档失败（极端 I/O）就保留 pending 原地不动，等下次 recover 重试。
+          const raw = await kv.get(committedKey(gameId))
+          let archived = false
+          if (raw !== null) {
+            for (let offset = 0; offset < 1000; offset++) {
+              const claim = await kv.commitCas(backupKey(gameId, offset), null, raw)
+              if (claim.ok) { archived = true; break }
+            }
+          }
+          report.corrupt.push(gameId)
+          if (!archived) continue
+        }
         const committedId = committed.status === 'ok' ? committed.envelope.commitId : null
         if (committedId === null || target.commitId > committedId) {
           await kv.setMany([[committedKey(gameId), JSON.stringify(target)]])

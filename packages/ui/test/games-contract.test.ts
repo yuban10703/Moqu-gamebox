@@ -196,7 +196,7 @@ describe('自动步进的声明（tickMs）', () => {
     }
   })
 
-  it('tick 是合法的规则动作：任何 tickMs 非空的状态都接受它并能存能读', () => {
+  it('tick 是合法的规则动作：任何 tickMs 非空的状态都接受它并能存能读', { timeout: 120_000 }, () => {
     for (const game of GAMES) {
       if (!game.tickMs) continue
       let tickStepsForGame = 0

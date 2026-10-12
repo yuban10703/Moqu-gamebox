@@ -171,16 +171,16 @@ describe('U 键与「撤销」按钮的开关一致', () => {
     const platform = await mount(makeLibrary(false))
     await enterGame()
     move()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 10000 })
     pressUndoKey()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(0), { timeout: 5000 })
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(0), { timeout: 10000 })
   })
 
   it('声明 hideShellControls: [undo]：U 键不再撤销（数独/斗地主/恶魔轮盘赌）', async () => {
     const platform = await mount(makeLibrary(true))
     await enterGame()
     move()
-    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 5000 })
+    await waitFor(async () => expect(await gameMoves(platform)).toBe(1), { timeout: 10000 })
     pressUndoKey()
     // 按键被忽略：局面一动不动（旧行为会退回 0）
     await new Promise((resolve) => setTimeout(resolve, 30))

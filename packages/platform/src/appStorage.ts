@@ -182,6 +182,21 @@ export async function createAppStorage(options: AppStorageOptions = {}): Promise
     const metas = await saves.list()
     const envelopes: SaveEnvelope[] = []
     for (const meta of metas) {
+      if (meta.corrupt) {
+        // 损坏的存档**绝不静默消失**：正文读不出来时，尽力从备份槽捞最新的一份有效 envelope 带上；
+        // 损坏原文本身仍留在 kv 里（recover() 会归档），诊断页保有导出/清除入口。
+        let salvaged: SaveEnvelope | null = null
+        for (const slot of await listBackups()) {
+          if (slot.gameId !== meta.gameId || slot.meta === null) continue
+          const text = await kv.get(`${BACKUP_PREFIX}${slot.gameId}:${slot.slot}`)
+          if (!text) continue
+          const parsed = parseEnvelope(text)
+          if (!parsed.ok) continue
+          if (salvaged === null || parsed.envelope.commitId > salvaged.commitId) salvaged = parsed.envelope
+        }
+        if (salvaged) envelopes.push(salvaged)
+        continue
+      }
       const envelope = await saves.load(meta.gameId)
       if (envelope) envelopes.push(envelope)
     }

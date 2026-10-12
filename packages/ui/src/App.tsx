@@ -93,11 +93,16 @@ function Shell({ library }: { library: GameLibrary }): ReactNode {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      const report = await platform.storage.recover()
-      if (cancelled) return
-      setRecovery(report)
-      await refreshSaves()
-      await platform.offline.ensure()
+      try {
+        const report = await platform.storage.recover()
+        if (cancelled) return
+        setRecovery(report)
+        await refreshSaves()
+        await platform.offline.ensure()
+      } catch (error) {
+        // 桥/存储不可用：界面要仍能打开（设置页有「无法持久化」的降级提示），不能白屏
+        console.warn('storage recover failed', error)
+      }
     })()
     return () => {
       cancelled = true
