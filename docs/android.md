@@ -22,6 +22,7 @@ npm run build:apk       # 产出 apps/android/app/build/outputs/apk/debug/app-de
 ```bash
 adb install -r apps/android/app/build/outputs/apk/debug/app-debug.apk
 adb logcat -s MainActivity   # 壳层日志
+- 真机连不上（`adb connect` 报 `10061` / `No route to host`）：多为设备侧无线调试没开或端口不在 5555 —— 插一次 USB 跑 `adb tcpip 5555` 后重连；一键体检：`bash tools/device/verify-device.sh`
 ```
 
 首次运行请到 **首页 → 诊断**（首页页脚「诊断」按钮；帮助页里也有入口，设置页没有）复制设备基线，回填 [A01](A01-device-baseline.md)。
@@ -39,9 +40,14 @@ adb logcat -s MainActivity   # 壳层日志
 | 文件导入导出 | SAF（`ACTION_CREATE_DOCUMENT` / `ACTION_OPEN_DOCUMENT`） | WebView 内的下载不可靠 |
 | 桥调用 | 绝不阻塞 JavaBridge 线程：需要 UI 的操作 post 到主线程，结果用 JS 回调返回 | 阻塞桥会把后续自动保存一起卡住 |
 
-## 签名与发布（尚未完成，属 M5/G04）
+## 签名与发布（已实现，2026-10-05 起）
 
-- 目前只产出 **debug** 签名 APK；正式签名需生成 keystore 并配置 `signingConfigs`；
+- CI（`.github/workflows/release-apk.yml`）从 Secrets 注入 `EINK_*` 四个变量构建正式 keystore；
+  **EINK_* 缺任一即自动回退 debug keystore**（本地构建走的正是回退路径），签名方式随 Release 说明公布；
+- 产物 `moqu-<版本>.apk`，SHA-256 写进发布说明；版本一致性：CI 目前只校验**根 package.json == versionName**
+  （apps/web/package.json、package-lock、core/version.ts 需人工同步，截至本文均为 0.1.7 ✓）；
+- debug / release 两变体均 `isMinifyEnabled = false`（不收缩不混淆：壳层只有 6 个 Kotlin 文件，
+  收益小、排查成本大 —— 刻意取舍，APK 1.5~1.8 MB 与 R8 无关）；
 - 上架相关（隐私说明、内容分级、目标 API 要求）在决定分发渠道后再核对当时要求；
 - 升级路径要求：覆盖安装保留数据（`allowBackup=true`，且存档在应用私有目录）。
 

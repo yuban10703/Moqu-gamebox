@@ -158,7 +158,7 @@ npm run smoke:web                       # 运行冒烟测试
 | `packages/games/minesweeper` | 47 | 确定性、**首点 9 格安全**、洪水连锁范围、标记模式、赢/输、坏数据拒绝 |
 | `packages/games/2048` | 57 | 确定性、合并规则（不连锁）、无变化方向抛错、撤销与快照一致、won/lost、生成比例 |
 
-全仓 `npm run check`：**1251 passed | 1 skipped**，类型检查与 i18n（中英对齐 + 硬编码扫描）通过。
+全仓 `npm run check`：**1251 passed | 1 skipped**（2026-10-07 当时；**当前实测 120 文件 / 1869 passed | 1 skipped**），类型检查与 i18n（中英对齐 + 硬编码扫描）通过。
 
 ### 真机布局审计（逐款开局，检查按钮是否越界、有无缺键）
 
@@ -308,7 +308,7 @@ npm run explore                            # 五个套件一起跑
 新增回归测试「填入合法但错误的数字后存档仍可加载」。
 
 **放大检查**：这类缺陷是**一类**问题，因此加了跨全部游戏的通用契约测试
-`packages/ui/test/games-contract.test.ts`：对 6 款游戏 × 各档难度随机走 60 步合法动作，
+`packages/ui/test/games-contract.test.ts`：对 6 款游戏（当时；现为全部 20 款）× 各档难度随机走 60 步合法动作，
 **每一步之后 encode → decode 都必须成功且往返一致**。6 款全部通过 → 数独是唯一实例。
 
 
@@ -391,7 +391,7 @@ npm run explore                            # 五个套件一起跑
 ## 一条命令跑完全部验证：`npm run verify`
 
 ```
-▶ 类型检查 + 单元测试 + i18n + 构建 + 文档核对（npm run check）   ✓ 1251 passed | 1 skipped
+▶ 类型检查 + 单元测试 + i18n + 构建 + 文档核对（npm run check）   ✓ 1251 passed | 1 skipped（2026-10-07 当时；**当前 1869 passed | 1 skipped**）
 ▶ 探索套件 1/5：界面与交互        ✓ 124 项断言
 ▶ 探索套件 2/5：数据完整性        ✓  38 项断言
 ▶ 探索套件 3/5：完整流程          ✓  13 项断言

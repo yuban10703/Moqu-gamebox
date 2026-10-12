@@ -6,7 +6,7 @@
 
 | 平台 | 下限 | 依据 |
 |---|---|---|
-| Android APK | `minSdk 23`（Android 6.0） | BOOX 老机型（Note/Nova 早期固件）为 Android 6；WebView 语法按 **chrome110 基线**构建（`apps/web/vite.config.ts`；chrome69 的老降级方案已放弃，实测目标机 WebView 是 Chrome/146） |
+| Android APK | `minSdk 23`（Android 6.0） | BOOX 老机型（Note/Nova 早期固件）为 Android 6；WebView 语法按 **chrome110 基线**构建（`apps/web/vite.config.ts`；chrome69 的老降级方案已放弃，实测目标机 WebView：P6Plus 是 Chrome/146、NoteX2 是 Chrome/156（两台不同，别混用）） |
 | Android 目标 | `targetSdk 35` | 覆盖较新固件；未使用任何受限 API（无网络权限、无存储权限） |
 | Web | chrome110 / Safari 16 级别的现代浏览器（构建目标见 `apps/web/vite.config.ts`） | Service Worker 仅作渐进增强，不可用时仍可游玩（只是不能离线冷启动） |
 

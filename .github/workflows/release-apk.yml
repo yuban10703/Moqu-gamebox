@@ -36,10 +36,13 @@ jobs:
             echo "::error::没能从 $GRADLE_FILE 读到 versionName / versionCode"
             exit 1
           fi
-          # package.json 的 version 必须与 versionName 一致，避免"改了一个忘另一个"
+          # 版本一致性：根 package.json / apps/web/package.json / core/version.ts 都必须与 versionName 一致
+          # （评审发现：此前只校根包，「改了一个忘另外三个」CI 抓不到）
           PKG=$(node -p "require('./package.json').version")
-          if [ "$PKG" != "$NAME" ]; then
-            echo "::error::package.json 是 $PKG，build.gradle.kts 是 $NAME —— 请改成一致再发布"
+          WEB=$(node -p "require('./apps/web/package.json').version")
+          CORE=$(grep -oE "APP_VERSION = '[^']+'" packages/core/src/version.ts | cut -d"'" -f2)
+          if [ "$PKG" != "$NAME" ] || [ "$WEB" != "$NAME" ] || [ "$CORE" != "$NAME" ]; then
+            echo "::error::版本不一致：根包 $PKG / web $WEB / core $CORE，build.gradle.kts 是 $NAME —— 请统一后再发布"
             exit 1
           fi
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
