@@ -41,10 +41,6 @@ class NativeStore(context: Context) :
         writableDatabase.execSQL("DELETE FROM kv WHERE k = ?", arrayOf<Any>(key))
     }
 
-    fun deletePrefix(prefix: String) {
-        writableDatabase.execSQL("DELETE FROM kv WHERE k LIKE ? || '%'", arrayOf<Any>(prefix))
-    }
-
     fun keys(prefix: String): List<String> =
         writableDatabase.rawQuery(
             "SELECT k FROM kv WHERE k LIKE ? || '%' ORDER BY k",

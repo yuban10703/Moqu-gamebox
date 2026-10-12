@@ -57,12 +57,6 @@ class JsBridge(
     }
 
     @JavascriptInterface
-    fun saveDeletePrefix(prefix: String): String = storageGuard({ failure("io") }) {
-        store.deletePrefix(prefix)
-        ok()
-    }
-
-    @JavascriptInterface
     fun saveKeys(prefix: String): String = storageGuard({ failure("io") }) {
         JSONArray(store.keys(prefix)).toString()
     }
