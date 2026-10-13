@@ -137,8 +137,15 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
     const key = function key(dir: MoveDir): HTMLElement {
       const control = find(dir)
       if (!control) return el('span', { class: 'k-dpad__empty', style: 'display:inline-block;width:' + options.size + 'px;height:' + options.size + 'px;' })
+      /*
+       * min-width/min-height 必须随 size 一起内联：样式表的 .k-dpad__btn 还挂着
+       * 旧固定尺寸时代的 min 72×72 + padding 22px——内联的 width/height 会被
+       * 类的 min 顶掉（实测：紧凑档传 40，真实渲染 72 高，方块玩法页脚被撑爆，
+       * fitToViewport 收敛失败走「允许滚动」兜底，棋盘下半被页脚盖住）。
+       */
       let css =
         'display:inline-block;width:' + options.size + 'px;height:' + options.size + 'px;' +
+        'min-width:' + options.size + 'px;min-height:' + options.size + 'px;' +
         'line-height:' + (options.size - 4) + 'px;padding:0;box-sizing:border-box;' +
         'border:1px solid #000;border-radius:4px;font-size:16px;text-align:center;' +
         'background:#fff;color:#000;'
@@ -173,6 +180,21 @@ export function renderControls(controls: readonly ControlSpec[], ctx: RenderCtx,
       node.style.margin = ''
       node.style.padding = ''
       node.style.display = ''
+      /*
+       * 尺寸与方向键**逐像素一致**（含 min-width/min-height）：
+       * 样式表里 `.k-dpad--tee .k-dpad__corner` 还挂着旧固定尺寸时代的
+       * min 72px，而方向键的尺寸现在由渲染器按档位给出（紧凑 44 / 常规 52）——
+       * 只清行内样式已经不够了：实测上排 52/52/52、下排 72/72/72，
+       * 三列边界对不上（审计报「方向键与角落按钮宽高不一致」，用户报过"按钮错位"）。
+       */
+      node.style.width = options.size + 'px'
+      node.style.height = options.size + 'px'
+      node.style.minWidth = options.size + 'px'
+      node.style.minHeight = options.size + 'px'
+      node.style.lineHeight = options.size - 4 + 'px'
+      node.style.boxSizing = 'border-box'
+      node.style.padding = '0'
+      node.style.margin = '0 auto'
     }
 
     if (options.layout === 'row') {

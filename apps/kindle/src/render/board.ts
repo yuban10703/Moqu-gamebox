@@ -48,8 +48,23 @@ const FALLBACK_TEXT: Record<string, string> = {
   wall: '█',
 }
 
-/** 格子边长下限：低于它数字与符号就读不清了（真机实测 24px 是底线） */
+/**
+ * 格子边长**首选**下限：低于它数字与符号偏小（真机实测 24px 最舒服）。
+ * 注意这只是"能舒服就舒服"，不是硬地板 —— 见 ABSOLUTE_MIN_CELL。
+ */
 const MIN_CELL = 24
+/**
+ * 格子边长**绝对**下限。
+ *
+ * 为什么必须有第二档：`computeCellSize` 取宽高两种约束的较小值，而**高棋盘**
+ * （俄罗斯方块 10×18）在手机上约束在高度——可用带子 330px 时每格只有 ~17px，
+ * 被 24px 硬地板顶回去后整盘固定 468px，`fitToViewport` 收敛注定失败，
+ * 于是掉进"允许滚动"兜底：主区 height:auto，棋盘下半被贴底页脚盖住
+ * （用户真机反馈「俄罗斯方块还是不对」的**最终根因**）。
+ * 交互靠的是方向盘按键（44px，另一套下限），格子小一点只是看得紧，
+ * 但"看不到/点不到"是硬缺陷——所以这里让位给布局。
+ */
+const ABSOLUTE_MIN_CELL = 12
 /**
  * 格子边长上限。
  *
@@ -179,8 +194,8 @@ export function computeCellSize(cols: number, rows: number, width: number, heigh
     const byHeight = Math.floor((height - 8) / rows)
     if (byHeight < byWidth) byWidth = byHeight
   }
-  if (byWidth < MIN_CELL) return MIN_CELL
   if (byWidth > MAX_CELL) return MAX_CELL
+  if (byWidth < MIN_CELL) return Math.max(ABSOLUTE_MIN_CELL, byWidth)
   return byWidth
 }
 
@@ -227,7 +242,18 @@ export function renderBoard(container: HTMLElement, board: BoardView, ctx: Rende
     ctx.height - topBand - rows * 2,
   )
 
+  /*
+   * **表格必须有显式宽度**，table-layout:fixed 才会按首行格子的指定尺寸切列。
+   * 没有宽度时（auto），fixed 布局退化为内容布局：列宽 = max(格子指定宽,
+   * 字形 min-content)——俄罗斯方块的积木字形按 1.5 倍字格画（textScale 1.5），
+   * 手机上格子缩到 ~17px 时字形仍占 ~24px，整盘被撑到 245×439，
+   * 任凭收敛链怎么压都压不进带子，最后掉进「允许滚动」兜底
+   * （棋盘下半被页脚盖住——用户真机反馈的最终根因）。
+   * 显式宽度 + fixed：列宽严格 = 计算格边，字形多余部分由格子的
+   * overflow:hidden 裁掉，棋盘任意视口都严格等于预算。
+   */
   const table = el('table', { class: 'k-board', cellspacing: '0', cellpadding: '0' })
+  table.setAttribute('style', 'table-layout:fixed;width:' + (cols * cell + cols * 2) + 'px;margin:0 auto;border-collapse:collapse;')
   table.setAttribute('role', 'grid')
   table.setAttribute('aria-rowcount', String(rows))
   table.setAttribute('aria-colcount', String(cols))
@@ -347,7 +373,15 @@ function renderCell(
   const border = '1px solid #000'
   let css =
     'width:' + size + 'px;height:' + size + 'px;padding:0;position:relative;' +
-    'vertical-align:middle;text-align:center;overflow:hidden;box-sizing:border-box;'
+    'vertical-align:middle;text-align:center;overflow:hidden;box-sizing:border-box;' +
+    /*
+     * 行盒的 strut 必须钉在格边上：td 继承的字体（22px）会给每一行强加
+     * ~25px 的最小行高——表格行高取「指定高度与内容最小值」的较大者，
+     * 手机上格子缩到 15~17px 时整盘被 strut 撑到 450px+，怎么收敛都放不下，
+     * 最终掉进「允许滚动」兜底、棋盘下半被页脚盖住（用户真机反馈）。
+     * 钉住后行高 = 格边长，字形字号随格缩放（.k-board__glyph 的 span 自带）。
+     */
+    'line-height:' + size + 'px;'
   css += 'border:' + border + ';'
 
   // 同块合并：只去掉**共享的那条边**两侧的格线（棋子朝外的那条边必须留着）
