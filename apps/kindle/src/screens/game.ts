@@ -155,6 +155,17 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
   let fitAttempts = 0
   let nudged = false
   let scrollFallback = false
+  /*
+   * 页脚高度下限 = **本屏见过的最高内容高度**。
+   *
+   * 样式表给 .k-footer 的 min-height（156 / 手机 164）是给方向盘定的"预算栏"：
+   * 只放一个「撤销」的玩法（华容道/关灯/记忆/象棋/国际象棋/黑白棋/五子棋…）
+   * 白吃 ~100px 屏高，手机上那一条空白就是用户说的「撤销按钮占了很大一块」。
+   * 直接贴内容又不行：同一屏里按钮会随局面增减（扫雷的标记模式、斗地主叫分、
+   * 数独键盘），页脚忽高忽低会让棋盘上下跳（墨水屏上尤其刺眼）。
+   * 所以取"见过最高"作下限：贴内容、又不随局面缩水，只在真的需要时变高。
+   */
+  let footerFloor = 0
 
   const session = createSession<unknown, unknown>({
     game: game as GameDef<unknown, unknown>,
@@ -466,9 +477,17 @@ export const renderGame: Screen = function renderGame(root: HTMLElement, ctx: Sc
      * 让页脚自然包住内容，主区高度由 fitToViewport 按实测的页脚顶收敛，
      * 布局必然自洽；页脚下面的 CSS min-height 156px（预算栏基准）继续兜底书库。
      */
-    root.appendChild(
+    const footerEl = root.appendChild(
       el('div', { class: 'k-footer', style: 'border-top:1px solid #000;padding:4px 8px;' }, controlBar),
     )
+    /*
+     * 贴内容 + 见过的最高内容作下限（见 footerFloor 注释）。
+     * **必须先清零 min-height 再量**：不清零量到的是样式表的 156/164 预算栏，
+     * 于是"下限"永远等于预算栏，等于没改（第一版就栽在这里）。
+     */
+    footerEl.style.minHeight = '0'
+    if (footerEl.offsetHeight > footerFloor) footerFloor = footerEl.offsetHeight
+    footerEl.style.minHeight = footerFloor + 'px'
 
     // DOM 已经进文档，可以量真实高度了
     fitToViewport()
