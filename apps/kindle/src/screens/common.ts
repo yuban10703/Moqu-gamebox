@@ -256,3 +256,24 @@ export function mount(root: HTMLElement, children: HTMLElement[]): void {
   clear(root)
   for (let i = 0; i < children.length; i++) root.appendChild(children[i])
 }
+
+/**
+ * 让页脚**贴住内容**，并把主区的底部预留改成实测页脚高 + 间距。
+ *
+ * 背景：`.k-footer` 的 min-height（156 / 横屏 100 / 极矮 108 / 手机 164）与
+ * `.k-main` 的 margin-bottom（168 起）是给**对局页方向盘**定的"预算栏"；
+ * 而书库 / 关于 / 详情 / 设置 / 诊断这几屏的页脚只有一个按钮行（≈56px）——
+ * 手机上白吃 ~108px 屏高：分页器下面拖着一大片空白，省下的高度本来还能
+ * 多排一行卡片（用户真机反馈「首页的底栏太大了」）。
+ *
+ * 对局页**不走这里**：那边页脚装的是方向盘，尺寸与 chromeBottom 预算联动、
+ * 由 fitToViewport 按实测页脚顶收敛，继续保留预算栏语义。
+ */
+export function hugFooter(root: HTMLElement, footer: HTMLElement): void {
+  footer.style.minHeight = '0'
+  const main = root.querySelector('.k-main') as HTMLElement | null
+  if (!main) return
+  // offsetHeight 会强制一次布局；量不到（还在隐藏容器里）就下次再说
+  const h = footer.offsetHeight
+  if (h > 0) main.style.marginBottom = Math.round(h) + 12 + 'px'
+}

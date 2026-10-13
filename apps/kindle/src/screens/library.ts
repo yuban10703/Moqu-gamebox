@@ -9,7 +9,7 @@
 import { el, clear, on } from '../dom.js'
 import type { Screen, ScreenCtx } from '../screen-ctx.js'
 import { loadProgress } from '../store.js'
-import { topBar, button, pager, progressBar } from './common.js'
+import { topBar, button, pager, progressBar, hugFooter } from './common.js'
 
 /**
  * 每页条数。
@@ -182,6 +182,8 @@ export const renderLibrary: Screen = function renderLibrary(root: HTMLElement, c
     nav.appendChild(button(ctx.t('shell.nav.about'), function toAbout(): void { ctx.navigate('about') }, { small: true }))
     nav.appendChild(button(ctx.t('shell.nav.diagnostics'), function toDiag(): void { ctx.navigate('diagnostics') }, { small: true }))
     root.appendChild(nav)
+    // 页脚贴内容（只有「关于 / 诊断」两个小按钮），省下的高度还给列表
+    hugFooter(root, nav)
 
     measure()
   }

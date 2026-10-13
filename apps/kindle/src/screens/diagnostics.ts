@@ -9,7 +9,7 @@ import { APP_VERSION } from '@eink/core'
 import { el, clear, on } from '../dom.js'
 import type { Screen, ScreenCtx } from '../screen-ctx.js'
 import { listSaves, loadProgress, storageAvailable } from '../store.js'
-import { topBar, button, field, pager } from './common.js'
+import { topBar, button, field, pager, hugFooter } from './common.js'
 import { svgSupported } from '../render/svg.js'
 
 interface Probe {
@@ -221,6 +221,8 @@ export const renderDiagnostics: Screen = function renderDiagnostics(root: HTMLEl
     footer.appendChild(button(ctx.t('shell.settings.title'), function settings(): void { ctx.navigate('settings') }, { small: true }))
     footer.appendChild(button(ctx.t('shell.nav.about'), function about(): void { ctx.navigate('about') }, { small: true }))
     root.appendChild(footer)
+    // 页脚只装一行按钮/分页器：贴内容，别按对局页的 156px 预算栏留白
+    hugFooter(root, footer)
   }
 
   /** 把这一页要显示的所有内容建成"块"（标题 / 行 / 按钮 / 报告框） */

@@ -7,7 +7,7 @@
 import { el, clear, on } from '../dom.js'
 import type { Screen, ScreenCtx } from '../screen-ctx.js'
 import { clearAll, listSaves, loadSettings, rawSaves, saveSettings, storageAvailable } from '../store.js'
-import { topBar, button, showDialog, field } from './common.js'
+import { topBar, button, showDialog, field, hugFooter } from './common.js'
 
 export const renderSettings: Screen = function renderSettings(root: HTMLElement, ctx: ScreenCtx): () => void {
   const unbinds: Array<() => void> = []
@@ -139,6 +139,7 @@ export const renderSettings: Screen = function renderSettings(root: HTMLElement,
     footer.appendChild(button(ctx.t('shell.nav.about'), function about(): void { ctx.navigate('about') }, { small: true }))
     footer.appendChild(button(ctx.t('shell.nav.diagnostics'), function diag(): void { ctx.navigate('diagnostics') }, { small: true }))
     root.appendChild(footer)
+    hugFooter(root, footer)
   }
 
   unbinds.push(

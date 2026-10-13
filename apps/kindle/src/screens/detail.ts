@@ -11,7 +11,7 @@ import { el, clear, on } from '../dom.js'
 import { supportsSwipe } from '@eink/ui'
 import { findEntry, type Screen, type ScreenCtx } from '../screen-ctx.js'
 import { loadProgress, loadSave } from '../store.js'
-import { topBar, button, showDialog, field } from './common.js'
+import { topBar, button, showDialog, field, hugFooter } from './common.js'
 
 export const renderDetail: Screen = function renderDetail(root: HTMLElement, ctx: ScreenCtx): () => void {
   const found = findEntry(ctx.library, ctx.params.gameId)
@@ -202,6 +202,8 @@ export const renderDetail: Screen = function renderDetail(root: HTMLElement, ctx
       )
     }
     root.appendChild(footer)
+    // 页脚只装一行按钮/分页器：贴内容，别按对局页的 156px 预算栏留白
+    hugFooter(root, footer)
   }
 
   unbinds.push(

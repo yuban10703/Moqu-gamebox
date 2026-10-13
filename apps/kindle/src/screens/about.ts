@@ -9,7 +9,7 @@ import { AUTHOR_INFO } from '@eink/ui/screens/authorInfo.js'
 import { PROJECT_INFO } from '@eink/ui/screens/projectInfo.js'
 import { el, clear, on } from '../dom.js'
 import type { Screen, ScreenCtx } from '../screen-ctx.js'
-import { topBar, button, field } from './common.js'
+import { topBar, button, field, hugFooter } from './common.js'
 
 export const renderAbout: Screen = function renderAbout(root: HTMLElement, ctx: ScreenCtx): () => void {
   const unbinds: Array<() => void> = []
@@ -69,6 +69,7 @@ export const renderAbout: Screen = function renderAbout(root: HTMLElement, ctx: 
     footer.appendChild(button(ctx.t('shell.nav.settings'), function settings(): void { ctx.navigate('settings') }, { small: true }))
     footer.appendChild(button(ctx.t('shell.nav.diagnostics'), function diag(): void { ctx.navigate('diagnostics') }, { small: true }))
     root.appendChild(footer)
+    hugFooter(root, footer)
   }
 
   unbinds.push(
